@@ -15,10 +15,10 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.RpgHqConspiration">
 
-        <!-- Tela de conexão: será a primeira tela do aplicativo -->
         <activity
             android:name=".ConexaoActivity"
             android:exported="true"
+            android:screenOrientation="reverseLandscape"
             android:windowSoftInputMode="adjustResize">
 
             <intent-filter>
@@ -28,10 +28,10 @@
 
         </activity>
 
-        <!-- Tela principal dos GIFs -->
         <activity
             android:name=".MainActivity"
             android:exported="false"
+            android:screenOrientation="reverseLandscape"
             android:windowSoftInputMode="adjustResize" />
 
     </application>
