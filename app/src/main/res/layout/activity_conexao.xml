@@ -21,9 +21,10 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Conectar com outro usuário"
+        android:text="Escolha como deseja utilizar o aplicativo"
         android:textColor="#CCCCCC"
         android:textSize="16sp"
+        android:gravity="center"
         android:layout_marginBottom="24dp"/>
 
     <EditText
@@ -47,10 +48,25 @@
         android:layout_marginTop="20dp"/>
 
     <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="OU"
+        android:textColor="#AAAAAA"
+        android:layout_marginTop="18dp"
+        android:layout_marginBottom="8dp"/>
+
+    <Button
+        android:id="@+id/botaoUsarSemConexao"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="USAR SEM CONEXÃO"
+        android:layout_marginTop="8dp"/>
+
+    <TextView
         android:id="@+id/statusConexao"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Informe o ID para iniciar."
+        android:text="Escolha uma das opções."
         android:textColor="#FFFFFF"
         android:textSize="14sp"
         android:gravity="center"

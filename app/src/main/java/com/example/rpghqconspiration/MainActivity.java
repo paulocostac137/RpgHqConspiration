@@ -122,6 +122,9 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean atividadeEncerrada = false;
 
+    // Identifica se o aplicativo está funcionando sem servidor.
+    private boolean modoIndividual = false;
+
     private boolean controleRemotoAtivo = false;
 
     private boolean carregando = false;
@@ -776,11 +779,34 @@ public class MainActivity extends AppCompatActivity {
         configurarControles();
 
         /*
-         * Reutiliza a conexão feita na ConexaoActivity.
-         * Não cria outro WebSocket.
+         * Identifica o modo de funcionamento.
+         *
+         * Individual: não utiliza conexão com servidor.
+         * Multiplayer: reutiliza a conexão já estabelecida.
          */
 
-        conectarServidor();
+        modoIndividual = getIntent().getBooleanExtra(
+                "modo_individual",
+                false
+        );
+
+        if (modoIndividual) {
+
+            servicoConexao = null;
+
+            status.setText(
+                    "Modo individual. Sem conexão com o servidor."
+            );
+
+            Log.d(
+                    TAG,
+                    "Aplicativo iniciado em modo individual."
+            );
+
+        } else {
+
+            conectarServidor();
+        }
 
         carregarPlanilha();
     }
