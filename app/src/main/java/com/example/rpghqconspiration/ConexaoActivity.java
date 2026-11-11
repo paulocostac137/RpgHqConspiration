@@ -7,7 +7,6 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
-
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
@@ -26,7 +25,10 @@ public class ConexaoActivity extends AppCompatActivity {
     public static ServicoConexao conexao;
 
     private EditText campoCodigoPar;
+
     private Button botaoConectar;
+    private Button botaoUsarSemConexao;
+
     private TextView statusConexao;
 
     private boolean abriuTelaPrincipal = false;
@@ -95,11 +97,31 @@ public class ConexaoActivity extends AppCompatActivity {
 
         ativarModoImersivo();
 
-        campoCodigoPar = findViewById(R.id.campoCodigoPar);
-        botaoConectar = findViewById(R.id.botaoConectar);
-        statusConexao = findViewById(R.id.statusConexao);
+        // Localizar componentes da tela.
 
-        botaoConectar.setOnClickListener(v -> iniciarConexao());
+        campoCodigoPar =
+                findViewById(R.id.campoCodigoPar);
+
+        botaoConectar =
+                findViewById(R.id.botaoConectar);
+
+        botaoUsarSemConexao =
+                findViewById(R.id.botaoUsarSemConexao);
+
+        statusConexao =
+                findViewById(R.id.statusConexao);
+
+        // Configurar botão multiplayer.
+
+        botaoConectar.setOnClickListener(
+                v -> iniciarConexao()
+        );
+
+        // Configurar botão de modo individual.
+
+        botaoUsarSemConexao.setOnClickListener(
+                v -> abrirModoIndividual()
+        );
 
         /*
          * Não cria outra conexão se já existe uma instância.
@@ -107,11 +129,15 @@ public class ConexaoActivity extends AppCompatActivity {
 
         if (conexao == null) {
 
-            conexao = new ServicoConexao(criarCallback());
+            conexao = new ServicoConexao(
+                    criarCallback()
+            );
 
         } else {
 
-            conexao.definirCallback(criarCallback());
+            conexao.definirCallback(
+                    criarCallback()
+            );
 
             if (conexao.estaConectado()) {
 
@@ -123,12 +149,65 @@ public class ConexaoActivity extends AppCompatActivity {
     }
 
     // =====================================================
-    // INICIAR CONEXÃO
+    // MODO INDIVIDUAL
+    // =====================================================
+
+    private void abrirModoIndividual() {
+
+        Log.d(
+                TAG,
+                "Abrindo aplicativo em modo individual."
+        );
+
+        /*
+         * Impede abertura duplicada.
+         */
+
+        if (abriuTelaPrincipal) {
+            return;
+        }
+
+        abriuTelaPrincipal = true;
+
+        /*
+         * Desativa os botões durante a transição.
+         */
+
+        botaoConectar.setEnabled(false);
+
+        botaoUsarSemConexao.setEnabled(false);
+
+        campoCodigoPar.setEnabled(false);
+
+        statusConexao.setText(
+                "Abrindo modo individual..."
+        );
+
+        /*
+         * Abre a MainActivity sem iniciar WebSocket.
+         */
+
+        Intent intent = new Intent(
+                ConexaoActivity.this,
+                MainActivity.class
+        );
+
+        intent.putExtra(
+                "modo_individual",
+                true
+        );
+
+        startActivity(intent);
+    }
+
+    // =====================================================
+    // INICIAR CONEXÃO MULTIPLAYER
     // =====================================================
 
     private void iniciarConexao() {
 
-        if (conexao != null && conexao.estaConectado()) {
+        if (conexao != null &&
+                conexao.estaConectado()) {
 
             statusConexao.setText(
                     "Você já está conectado ao servidor."
@@ -143,7 +222,9 @@ public class ConexaoActivity extends AppCompatActivity {
 
         if (codigo.isEmpty()) {
 
-            campoCodigoPar.setError("Digite o código da sala.");
+            campoCodigoPar.setError(
+                    "Digite o código da sala."
+            );
 
             campoCodigoPar.requestFocus();
 
@@ -151,9 +232,13 @@ public class ConexaoActivity extends AppCompatActivity {
         }
 
         abriuTelaPrincipal = false;
+
         aguardandoParceiro = false;
 
         botaoConectar.setEnabled(false);
+
+        botaoUsarSemConexao.setEnabled(false);
+
         campoCodigoPar.setEnabled(false);
 
         statusConexao.setText(
@@ -162,11 +247,15 @@ public class ConexaoActivity extends AppCompatActivity {
 
         if (conexao == null) {
 
-            conexao = new ServicoConexao(criarCallback());
+            conexao = new ServicoConexao(
+                    criarCallback()
+            );
 
         } else {
 
-            conexao.definirCallback(criarCallback());
+            conexao.definirCallback(
+                    criarCallback()
+            );
         }
 
         conexao.conectar(codigo);
@@ -183,47 +272,81 @@ public class ConexaoActivity extends AppCompatActivity {
             @Override
             public void onConectado() {
 
-                Log.d(TAG, "Conexão WebSocket estabelecida.");
+                runOnUiThread(() -> {
 
-                statusConexao.setText(
-                        "Servidor conectado. Entrando na sala..."
-                );
+                    if (isFinishing() || isDestroyed()) {
+                        return;
+                    }
+
+                    Log.d(
+                            TAG,
+                            "Conexão WebSocket estabelecida."
+                    );
+
+                    statusConexao.setText(
+                            "Servidor conectado. Entrando na sala..."
+                    );
+                });
             }
 
             @Override
             public void onDesconectado(String motivo) {
 
-                Log.d(TAG, "Conexão encerrada: " + motivo);
+                runOnUiThread(() -> {
 
-                if (!abriuTelaPrincipal) {
+                    if (isFinishing() || isDestroyed()) {
+                        return;
+                    }
 
-                    statusConexao.setText(
-                            "Conexão encerrada. Tente novamente."
+                    Log.d(
+                            TAG,
+                            "Conexão encerrada: " + motivo
                     );
 
-                    liberarTelaConexao();
-                }
+                    if (!abriuTelaPrincipal) {
+
+                        statusConexao.setText(
+                                "Conexão encerrada. Tente novamente."
+                        );
+
+                        liberarTelaConexao();
+                    }
+                });
             }
 
             @Override
             public void onMensagem(JSONObject mensagem) {
 
-                processarMensagem(mensagem);
+                runOnUiThread(() -> {
+
+                    if (isFinishing() || isDestroyed()) {
+                        return;
+                    }
+
+                    processarMensagem(mensagem);
+                });
             }
 
             @Override
             public void onErro(String erro) {
 
-                Log.e(TAG, erro);
+                runOnUiThread(() -> {
 
-                if (!abriuTelaPrincipal) {
+                    if (isFinishing() || isDestroyed()) {
+                        return;
+                    }
 
-                    statusConexao.setText(
-                            "Erro: " + erro
-                    );
+                    Log.e(TAG, erro);
 
-                    liberarTelaConexao();
-                }
+                    if (!abriuTelaPrincipal) {
+
+                        statusConexao.setText(
+                                "Erro: " + erro
+                        );
+
+                        liberarTelaConexao();
+                    }
+                });
             }
         };
     }
@@ -234,15 +357,24 @@ public class ConexaoActivity extends AppCompatActivity {
 
     private void processarMensagem(JSONObject mensagem) {
 
-        String tipo = mensagem.optString("type", "");
+        String tipo = mensagem.optString(
+                "type",
+                ""
+        );
 
-        Log.d(TAG, "Evento recebido do servidor: " + mensagem);
+        Log.d(
+                TAG,
+                "Evento recebido do servidor: " + mensagem
+        );
 
         switch (tipo) {
 
             case "joined": {
 
-                int usuarios = mensagem.optInt("users", 0);
+                int usuarios = mensagem.optInt(
+                        "users",
+                        0
+                );
 
                 if (usuarios >= 2) {
 
@@ -296,8 +428,10 @@ public class ConexaoActivity extends AppCompatActivity {
 
             default: {
 
-                Log.d(TAG,
-                        "Evento não tratado: " + tipo);
+                Log.d(
+                        TAG,
+                        "Evento não tratado: " + tipo
+                );
 
                 break;
             }
@@ -305,7 +439,7 @@ public class ConexaoActivity extends AppCompatActivity {
     }
 
     // =====================================================
-    // ABRIR TELA PRINCIPAL
+    // ABRIR TELA PRINCIPAL MULTIPLAYER
     // =====================================================
 
     private void abrirTelaPrincipal() {
@@ -314,7 +448,8 @@ public class ConexaoActivity extends AppCompatActivity {
             return;
         }
 
-        if (conexao == null || !conexao.estaConectado()) {
+        if (conexao == null ||
+                !conexao.estaConectado()) {
 
             statusConexao.setText(
                     "A conexão com o servidor foi perdida."
@@ -337,6 +472,11 @@ public class ConexaoActivity extends AppCompatActivity {
                 conexao.getCodigoPar()
         );
 
+        /*
+         * Não envia modo_individual=true.
+         * Assim, a MainActivity inicia o modo multiplayer.
+         */
+
         startActivity(intent);
     }
 
@@ -347,6 +487,9 @@ public class ConexaoActivity extends AppCompatActivity {
     private void liberarTelaConexao() {
 
         botaoConectar.setEnabled(true);
+
+        botaoUsarSemConexao.setEnabled(true);
+
         campoCodigoPar.setEnabled(true);
 
         aguardandoParceiro = false;
@@ -367,7 +510,9 @@ public class ConexaoActivity extends AppCompatActivity {
 
             if (conexao != null) {
 
-                conexao.definirCallback(criarCallback());
+                conexao.definirCallback(
+                        criarCallback()
+                );
             }
         }
     }
@@ -383,6 +528,7 @@ public class ConexaoActivity extends AppCompatActivity {
 
         /*
          * Não desconectar o WebSocket aqui.
+         *
          * A conexão é compartilhada com MainActivity.
          */
     }
