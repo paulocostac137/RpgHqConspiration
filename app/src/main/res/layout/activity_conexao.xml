@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="32dp"
+    android:background="#121212">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="RpgHqConspiration"
+        android:textColor="#FFFFFF"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="16dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Conectar com outro usuário"
+        android:textColor="#CCCCCC"
+        android:textSize="16sp"
+        android:layout_marginBottom="24dp"/>
+
+    <EditText
+        android:id="@+id/campoCodigoPar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Digite o ID do par"
+        android:textColor="#FFFFFF"
+        android:textColorHint="#AAAAAA"
+        android:inputType="text"
+        android:maxLength="32"
+        android:singleLine="true"
+        android:padding="14dp"
+        android:backgroundTint="#FFFFFF"/>
+
+    <Button
+        android:id="@+id/botaoConectar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="CONECTAR"
+        android:layout_marginTop="20dp"/>
+
+    <TextView
+        android:id="@+id/statusConexao"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Informe o ID para iniciar."
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:gravity="center"
+        android:layout_marginTop="20dp"/>
+
+</LinearLayout>

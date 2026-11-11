@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="8dp"
+    android:background="#171717">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="RpgHqConspiration"
+        android:textColor="#FFFFFF"
+        android:textSize="25sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:padding="8dp"/>
+
+    <TextView
+        android:id="@+id/status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Carregando GIFs..."
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:gravity="center"
+        android:padding="6dp"/>
+
+    <!-- ÁREA DOS TRÊS GIFS -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal"
+        android:background="#000000"
+        android:weightSum="3">
+
+        <!-- GIFS SECUNDÁRIOS: COLUNAS C E D -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:background="#000000"
+            android:padding="2dp">
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:background="#111111">
+
+                <ImageView
+                    android:id="@+id/imagemGifC"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:contentDescription="GIF da coluna C"
+                    android:scaleType="fitCenter" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="top|center_horizontal"
+                    android:text="C"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:background="#99000000"
+                    android:padding="3dp"/>
+            </FrameLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="3dp"
+                android:background="#555555"/>
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:background="#111111">
+
+                <ImageView
+                    android:id="@+id/imagemGifD"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="fitCenter"
+                    android:contentDescription="GIF da coluna D"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="top|center_horizontal"
+                    android:text="D"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:background="#99000000"
+                    android:padding="3dp"/>
+            </FrameLayout>
+
+        </LinearLayout>
+
+        <!-- GIF PRINCIPAL: COLUNA B -->
+        <FrameLayout
+            android:id="@+id/areaGif"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="2"
+            android:background="#000000">
+
+            <ImageView
+                android:id="@+id/imagemGif"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="fitCenter"
+                android:contentDescription="GIF principal"/>
+
+            <TextView
+                android:id="@+id/textoPlanilha"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top"
+                android:gravity="center"
+                android:padding="16dp"
+                android:textColor="#FFFFFF"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:maxLines="5"
+                android:ellipsize="end"
+                android:visibility="gone"
+                android:elevation="10dp"/>
+
+            <TextView
+                android:id="@+id/controleEsquerdo"
+                android:layout_width="48dp"
+                android:layout_height="100dp"
+                android:layout_gravity="start|center_vertical"
+                android:layout_marginStart="8dp"
+                android:background="#CC222222"
+                android:gravity="center"
+                android:text="↕"
+                android:textColor="#FFFFFF"
+                android:textSize="30sp"
+                android:textStyle="bold"
+                android:elevation="8dp"/>
+
+            <TextView
+                android:id="@+id/controleDireito"
+                android:layout_width="48dp"
+                android:layout_height="100dp"
+                android:layout_gravity="end|center_vertical"
+                android:layout_marginEnd="8dp"
+                android:background="#CC222222"
+                android:gravity="center"
+                android:text="↕"
+                android:textColor="#FFFFFF"
+                android:textSize="30sp"
+                android:textStyle="bold"
+                android:elevation="8dp"/>
+
+        </FrameLayout>
+
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/botaoProximo"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:layout_marginTop="10dp"
+        android:text="PRÓXIMO GIF"
+        android:textSize="18sp"/>
+
+</LinearLayout>
