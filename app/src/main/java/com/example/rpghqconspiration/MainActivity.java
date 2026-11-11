@@ -63,9 +63,31 @@ public class MainActivity extends AppCompatActivity {
     // TEMPOS
     // =====================================================
 
-    private static final long INTERVALO_GIF_MS = 7000;
+    private static final long JANELA_TEXTO_MS = 7000;
     private static final long TEMPO_TEXTO_MS = 5000;
     private static final long INTERVALO_ATUALIZACAO_MS = 50;
+
+    // =====================================================
+    // CONFIGURAÇÃO DA MOVIMENTAÇÃO
+    // =====================================================
+
+    // São necessários três ciclos completos.
+    private static final int CICLOS_NECESSARIOS = 3;
+
+    // Considera os 15% superiores como extremidade superior.
+    private static final float LIMITE_EXTREMO_SUPERIOR = 0.15f;
+
+    // Considera os 15% inferiores como extremidade inferior.
+    private static final float LIMITE_EXTREMO_INFERIOR = 0.85f;
+
+    private int ciclosConcluidos = 0;
+
+    // 0 = começou em cima
+    // 1 = começou embaixo
+    // -1 = ainda não identificou uma extremidade
+    private int extremoInicial = -1;
+
+    private boolean alcancouExtremoOposto = false;
 
     // =====================================================
     // COMPONENTES
@@ -111,18 +133,10 @@ public class MainActivity extends AppCompatActivity {
     private final Handler handler =
             new Handler(Looper.getMainLooper());
 
-    /*
-     * IMPORTANTE:
-     *
-     * Não existe mais um WebSocket próprio nesta Activity.
-     * A conexão será reutilizada da ConexaoActivity.
-     */
-
     private ServicoConexao servicoConexao;
 
     private boolean atividadeEncerrada = false;
 
-    // Identifica se o aplicativo está funcionando sem servidor.
     private boolean modoIndividual = false;
 
     private boolean controleRemotoAtivo = false;
@@ -167,49 +181,6 @@ public class MainActivity extends AppCompatActivity {
 
     private int idDedoEsquerdo = -1;
     private int idDedoDireito = -1;
-
-    // =====================================================
-    // TROCA AUTOMÁTICA
-    // =====================================================
-
-    private final Runnable trocaAutomaticaGif = new Runnable() {
-
-        @Override
-        public void run() {
-
-            if (atividadeEncerrada ||
-                    isFinishing() ||
-                    isDestroyed()) {
-                return;
-            }
-
-            if (controleManualAtivo ||
-                    controleRemotoAtivo) {
-
-                handler.postDelayed(this, 250);
-                return;
-            }
-
-            if (!nomes.isEmpty() && !carregando) {
-                proximoGif();
-            } else {
-                handler.postDelayed(
-                        this,
-                        INTERVALO_GIF_MS
-                );
-            }
-        }
-    };
-
-    private void iniciarTrocaAutomatica() {
-
-        handler.removeCallbacks(trocaAutomaticaGif);
-
-        handler.postDelayed(
-                trocaAutomaticaGif,
-                INTERVALO_GIF_MS
-        );
-    }
 
     // =====================================================
     // MODO IMERSIVO
@@ -267,11 +238,6 @@ public class MainActivity extends AppCompatActivity {
 
     private void conectarServidor() {
 
-        /*
-         * Recupera exatamente a mesma conexão criada
-         * pela ConexaoActivity.
-         */
-
         servicoConexao = ConexaoActivity.conexao;
 
         if (servicoConexao == null) {
@@ -286,10 +252,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        /*
-         * Confere se a conexão continua aberta.
-         */
-
         if (!servicoConexao.estaConectado()) {
 
             status.setText(
@@ -301,13 +263,6 @@ public class MainActivity extends AppCompatActivity {
 
             return;
         }
-
-        /*
-         * Substitui o callback da tela de conexão
-         * pelo callback da tela principal.
-         *
-         * A conexão WebSocket permanece a mesma.
-         */
 
         servicoConexao.definirCallback(
                 new ServicoConexao.Callback() {
@@ -335,11 +290,7 @@ public class MainActivity extends AppCompatActivity {
 
                         controleRemotoAtivo = false;
 
-                        if (movie != null &&
-                                !controleManualAtivo) {
-
-                            iniciarAnimacao();
-                        }
+                        finalizarMovimentoSeLiberado();
 
                         status.setText(
                                 "Servidor desconectado."
@@ -419,11 +370,7 @@ public class MainActivity extends AppCompatActivity {
 
                 controleRemotoAtivo = false;
 
-                if (movie != null &&
-                        !controleManualAtivo) {
-
-                    iniciarAnimacao();
-                }
+                finalizarMovimentoSeLiberado();
 
                 status.setText(
                         "Parceiro desconectado."
@@ -474,11 +421,7 @@ public class MainActivity extends AppCompatActivity {
             Log.d(TAG,
                     "Parceiro liberou os controles.");
 
-            if (movie != null &&
-                    !controleManualAtivo) {
-
-                iniciarAnimacao();
-            }
+            finalizarMovimentoSeLiberado();
 
             return;
         }
@@ -486,14 +429,6 @@ public class MainActivity extends AppCompatActivity {
         if (movie == null) {
             return;
         }
-
-        /*
-         * Não bloqueamos mais o comando remoto quando
-         * existe um dedo pressionando localmente.
-         *
-         * Isso permite que os dois aparelhos continuem
-         * recebendo atualizações durante movimentos simultâneos.
-         */
 
         float progressoRecebido =
                 (float) dados.optDouble("progress", 0);
@@ -506,6 +441,8 @@ public class MainActivity extends AppCompatActivity {
         controleRemotoAtivo = true;
 
         pausarAnimacao();
+
+        registrarProgressoMovimento(progressoRecebido);
 
         int duracao = movie.duration();
 
@@ -542,11 +479,6 @@ public class MainActivity extends AppCompatActivity {
                                     (altura - 2f * metadeBotao)
             );
 
-            /*
-             * O parceiro movimenta os dois controles
-             * na mesma posição.
-             */
-
             moverBotao(
                     controleEsquerdo,
                     centroY,
@@ -570,11 +502,6 @@ public class MainActivity extends AppCompatActivity {
     private void enviarComandoControle(
             boolean ativo,
             float progresso) {
-
-        /*
-         * O envio agora passa exclusivamente pelo
-         * ServicoConexao compartilhado.
-         */
 
         if (servicoConexao == null) {
 
@@ -605,6 +532,128 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // =====================================================
+    // CONTAGEM DOS CICLOS DE MOVIMENTAÇÃO
+    // =====================================================
+
+    private void registrarProgressoMovimento(float progresso) {
+
+        if (!controleManualAtivo &&
+                !controleRemotoAtivo) {
+
+            return;
+        }
+
+        int extremoAtual = -1;
+
+        if (progresso <= LIMITE_EXTREMO_SUPERIOR) {
+
+            extremoAtual = 0;
+
+        } else if (progresso >= LIMITE_EXTREMO_INFERIOR) {
+
+            extremoAtual = 1;
+        }
+
+        // O controle ainda está na região central.
+        if (extremoAtual == -1) {
+            return;
+        }
+
+        // Registra a primeira extremidade alcançada.
+        if (extremoInicial == -1) {
+
+            extremoInicial = extremoAtual;
+
+            return;
+        }
+
+        // Alcançou a extremidade oposta.
+        if (!alcancouExtremoOposto &&
+                extremoAtual != extremoInicial) {
+
+            alcancouExtremoOposto = true;
+
+            return;
+        }
+
+        // Voltou à extremidade inicial: ciclo completo.
+        if (alcancouExtremoOposto &&
+                extremoAtual == extremoInicial) {
+
+            ciclosConcluidos++;
+
+            alcancouExtremoOposto = false;
+
+            Log.d(
+                    TAG,
+                    "Ciclo completo: " +
+                            ciclosConcluidos +
+                            "/" +
+                            CICLOS_NECESSARIOS
+            );
+        }
+    }
+
+    private void reiniciarContagemMovimentos() {
+
+        ciclosConcluidos = 0;
+
+        extremoInicial = -1;
+
+        alcancouExtremoOposto = false;
+    }
+
+    // =====================================================
+    // DECISÃO APÓS SOLTAR TODOS OS CONTROLES
+    // =====================================================
+
+    private void finalizarMovimentoSeLiberado() {
+
+        // Aguarda todos os controles serem soltos.
+        if (esquerdoPressionado ||
+                direitoPressionado ||
+                controleManualAtivo ||
+                controleRemotoAtivo) {
+
+            return;
+        }
+
+        if (movie == null) {
+
+            reiniciarContagemMovimentos();
+
+            return;
+        }
+
+        if (ciclosConcluidos >= CICLOS_NECESSARIOS) {
+
+            Log.d(
+                    TAG,
+                    "Três ciclos concluídos. Avançando para o próximo GIF."
+            );
+
+            reiniciarContagemMovimentos();
+
+            proximoGif();
+
+            return;
+        }
+
+        Log.d(
+                TAG,
+                "Movimento insuficiente: " +
+                        ciclosConcluidos +
+                        "/" +
+                        CICLOS_NECESSARIOS +
+                        ". Mantendo o GIF atual."
+        );
+
+        reiniciarContagemMovimentos();
+
+        iniciarAnimacao();
+    }
+
+    // =====================================================
     // ATUALIZAÇÃO AUTOMÁTICA DO GIF
     // =====================================================
 
@@ -627,6 +676,7 @@ public class MainActivity extends AppCompatActivity {
 
             long decorrido = agora - inicioReproducao;
 
+            // Loop infinito do GIF.
             posicaoMs = (
                     posicaoMs + decorrido
             ) % duracao;
@@ -707,7 +757,7 @@ public class MainActivity extends AppCompatActivity {
                                     inicioExibicaoGif;
 
                     if (decorrido >= TEMPO_TEXTO_MS &&
-                            decorrido < INTERVALO_GIF_MS) {
+                            decorrido < JANELA_TEXTO_MS) {
 
                         textoPlanilha.setVisibility(View.VISIBLE);
 
@@ -716,7 +766,7 @@ public class MainActivity extends AppCompatActivity {
                         textoPlanilha.setVisibility(View.GONE);
                     }
 
-                    if (decorrido < INTERVALO_GIF_MS) {
+                    if (decorrido < JANELA_TEXTO_MS) {
 
                         handler.postDelayed(
                                 this,
@@ -771,19 +821,12 @@ public class MainActivity extends AppCompatActivity {
 
         botaoProximo.setOnClickListener(v -> {
 
-            handler.removeCallbacks(trocaAutomaticaGif);
+            reiniciarContagemMovimentos();
 
             proximoGif();
         });
 
         configurarControles();
-
-        /*
-         * Identifica o modo de funcionamento.
-         *
-         * Individual: não utiliza conexão com servidor.
-         * Multiplayer: reutiliza a conexão já estabelecida.
-         */
 
         modoIndividual = getIntent().getBooleanExtra(
                 "modo_individual",
@@ -1202,6 +1245,9 @@ public class MainActivity extends AppCompatActivity {
                 Math.min(1f, progresso)
         );
 
+        // Registra cada movimentação para a contagem.
+        registrarProgressoMovimento(progresso);
+
         int duracao = movie.duration();
 
         if (duracao <= 0) {
@@ -1247,10 +1293,6 @@ public class MainActivity extends AppCompatActivity {
         }
 
         desenharQuadro();
-
-        /*
-         * Envia o progresso pela conexão compartilhada.
-         */
 
         enviarComandoControle(
                 true,
@@ -1317,11 +1359,7 @@ public class MainActivity extends AppCompatActivity {
             enviarComandoControle(false, 0f);
         }
 
-        if (movie != null &&
-                !controleRemotoAtivo) {
-
-            iniciarAnimacao();
-        }
+        finalizarMovimentoSeLiberado();
     }
 
     // =====================================================
@@ -1886,8 +1924,6 @@ public class MainActivity extends AppCompatActivity {
                     "Link inválido: " + nome
             );
 
-            iniciarTrocaAutomatica();
-
             return;
         }
 
@@ -2002,8 +2038,6 @@ public class MainActivity extends AppCompatActivity {
                             "Erro no download: " +
                                     e.getMessage()
                     );
-
-                    iniciarTrocaAutomatica();
                 });
 
             } finally {
@@ -2059,8 +2093,6 @@ public class MainActivity extends AppCompatActivity {
 
         handler.removeCallbacks(atualizarTextoPlanilha);
 
-        handler.removeCallbacks(trocaAutomaticaGif);
-
         reproduzindo = false;
 
         movie = null;
@@ -2074,6 +2106,8 @@ public class MainActivity extends AppCompatActivity {
         controleManualAtivo = false;
 
         controleRemotoAtivo = false;
+
+        reiniciarContagemMovimentos();
 
         limparIdentificacaoDedos();
 
@@ -2157,8 +2191,6 @@ public class MainActivity extends AppCompatActivity {
                         handler.post(
                                 atualizarTextoPlanilha
                         );
-
-                        iniciarTrocaAutomatica();
                     });
 
                     status.setText(
@@ -2184,8 +2216,6 @@ public class MainActivity extends AppCompatActivity {
                             "Erro ao abrir GIF: " +
                                     e.getMessage()
                     );
-
-                    iniciarTrocaAutomatica();
                 });
             }
         });
@@ -2210,6 +2240,8 @@ public class MainActivity extends AppCompatActivity {
 
         controleRemotoAtivo = false;
 
+        reiniciarContagemMovimentos();
+
         limparIdentificacaoDedos();
 
         /*
@@ -2217,9 +2249,6 @@ public class MainActivity extends AppCompatActivity {
          *
          * A conexão pertence à ConexaoActivity e deve
          * continuar ativa enquanto a sessão estiver aberta.
-         *
-         * Apenas removemos o callback desta Activity para
-         * evitar que o serviço tente atualizar uma tela destruída.
          */
 
         if (servicoConexao != null) {
