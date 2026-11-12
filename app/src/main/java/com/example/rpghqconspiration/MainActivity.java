@@ -44,6 +44,7 @@ import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "RPGHQ_SYNC";
@@ -86,9 +87,6 @@ public class MainActivity extends AppCompatActivity {
 
     private ImageView imagemGif;
 
-    private GifSincronizadoView imagemGifC;
-    private GifSincronizadoView imagemGifD;
-
     private TextView status;
     private TextView textoPlanilha;
 
@@ -105,15 +103,7 @@ public class MainActivity extends AppCompatActivity {
 
     private final ArrayList<String> nomes = new ArrayList<>();
     private final ArrayList<String> links = new ArrayList<>();
-
-    private final ArrayList<String> linksColunaC =
-            new ArrayList<>();
-
-    private final ArrayList<String> linksColunaD =
-            new ArrayList<>();
-
-    private final ArrayList<String> textosColunaE =
-            new ArrayList<>();
+    private final ArrayList<String> textosPlanilha = new ArrayList<>();
 
     // =====================================================
     // EXECUÇÃO
@@ -140,7 +130,7 @@ public class MainActivity extends AppCompatActivity {
     private int indiceAtual = -1;
 
     // =====================================================
-    // ANIMAÇÃO PRINCIPAL B
+    // ANIMAÇÃO PRINCIPAL
     // =====================================================
 
     private Movie movie;
@@ -641,7 +631,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // =====================================================
-    // ATUALIZAÇÃO AUTOMÁTICA DO GIF PRINCIPAL B
+    // ATUALIZAÇÃO AUTOMÁTICA DA ANIMAÇÃO
     // =====================================================
 
     private final Runnable atualizadorGif = new Runnable() {
@@ -1346,7 +1336,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // =====================================================
-    // PAUSAR ANIMAÇÃO PRINCIPAL
+    // PAUSAR ANIMAÇÃO
     // =====================================================
 
     private void pausarAnimacao() {
@@ -1376,7 +1366,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // =====================================================
-    // RETOMAR ANIMAÇÃO PRINCIPAL
+    // RETOMAR ANIMAÇÃO
     // =====================================================
 
     private void iniciarAnimacao() {
@@ -1400,53 +1390,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // =====================================================
-    // SINCRONIZAÇÃO DOS GIFS C E D COM O GIF B
-    // =====================================================
-
-    private void atualizarPosicaoGifsSecundarios() {
-
-        if (movie == null) return;
-
-        int duracaoB = movie.duration();
-
-        if (duracaoB <= 0) {
-            duracaoB = 1000;
-        }
-
-        float progresso = (float) posicaoMs / duracaoB;
-
-        progresso = Math.max(
-                0f,
-                Math.min(1f, progresso)
-        );
-
-        if (imagemGifC != null &&
-                imagemGifC.possuiGif()) {
-
-            int duracaoC = imagemGifC.getDuracaoMs();
-
-            int posicaoC = Math.round(
-                    progresso * Math.max(0, duracaoC - 1)
-            );
-
-            imagemGifC.definirPosicao(posicaoC);
-        }
-
-        if (imagemGifD != null &&
-                imagemGifD.possuiGif()) {
-
-            int duracaoD = imagemGifD.getDuracaoMs();
-
-            int posicaoD = Math.round(
-                    progresso * Math.max(0, duracaoD - 1)
-            );
-
-            imagemGifD.definirPosicao(posicaoD);
-        }
-    }
-
-    // =====================================================
-    // DESENHO DO QUADRO PRINCIPAL B
+    // DESENHO DO QUADRO
     // =====================================================
 
     private void desenharQuadro() {
@@ -1534,9 +1478,6 @@ public class MainActivity extends AppCompatActivity {
         quadroCanvas.restore();
 
         imagemGif.invalidate();
-
-        // Atualiza os GIFs secundários com o progresso de B.
-        atualizarPosicaoGifsSecundarios();
     }
 
     // =====================================================
@@ -1584,11 +1525,7 @@ public class MainActivity extends AppCompatActivity {
 
                 nomes.clear();
                 links.clear();
-
-                linksColunaC.clear();
-                linksColunaD.clear();
-
-                textosColunaE.clear();
+                textosPlanilha.clear();
 
                 while ((linha = leitor.readLine()) != null) {
 
@@ -1612,15 +1549,8 @@ public class MainActivity extends AppCompatActivity {
                     String link =
                             colunas.get(1).trim();
 
-                    String linkC =
-                            colunas.size() > 2
-                                    ? colunas.get(2).trim()
-                                    : "";
-
-                    String linkD =
-                            colunas.size() > 3
-                                    ? colunas.get(3).trim()
-                                    : "";
+                    // A quinta coluna contém o texto associado
+                    // ao GIF principal.
 
                     String texto =
                             colunas.size() > 4
@@ -1632,11 +1562,7 @@ public class MainActivity extends AppCompatActivity {
 
                         nomes.add(nome);
                         links.add(link);
-
-                        linksColunaC.add(linkC);
-                        linksColunaD.add(linkD);
-
-                        textosColunaE.add(texto);
+                        textosPlanilha.add(texto);
                     }
                 }
 
@@ -1774,199 +1700,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // =====================================================
-    // ATUALIZAÇÃO DOS GIFS SECUNDÁRIOS
-    // =====================================================
-
-    private void atualizarGifsSecundarios(int posicao) {
-
-        if (posicao < 0 ||
-                posicao >= linksColunaC.size() ||
-                posicao >= linksColunaD.size()) {
-
-            imagemGifC.setVisibility(View.INVISIBLE);
-            imagemGifD.setVisibility(View.INVISIBLE);
-
-            return;
-        }
-
-        carregarGifSecundario(
-                posicao,
-                linksColunaC.get(posicao),
-                imagemGifC
-        );
-
-        carregarGifSecundario(
-                posicao,
-                linksColunaD.get(posicao),
-                imagemGifD
-        );
-    }
-
-    // =====================================================
-    // CARREGAMENTO SINCRONIZADO DOS GIFS C E D
-    // =====================================================
-
-    private void carregarGifSecundario(
-            int posicao,
-            String link,
-            GifSincronizadoView imagem) {
-
-        imagem.setVisibility(View.INVISIBLE);
-
-        if (link == null ||
-                link.trim().isEmpty()) {
-
-            return;
-        }
-
-        String id = extrairId(link);
-
-        if (id == null) {
-
-            Log.e(TAG,
-                    "Link secundário inválido: " + link);
-
-            return;
-        }
-
-        File arquivo = new File(
-                pastaGifs,
-                id + ".gif"
-        );
-
-        executor.execute(() -> {
-
-            HttpURLConnection conexao = null;
-
-            File temporario = new File(
-                    pastaGifs,
-                    id + ".part"
-            );
-
-            try {
-
-                if (!arquivo.exists() ||
-                        arquivo.length() <= 0) {
-
-                    String endereco =
-                            "https://drive.usercontent.google.com/download?id=" +
-                                    id +
-                                    "&export=download&confirm=t";
-
-                    conexao = (HttpURLConnection)
-                            new URL(endereco).openConnection();
-
-                    conexao.setConnectTimeout(20000);
-                    conexao.setReadTimeout(30000);
-
-                    conexao.setInstanceFollowRedirects(true);
-
-                    int resposta = conexao.getResponseCode();
-
-                    if (resposta != 200) {
-
-                        throw new Exception(
-                                "Erro HTTP: " + resposta
-                        );
-                    }
-
-                    try (
-                            InputStream entrada =
-                                    conexao.getInputStream();
-
-                            FileOutputStream saida =
-                                    new FileOutputStream(temporario)
-                    ) {
-
-                        byte[] buffer = new byte[8192];
-
-                        int quantidade;
-
-                        while ((quantidade =
-                                entrada.read(buffer)) != -1) {
-
-                            saida.write(buffer, 0, quantidade);
-                        }
-                    }
-
-                    if (temporario.length() <= 0) {
-                        throw new Exception("Arquivo GIF vazio.");
-                    }
-
-                    if (!temporario.renameTo(arquivo)) {
-                        throw new Exception(
-                                "Não foi possível salvar o GIF."
-                        );
-                    }
-                }
-
-                boolean carregado =
-                        imagem.carregarGif(arquivo);
-
-                handler.post(() -> {
-
-                    if (atividadeEncerrada ||
-                            isFinishing() ||
-                            isDestroyed()) {
-
-                        return;
-                    }
-
-                    if (indiceAtual != posicao) {
-                        return;
-                    }
-
-                    if (!carregado) {
-
-                        imagem.setVisibility(View.INVISIBLE);
-
-                        Log.e(TAG,
-                                "Não foi possível decodificar GIF: " + id);
-
-                        return;
-                    }
-
-                    imagem.definirPosicao(0);
-
-                    imagem.setVisibility(View.VISIBLE);
-
-                    atualizarPosicaoGifsSecundarios();
-                });
-
-            } catch (Exception e) {
-
-                temporario.delete();
-
-                Log.e(TAG,
-                        "Erro ao carregar GIF secundário: " + id,
-                        e);
-
-                handler.post(() -> {
-
-                    if (atividadeEncerrada) return;
-
-                    if (indiceAtual == posicao) {
-
-                        imagem.setVisibility(View.INVISIBLE);
-                    }
-                });
-
-            } finally {
-
-                if (conexao != null) {
-                    conexao.disconnect();
-                }
-            }
-        });
-    }
-
-    // =====================================================
     // DOWNLOAD DO GIF PRINCIPAL
     // =====================================================
 
     private void baixarEExibir(int posicao) {
-
-        atualizarGifsSecundarios(posicao);
 
         String nome = nomes.get(posicao);
 
@@ -2167,10 +1904,6 @@ public class MainActivity extends AppCompatActivity {
 
         limparIdentificacaoDedos();
 
-        // Reinicia os GIFs secundários para o novo GIF B.
-        imagemGifC.reiniciar();
-        imagemGifD.reiniciar();
-
         areaGif.post(() -> {
 
             if (atividadeEncerrada) return;
@@ -2224,9 +1957,9 @@ public class MainActivity extends AppCompatActivity {
                     String texto = "";
 
                     if (indiceAtual >= 0 &&
-                            indiceAtual < textosColunaE.size()) {
+                            indiceAtual < textosPlanilha.size()) {
 
-                        texto = textosColunaE.get(indiceAtual);
+                        texto = textosPlanilha.get(indiceAtual);
                     }
 
                     textoPlanilha.setText(texto);
@@ -2313,14 +2046,6 @@ public class MainActivity extends AppCompatActivity {
 
         if (servicoConexao != null) {
             servicoConexao.definirCallback(null);
-        }
-
-        if (imagemGifC != null) {
-            imagemGifC.reiniciar();
-        }
-
-        if (imagemGifD != null) {
-            imagemGifD.reiniciar();
         }
 
         if (quadroBitmap != null) {
