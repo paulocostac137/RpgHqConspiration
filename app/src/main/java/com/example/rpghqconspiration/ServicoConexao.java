@@ -19,7 +19,7 @@ public class ServicoConexao {
     private static final String TAG = "ServicoConexao";
 
     private static final String URL_SERVIDOR =
-            "wss://rpghqserver.onrender.com";
+            "wss://rpghqserver-1.onrender.com";
 
     public interface Callback {
         void onConectado();
