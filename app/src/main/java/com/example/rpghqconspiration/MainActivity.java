@@ -28,8 +28,6 @@ import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.bumptech.glide.Glide;
-
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
@@ -71,20 +69,13 @@ public class MainActivity extends AppCompatActivity {
     // CONFIGURAÇÃO DA MOVIMENTAÇÃO
     // =====================================================
 
-    // São necessários três ciclos completos.
     private static final int CICLOS_NECESSARIOS = 3;
 
-    // Considera os 15% superiores como extremidade superior.
     private static final float LIMITE_EXTREMO_SUPERIOR = 0.15f;
-
-    // Considera os 15% inferiores como extremidade inferior.
     private static final float LIMITE_EXTREMO_INFERIOR = 0.85f;
 
     private int ciclosConcluidos = 0;
 
-    // 0 = começou em cima
-    // 1 = começou embaixo
-    // -1 = ainda não identificou uma extremidade
     private int extremoInicial = -1;
 
     private boolean alcancouExtremoOposto = false;
@@ -94,8 +85,9 @@ public class MainActivity extends AppCompatActivity {
     // =====================================================
 
     private ImageView imagemGif;
-    private ImageView imagemGifC;
-    private ImageView imagemGifD;
+
+    private GifSincronizadoView imagemGifC;
+    private GifSincronizadoView imagemGifD;
 
     private TextView status;
     private TextView textoPlanilha;
@@ -148,7 +140,7 @@ public class MainActivity extends AppCompatActivity {
     private int indiceAtual = -1;
 
     // =====================================================
-    // ANIMAÇÃO
+    // ANIMAÇÃO PRINCIPAL B
     // =====================================================
 
     private Movie movie;
@@ -554,12 +546,10 @@ public class MainActivity extends AppCompatActivity {
             extremoAtual = 1;
         }
 
-        // O controle ainda está na região central.
         if (extremoAtual == -1) {
             return;
         }
 
-        // Registra a primeira extremidade alcançada.
         if (extremoInicial == -1) {
 
             extremoInicial = extremoAtual;
@@ -567,7 +557,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        // Alcançou a extremidade oposta.
         if (!alcancouExtremoOposto &&
                 extremoAtual != extremoInicial) {
 
@@ -576,7 +565,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        // Voltou à extremidade inicial: ciclo completo.
         if (alcancouExtremoOposto &&
                 extremoAtual == extremoInicial) {
 
@@ -609,7 +597,6 @@ public class MainActivity extends AppCompatActivity {
 
     private void finalizarMovimentoSeLiberado() {
 
-        // Aguarda todos os controles serem soltos.
         if (esquerdoPressionado ||
                 direitoPressionado ||
                 controleManualAtivo ||
@@ -654,7 +641,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // =====================================================
-    // ATUALIZAÇÃO AUTOMÁTICA DO GIF
+    // ATUALIZAÇÃO AUTOMÁTICA DO GIF PRINCIPAL B
     // =====================================================
 
     private final Runnable atualizadorGif = new Runnable() {
@@ -676,7 +663,6 @@ public class MainActivity extends AppCompatActivity {
 
             long decorrido = agora - inicioReproducao;
 
-            // Loop infinito do GIF.
             posicaoMs = (
                     posicaoMs + decorrido
             ) % duracao;
@@ -1245,7 +1231,6 @@ public class MainActivity extends AppCompatActivity {
                 Math.min(1f, progresso)
         );
 
-        // Registra cada movimentação para a contagem.
         registrarProgressoMovimento(progresso);
 
         int duracao = movie.duration();
@@ -1363,7 +1348,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // =====================================================
-    // PAUSAR ANIMAÇÃO
+    // PAUSAR ANIMAÇÃO PRINCIPAL
     // =====================================================
 
     private void pausarAnimacao() {
@@ -1393,7 +1378,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // =====================================================
-    // RETOMAR ANIMAÇÃO
+    // RETOMAR ANIMAÇÃO PRINCIPAL
     // =====================================================
 
     private void iniciarAnimacao() {
@@ -1417,7 +1402,53 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // =====================================================
-    // DESENHO DO QUADRO
+    // SINCRONIZAÇÃO DOS GIFS C E D COM O GIF B
+    // =====================================================
+
+    private void atualizarPosicaoGifsSecundarios() {
+
+        if (movie == null) return;
+
+        int duracaoB = movie.duration();
+
+        if (duracaoB <= 0) {
+            duracaoB = 1000;
+        }
+
+        float progresso = (float) posicaoMs / duracaoB;
+
+        progresso = Math.max(
+                0f,
+                Math.min(1f, progresso)
+        );
+
+        if (imagemGifC != null &&
+                imagemGifC.possuiGif()) {
+
+            int duracaoC = imagemGifC.getDuracaoMs();
+
+            int posicaoC = Math.round(
+                    progresso * Math.max(0, duracaoC - 1)
+            );
+
+            imagemGifC.definirPosicao(posicaoC);
+        }
+
+        if (imagemGifD != null &&
+                imagemGifD.possuiGif()) {
+
+            int duracaoD = imagemGifD.getDuracaoMs();
+
+            int posicaoD = Math.round(
+                    progresso * Math.max(0, duracaoD - 1)
+            );
+
+            imagemGifD.definirPosicao(posicaoD);
+        }
+    }
+
+    // =====================================================
+    // DESENHO DO QUADRO PRINCIPAL B
     // =====================================================
 
     private void desenharQuadro() {
@@ -1505,6 +1536,9 @@ public class MainActivity extends AppCompatActivity {
         quadroCanvas.restore();
 
         imagemGif.invalidate();
+
+        // Atualiza os GIFs secundários com o progresso de B.
+        atualizarPosicaoGifsSecundarios();
     }
 
     // =====================================================
@@ -1742,11 +1776,20 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // =====================================================
-    // GIFS SECUNDÁRIOS
+    // ATUALIZAÇÃO DOS GIFS SECUNDÁRIOS
     // =====================================================
 
-    private void atualizarGifsSecundarios(
-            int posicao) {
+    private void atualizarGifsSecundarios(int posicao) {
+
+        if (posicao < 0 ||
+                posicao >= linksColunaC.size() ||
+                posicao >= linksColunaD.size()) {
+
+            imagemGifC.setVisibility(View.INVISIBLE);
+            imagemGifD.setVisibility(View.INVISIBLE);
+
+            return;
+        }
 
         carregarGifSecundario(
                 posicao,
@@ -1761,17 +1804,19 @@ public class MainActivity extends AppCompatActivity {
         );
     }
 
+    // =====================================================
+    // CARREGAMENTO SINCRONIZADO DOS GIFS C E D
+    // =====================================================
+
     private void carregarGifSecundario(
             int posicao,
             String link,
-            ImageView imagem) {
+            GifSincronizadoView imagem) {
 
-        imagem.setImageDrawable(null);
+        imagem.setVisibility(View.INVISIBLE);
 
         if (link == null ||
                 link.trim().isEmpty()) {
-
-            imagem.setVisibility(View.INVISIBLE);
 
             return;
         }
@@ -1780,28 +1825,16 @@ public class MainActivity extends AppCompatActivity {
 
         if (id == null) {
 
-            imagem.setVisibility(View.INVISIBLE);
+            Log.e(TAG,
+                    "Link secundário inválido: " + link);
 
             return;
         }
-
-        imagem.setVisibility(View.VISIBLE);
 
         File arquivo = new File(
                 pastaGifs,
                 id + ".gif"
         );
-
-        if (arquivo.exists() &&
-                arquivo.length() > 0) {
-
-            Glide.with(this)
-                    .asGif()
-                    .load(arquivo)
-                    .into(imagem);
-
-            return;
-        }
 
         executor.execute(() -> {
 
@@ -1814,49 +1847,63 @@ public class MainActivity extends AppCompatActivity {
 
             try {
 
-                String endereco =
-                        "https://drive.usercontent.google.com/download?id=" +
-                                id +
-                                "&export=download&confirm=t";
+                if (!arquivo.exists() ||
+                        arquivo.length() <= 0) {
 
-                conexao = (HttpURLConnection)
-                        new URL(endereco).openConnection();
+                    String endereco =
+                            "https://drive.usercontent.google.com/download?id=" +
+                                    id +
+                                    "&export=download&confirm=t";
 
-                conexao.setConnectTimeout(20000);
-                conexao.setReadTimeout(30000);
+                    conexao = (HttpURLConnection)
+                            new URL(endereco).openConnection();
 
-                conexao.setInstanceFollowRedirects(true);
+                    conexao.setConnectTimeout(20000);
+                    conexao.setReadTimeout(30000);
 
-                if (conexao.getResponseCode() != 200) {
-                    throw new Exception("Erro HTTP");
-                }
+                    conexao.setInstanceFollowRedirects(true);
 
-                try (
-                        InputStream entrada =
-                                conexao.getInputStream();
+                    int resposta = conexao.getResponseCode();
 
-                        FileOutputStream saida =
-                                new FileOutputStream(temporario)
-                ) {
+                    if (resposta != 200) {
 
-                    byte[] buffer = new byte[8192];
+                        throw new Exception(
+                                "Erro HTTP: " + resposta
+                        );
+                    }
 
-                    int quantidade;
+                    try (
+                            InputStream entrada =
+                                    conexao.getInputStream();
 
-                    while ((quantidade =
-                            entrada.read(buffer)) != -1) {
+                            FileOutputStream saida =
+                                    new FileOutputStream(temporario)
+                    ) {
 
-                        saida.write(buffer, 0, quantidade);
+                        byte[] buffer = new byte[8192];
+
+                        int quantidade;
+
+                        while ((quantidade =
+                                entrada.read(buffer)) != -1) {
+
+                            saida.write(buffer, 0, quantidade);
+                        }
+                    }
+
+                    if (temporario.length() <= 0) {
+                        throw new Exception("Arquivo GIF vazio.");
+                    }
+
+                    if (!temporario.renameTo(arquivo)) {
+                        throw new Exception(
+                                "Não foi possível salvar o GIF."
+                        );
                     }
                 }
 
-                if (temporario.length() == 0) {
-                    throw new Exception("Arquivo vazio");
-                }
-
-                if (!temporario.renameTo(arquivo)) {
-                    throw new Exception("Erro ao salvar GIF");
-                }
+                boolean carregado =
+                        imagem.carregarGif(arquivo);
 
                 handler.post(() -> {
 
@@ -1867,12 +1914,25 @@ public class MainActivity extends AppCompatActivity {
                         return;
                     }
 
-                    if (indiceAtual != posicao) return;
+                    if (indiceAtual != posicao) {
+                        return;
+                    }
 
-                    Glide.with(this)
-                            .asGif()
-                            .load(arquivo)
-                            .into(imagem);
+                    if (!carregado) {
+
+                        imagem.setVisibility(View.INVISIBLE);
+
+                        Log.e(TAG,
+                                "Não foi possível decodificar GIF: " + id);
+
+                        return;
+                    }
+
+                    imagem.definirPosicao(0);
+
+                    imagem.setVisibility(View.VISIBLE);
+
+                    atualizarPosicaoGifsSecundarios();
                 });
 
             } catch (Exception e) {
@@ -1880,7 +1940,7 @@ public class MainActivity extends AppCompatActivity {
                 temporario.delete();
 
                 Log.e(TAG,
-                        "Erro no GIF secundário: " + id,
+                        "Erro ao carregar GIF secundário: " + id,
                         e);
 
                 handler.post(() -> {
@@ -1888,8 +1948,6 @@ public class MainActivity extends AppCompatActivity {
                     if (atividadeEncerrada) return;
 
                     if (indiceAtual == posicao) {
-
-                        imagem.setImageDrawable(null);
 
                         imagem.setVisibility(View.INVISIBLE);
                     }
@@ -2111,6 +2169,10 @@ public class MainActivity extends AppCompatActivity {
 
         limparIdentificacaoDedos();
 
+        // Reinicia os GIFs secundários para o novo GIF B.
+        imagemGifC.reiniciar();
+        imagemGifD.reiniciar();
+
         areaGif.post(() -> {
 
             if (atividadeEncerrada) return;
@@ -2256,15 +2318,11 @@ public class MainActivity extends AppCompatActivity {
         }
 
         if (imagemGifC != null) {
-            Glide.with(this).clear(imagemGifC);
+            imagemGifC.reiniciar();
         }
 
         if (imagemGifD != null) {
-            Glide.with(this).clear(imagemGifD);
-        }
-
-        if (imagemGif != null) {
-            Glide.with(this).clear(imagemGif);
+            imagemGifD.reiniciar();
         }
 
         if (quadroBitmap != null) {
