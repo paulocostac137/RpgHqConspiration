@@ -776,8 +776,6 @@ public class MainActivity extends AppCompatActivity {
         ativarModoImersivo();
 
         imagemGif = findViewById(R.id.imagemGif);
-        imagemGifC = findViewById(R.id.imagemGifC);
-        imagemGifD = findViewById(R.id.imagemGifD);
 
         status = findViewById(R.id.status);
 
