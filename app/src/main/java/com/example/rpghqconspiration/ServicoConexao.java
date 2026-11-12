@@ -38,10 +38,7 @@ public class ServicoConexao {
     private volatile String codigoPar;
     private volatile String papelUsuario = "";
 
-    // Só fica true depois de receber control_granted do servidor.
     private volatile boolean controleConcedido = false;
-
-    // Indica que solicitamos o controle e aguardamos a resposta.
     private volatile boolean solicitacaoPendente = false;
 
     private final AtomicBoolean entradaEnviada =
@@ -270,8 +267,6 @@ public class ServicoConexao {
 
             case "control":
 
-                // Esta mensagem é enviada pelo servidor ao parceiro.
-                // Quando active=false, o parceiro liberou o controle.
                 if (!mensagem.optBoolean("active", false)) {
 
                     controleConcedido = false;
@@ -336,7 +331,7 @@ public class ServicoConexao {
     }
 
     // =====================================================
-    // ENVIAR SOLICITAÇÃO OU ATUALIZAÇÃO DE CONTROLE
+    // ENVIAR CONTROLE
     // =====================================================
 
     public void enviarControle(boolean ativo, float progresso) {
@@ -351,13 +346,10 @@ public class ServicoConexao {
             return;
         }
 
-        // Uma solicitação de controle começa quando ativo=true.
-        // O servidor decide se concede ou não a autorização.
         if (ativo && !controleConcedido) {
             solicitacaoPendente = true;
         }
 
-        // Ao liberar, o estado local também deixa de ser proprietário.
         if (!ativo) {
             controleConcedido = false;
             solicitacaoPendente = false;
@@ -393,6 +385,120 @@ public class ServicoConexao {
 
             avisarErro(
                     "Não foi possível preparar o comando."
+            );
+        }
+    }
+
+    // =====================================================
+    // SINCRONIZAÇÃO DOS GIFS B, C E D
+    // =====================================================
+
+    public void enviarSincronizacaoGif(
+            String gif,
+            String acao,
+            Integer quadro,
+            Long posicaoMs,
+            Long duracaoMs,
+            Boolean reproduzindo) {
+
+        if (!estaConectado()) {
+
+            Log.w(
+                    TAG,
+                    "Sincronização não enviada: conexão indisponível."
+            );
+
+            return;
+        }
+
+        if (!controleConcedido) {
+
+            Log.d(
+                    TAG,
+                    "Sincronização ignorada: este aparelho não possui o controle."
+            );
+
+            return;
+        }
+
+        if (gif == null || acao == null) {
+            return;
+        }
+
+        if (!gif.equals("B")
+                && !gif.equals("C")
+                && !gif.equals("D")) {
+
+            Log.w(TAG, "Identificação de GIF inválida: " + gif);
+            return;
+        }
+
+        if (!acao.equals("frame")
+                && !acao.equals("play")
+                && !acao.equals("pause")
+                && !acao.equals("select")
+                && !acao.equals("reset")) {
+
+            Log.w(TAG, "Ação de GIF inválida: " + acao);
+            return;
+        }
+
+        try {
+
+            JSONObject mensagem = new JSONObject();
+
+            mensagem.put("type", "gif_sync");
+            mensagem.put("gif", gif);
+            mensagem.put("action", acao);
+
+            if (quadro != null) {
+
+                if (quadro < 0) {
+                    return;
+                }
+
+                mensagem.put("frame", quadro);
+            }
+
+            if (posicaoMs != null) {
+
+                if (posicaoMs < 0) {
+                    return;
+                }
+
+                mensagem.put("position_ms", posicaoMs);
+            }
+
+            if (duracaoMs != null) {
+
+                if (duracaoMs <= 0) {
+                    return;
+                }
+
+                mensagem.put("duration_ms", duracaoMs);
+            }
+
+            if (reproduzindo != null) {
+                mensagem.put("playing", reproduzindo);
+            }
+
+            enviarJson(mensagem);
+
+            Log.d(
+                    TAG,
+                    "Sincronização GIF enviada: " + mensagem
+            );
+
+        } catch (JSONException e) {
+
+            Log.e(
+                    TAG,
+                    "Erro ao preparar sincronização dos GIFs.",
+                    e
+            );
+
+            avisarErro(
+                    "Não foi possível preparar a sincronização dos GIFs."
             );
         }
     }

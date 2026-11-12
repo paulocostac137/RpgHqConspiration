@@ -2,6 +2,7 @@
 
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
@@ -30,6 +31,7 @@
         android:padding="6dp"/>
 
     <!-- ÁREA DOS TRÊS GIFS -->
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -38,7 +40,8 @@
         android:background="#000000"
         android:weightSum="3">
 
-        <!-- GIFS SECUNDÁRIOS: COLUNAS C E D -->
+        <!-- GIFS SECUNDÁRIOS: C E D -->
+
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
@@ -53,12 +56,12 @@
                 android:layout_weight="1"
                 android:background="#111111">
 
-                <ImageView
+                <com.example.rpghqconspiration.GifSincronizadoView
                     android:id="@+id/imagemGifC"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:contentDescription="GIF da coluna C"
-                    android:scaleType="fitCenter" />
+                    android:scaleType="fitCenter"/>
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -69,6 +72,7 @@
                     android:textSize="12sp"
                     android:background="#99000000"
                     android:padding="3dp"/>
+
             </FrameLayout>
 
             <View
@@ -82,7 +86,7 @@
                 android:layout_weight="1"
                 android:background="#111111">
 
-                <ImageView
+                <com.example.rpghqconspiration.GifSincronizadoView
                     android:id="@+id/imagemGifD"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
@@ -98,11 +102,13 @@
                     android:textSize="12sp"
                     android:background="#99000000"
                     android:padding="3dp"/>
+
             </FrameLayout>
 
         </LinearLayout>
 
-        <!-- GIF PRINCIPAL: COLUNA B -->
+        <!-- GIF PRINCIPAL: B -->
+
         <FrameLayout
             android:id="@+id/areaGif"
             android:layout_width="0dp"
@@ -110,7 +116,7 @@
             android:layout_weight="2"
             android:background="#000000">
 
-            <ImageView
+            <com.example.rpghqconspiration.GifSincronizadoView
                 android:id="@+id/imagemGif"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
