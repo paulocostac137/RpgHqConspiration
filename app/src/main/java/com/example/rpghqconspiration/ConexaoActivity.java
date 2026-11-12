@@ -19,24 +19,14 @@ public class ConexaoActivity extends AppCompatActivity {
 
     private static final String TAG = "ConexaoActivity";
 
-    /*
-     * Instância única compartilhada entre as telas.
-     */
     public static ServicoConexao conexao;
 
     private EditText campoCodigoPar;
-
     private Button botaoConectar;
     private Button botaoUsarSemConexao;
-
     private TextView statusConexao;
 
     private boolean abriuTelaPrincipal = false;
-    private boolean aguardandoParceiro = false;
-
-    // =====================================================
-    // MODO IMERSIVO
-    // =====================================================
 
     private void ativarModoImersivo() {
 
@@ -49,7 +39,6 @@ public class ConexaoActivity extends AppCompatActivity {
                     window.getInsetsController();
 
             if (controller != null) {
-
                 controller.hide(
                         WindowInsets.Type.statusBars() |
                                 WindowInsets.Type.navigationBars()
@@ -62,7 +51,6 @@ public class ConexaoActivity extends AppCompatActivity {
             }
 
         } else {
-
             window.getDecorView().setSystemUiVisibility(
                     View.SYSTEM_UI_FLAG_FULLSCREEN |
                             View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
@@ -76,71 +64,31 @@ public class ConexaoActivity extends AppCompatActivity {
 
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
-
         super.onWindowFocusChanged(hasFocus);
-
-        if (hasFocus) {
-            ativarModoImersivo();
-        }
+        if (hasFocus) ativarModoImersivo();
     }
-
-    // =====================================================
-    // ONCREATE
-    // =====================================================
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
 
         super.onCreate(savedInstanceState);
-
         setContentView(R.layout.activity_conexao);
-
         ativarModoImersivo();
 
-        // Localizar componentes da tela.
+        campoCodigoPar = findViewById(R.id.campoCodigoPar);
+        botaoConectar = findViewById(R.id.botaoConectar);
+        botaoUsarSemConexao = findViewById(R.id.botaoUsarSemConexao);
+        statusConexao = findViewById(R.id.statusConexao);
 
-        campoCodigoPar =
-                findViewById(R.id.campoCodigoPar);
-
-        botaoConectar =
-                findViewById(R.id.botaoConectar);
-
-        botaoUsarSemConexao =
-                findViewById(R.id.botaoUsarSemConexao);
-
-        statusConexao =
-                findViewById(R.id.statusConexao);
-
-        // Configurar botão multiplayer.
-
-        botaoConectar.setOnClickListener(
-                v -> iniciarConexao()
-        );
-
-        // Configurar botão de modo individual.
-
-        botaoUsarSemConexao.setOnClickListener(
-                v -> abrirModoIndividual()
-        );
-
-        /*
-         * Não cria outra conexão se já existe uma instância.
-         */
+        botaoConectar.setOnClickListener(v -> iniciarConexao());
+        botaoUsarSemConexao.setOnClickListener(v -> abrirModoIndividual());
 
         if (conexao == null) {
-
-            conexao = new ServicoConexao(
-                    criarCallback()
-            );
-
+            conexao = new ServicoConexao(criarCallback());
         } else {
-
-            conexao.definirCallback(
-                    criarCallback()
-            );
+            conexao.definirCallback(criarCallback());
 
             if (conexao.estaConectado()) {
-
                 statusConexao.setText(
                         "Conectado. Aguardando confirmação da sala..."
                 );
@@ -148,71 +96,33 @@ public class ConexaoActivity extends AppCompatActivity {
         }
     }
 
-    // =====================================================
-    // MODO INDIVIDUAL
-    // =====================================================
-
     private void abrirModoIndividual() {
 
-        Log.d(
-                TAG,
-                "Abrindo aplicativo em modo individual."
-        );
-
-        /*
-         * Impede abertura duplicada.
-         */
-
-        if (abriuTelaPrincipal) {
-            return;
-        }
+        if (abriuTelaPrincipal) return;
 
         abriuTelaPrincipal = true;
 
-        /*
-         * Desativa os botões durante a transição.
-         */
-
         botaoConectar.setEnabled(false);
-
         botaoUsarSemConexao.setEnabled(false);
-
         campoCodigoPar.setEnabled(false);
 
-        statusConexao.setText(
-                "Abrindo modo individual..."
-        );
-
-        /*
-         * Abre a MainActivity sem iniciar WebSocket.
-         */
+        statusConexao.setText("Abrindo modo individual...");
 
         Intent intent = new Intent(
                 ConexaoActivity.this,
                 MainActivity.class
         );
 
-        intent.putExtra(
-                "modo_individual",
-                true
-        );
-
+        intent.putExtra("modo_individual", true);
         startActivity(intent);
     }
 
-    // =====================================================
-    // INICIAR CONEXÃO MULTIPLAYER
-    // =====================================================
-
     private void iniciarConexao() {
 
-        if (conexao != null &&
-                conexao.estaConectado()) {
-
+        if (conexao != null && conexao.estaConectado()) {
             statusConexao.setText(
                     "Você já está conectado ao servidor."
             );
-
             return;
         }
 
@@ -221,49 +131,27 @@ public class ConexaoActivity extends AppCompatActivity {
                 .trim();
 
         if (codigo.isEmpty()) {
-
-            campoCodigoPar.setError(
-                    "Digite o código da sala."
-            );
-
+            campoCodigoPar.setError("Digite o código da sala.");
             campoCodigoPar.requestFocus();
-
             return;
         }
 
         abriuTelaPrincipal = false;
 
-        aguardandoParceiro = false;
-
         botaoConectar.setEnabled(false);
-
         botaoUsarSemConexao.setEnabled(false);
-
         campoCodigoPar.setEnabled(false);
 
-        statusConexao.setText(
-                "Conectando ao servidor..."
-        );
+        statusConexao.setText("Conectando ao servidor...");
 
         if (conexao == null) {
-
-            conexao = new ServicoConexao(
-                    criarCallback()
-            );
-
+            conexao = new ServicoConexao(criarCallback());
         } else {
-
-            conexao.definirCallback(
-                    criarCallback()
-            );
+            conexao.definirCallback(criarCallback());
         }
 
         conexao.conectar(codigo);
     }
-
-    // =====================================================
-    // CALLBACK DA CONEXÃO
-    // =====================================================
 
     private ServicoConexao.Callback criarCallback() {
 
@@ -271,17 +159,10 @@ public class ConexaoActivity extends AppCompatActivity {
 
             @Override
             public void onConectado() {
-
                 runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
 
-                    if (isFinishing() || isDestroyed()) {
-                        return;
-                    }
-
-                    Log.d(
-                            TAG,
-                            "Conexão WebSocket estabelecida."
-                    );
+                    Log.d(TAG, "Conexão WebSocket estabelecida.");
 
                     statusConexao.setText(
                             "Servidor conectado. Entrando na sala..."
@@ -291,24 +172,13 @@ public class ConexaoActivity extends AppCompatActivity {
 
             @Override
             public void onDesconectado(String motivo) {
-
                 runOnUiThread(() -> {
-
-                    if (isFinishing() || isDestroyed()) {
-                        return;
-                    }
-
-                    Log.d(
-                            TAG,
-                            "Conexão encerrada: " + motivo
-                    );
+                    if (isFinishing() || isDestroyed()) return;
 
                     if (!abriuTelaPrincipal) {
-
                         statusConexao.setText(
                                 "Conexão encerrada. Tente novamente."
                         );
-
                         liberarTelaConexao();
                     }
                 });
@@ -316,34 +186,21 @@ public class ConexaoActivity extends AppCompatActivity {
 
             @Override
             public void onMensagem(JSONObject mensagem) {
-
                 runOnUiThread(() -> {
-
-                    if (isFinishing() || isDestroyed()) {
-                        return;
-                    }
-
+                    if (isFinishing() || isDestroyed()) return;
                     processarMensagem(mensagem);
                 });
             }
 
             @Override
             public void onErro(String erro) {
-
                 runOnUiThread(() -> {
-
-                    if (isFinishing() || isDestroyed()) {
-                        return;
-                    }
+                    if (isFinishing() || isDestroyed()) return;
 
                     Log.e(TAG, erro);
 
                     if (!abriuTelaPrincipal) {
-
-                        statusConexao.setText(
-                                "Erro: " + erro
-                        );
-
+                        statusConexao.setText("Erro: " + erro);
                         liberarTelaConexao();
                     }
                 });
@@ -351,112 +208,63 @@ public class ConexaoActivity extends AppCompatActivity {
         };
     }
 
-    // =====================================================
-    // PROCESSAR MENSAGENS
-    // =====================================================
-
     private void processarMensagem(JSONObject mensagem) {
 
-        String tipo = mensagem.optString(
-                "type",
-                ""
-        );
+        String tipo = mensagem.optString("type", "");
 
-        Log.d(
-                TAG,
-                "Evento recebido do servidor: " + mensagem
-        );
+        Log.d(TAG, "Evento recebido do servidor: " + mensagem);
 
         switch (tipo) {
 
             case "joined": {
-
-                int usuarios = mensagem.optInt(
-                        "users",
-                        0
-                );
+                int usuarios = mensagem.optInt("users", 0);
 
                 if (usuarios >= 2) {
-
                     abrirTelaPrincipal();
-
                 } else {
-
-                    aguardandoParceiro = true;
-
                     statusConexao.setText(
                             "Conectado! Aguardando o segundo usuário..."
                     );
                 }
-
                 break;
             }
 
-            case "peer_connected": {
-
+            case "peer_connected":
                 statusConexao.setText(
                         "Parceiro conectado! Abrindo aplicativo..."
                 );
-
                 abrirTelaPrincipal();
-
                 break;
-            }
 
-            case "peer_disconnected": {
-
-                statusConexao.setText(
-                        "Seu parceiro desconectou."
-                );
-
+            case "peer_disconnected":
+                statusConexao.setText("Seu parceiro desconectou.");
                 break;
-            }
 
             case "error": {
-
                 String erro = mensagem.optString(
                         "message",
                         "O servidor informou um erro."
                 );
-
                 statusConexao.setText(erro);
-
                 liberarTelaConexao();
-
                 break;
             }
 
-            default: {
-
-                Log.d(
-                        TAG,
-                        "Evento não tratado: " + tipo
-                );
-
+            default:
+                Log.d(TAG, "Evento não tratado: " + tipo);
                 break;
-            }
         }
     }
 
-    // =====================================================
-    // ABRIR TELA PRINCIPAL MULTIPLAYER
-    // =====================================================
-
     private void abrirTelaPrincipal() {
 
-        if (abriuTelaPrincipal) {
-            return;
-        }
+        if (abriuTelaPrincipal) return;
 
-        if (conexao == null ||
-                !conexao.estaConectado()) {
-
+        if (conexao == null || !conexao.estaConectado()) {
             statusConexao.setText(
                     "A conexão com o servidor foi perdida."
             );
-
             liberarTelaConexao();
-
             return;
         }
 
@@ -467,69 +275,32 @@ public class ConexaoActivity extends AppCompatActivity {
                 MainActivity.class
         );
 
-        intent.putExtra(
-                "codigo_par",
-                conexao.getCodigoPar()
-        );
-
-        /*
-         * Não envia modo_individual=true.
-         * Assim, a MainActivity inicia o modo multiplayer.
-         */
-
+        intent.putExtra("codigo_par", conexao.getCodigoPar());
+        intent.putExtra("papel_usuario", conexao.getPapelUsuario());
         startActivity(intent);
     }
-
-    // =====================================================
-    // LIBERAR TELA
-    // =====================================================
 
     private void liberarTelaConexao() {
 
         botaoConectar.setEnabled(true);
-
         botaoUsarSemConexao.setEnabled(true);
-
         campoCodigoPar.setEnabled(true);
-
-        aguardandoParceiro = false;
     }
-
-    // =====================================================
-    // RETORNO À TELA
-    // =====================================================
 
     @Override
     protected void onResume() {
 
         super.onResume();
-
         ativarModoImersivo();
 
-        if (!abriuTelaPrincipal) {
-
-            if (conexao != null) {
-
-                conexao.definirCallback(
-                        criarCallback()
-                );
-            }
+        if (!abriuTelaPrincipal && conexao != null) {
+            conexao.definirCallback(criarCallback());
         }
     }
 
-    // =====================================================
-    // ENCERRAMENTO
-    // =====================================================
-
     @Override
     protected void onDestroy() {
-
         super.onDestroy();
-
-        /*
-         * Não desconectar o WebSocket aqui.
-         *
-         * A conexão é compartilhada com MainActivity.
-         */
+        // A conexão permanece compartilhada com MainActivity.
     }
 }
