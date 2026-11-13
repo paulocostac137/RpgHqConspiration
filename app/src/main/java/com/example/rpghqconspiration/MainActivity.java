@@ -1,5 +1,3 @@
-// Commit e Push Teste
-
 package com.example.rpghqconspiration;
 
 import android.os.Bundle;
@@ -84,6 +82,22 @@ public class MainActivity extends AppCompatActivity {
     private int extremoInicial = -1;
 
     private boolean alcancouExtremoOposto = false;
+
+    // =====================================================
+    // LIBERAÇÃO DOS CONTROLES DO USUÁRIO B
+    // =====================================================
+
+    /*
+     * Este estado é atualizado quando o servidor envia
+     * a mensagem:
+     *
+     * {"type":"unlock_b"}
+     *
+     * Depois de liberados, os controles permanecem visíveis
+     * durante toda a sessão.
+     */
+
+    private boolean usuarioBDesbloqueado = false;
 
     // =====================================================
     // COMPONENTES
@@ -186,6 +200,72 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // =====================================================
+    // VISIBILIDADE DOS CONTROLES DOS USUÁRIOS
+    // =====================================================
+
+    private void atualizarVisibilidadeControles() {
+
+        if (controleEsquerdo == null ||
+                controleDireito == null) {
+
+            return;
+        }
+
+        // No modo individual, os dois controles ficam visíveis.
+
+        if (modoIndividual) {
+
+            controleEsquerdo.setVisibility(View.VISIBLE);
+            controleDireito.setVisibility(View.VISIBLE);
+
+            return;
+        }
+
+        String papel = "";
+
+        if (servicoConexao != null) {
+
+            papel = servicoConexao.getPapelUsuario();
+
+            if (papel == null) {
+                papel = "";
+            }
+        }
+
+        /*
+         * O servidor identifica os usuários como A ou B.
+         *
+         * A: controles visíveis.
+         *
+         * B: controles ocultos até receber unlock_b.
+         *
+         * Se o papel ainda não foi recebido, os controles
+         * ficam temporariamente ocultos para evitar que
+         * os controles de B apareçam antes da identificação.
+         */
+
+        boolean ocultarControles =
+                !"A".equalsIgnoreCase(papel) &&
+                        !usuarioBDesbloqueado;
+
+        int visibilidade = ocultarControles
+                ? View.INVISIBLE
+                : View.VISIBLE;
+
+        controleEsquerdo.setVisibility(visibilidade);
+        controleDireito.setVisibility(visibilidade);
+
+        Log.d(
+                TAG,
+                "Papel: " + papel +
+                        " | Usuário B liberado: " +
+                        usuarioBDesbloqueado +
+                        " | Controles visíveis: " +
+                        !ocultarControles
+        );
+    }
+
+    // =====================================================
     // MODO IMERSIVO
     // =====================================================
 
@@ -249,8 +329,12 @@ public class MainActivity extends AppCompatActivity {
                     "ERRO: conexão com o servidor não encontrada."
             );
 
-            Log.e(TAG,
-                    "ServicoConexao não foi inicializado.");
+            Log.e(
+                    TAG,
+                    "ServicoConexao não foi inicializado."
+            );
+
+            atualizarVisibilidadeControles();
 
             return;
         }
@@ -261,8 +345,12 @@ public class MainActivity extends AppCompatActivity {
                     "ERRO: conexão com o servidor foi perdida."
             );
 
-            Log.e(TAG,
-                    "A conexão compartilhada não está ativa.");
+            Log.e(
+                    TAG,
+                    "A conexão compartilhada não está ativa."
+            );
+
+            atualizarVisibilidadeControles();
 
             return;
         }
@@ -277,12 +365,16 @@ public class MainActivity extends AppCompatActivity {
 
                             if (!atividadeDisponivel()) return;
 
-                            Log.d(TAG,
-                                    "Conexão compartilhada ativa.");
+                            Log.d(
+                                    TAG,
+                                    "Conexão compartilhada ativa."
+                            );
 
                             status.setText(
                                     "Conectado ao servidor."
                             );
+
+                            atualizarVisibilidadeControles();
                         });
                     }
 
@@ -293,8 +385,10 @@ public class MainActivity extends AppCompatActivity {
 
                             if (!atividadeDisponivel()) return;
 
-                            Log.w(TAG,
-                                    "Servidor desconectado: " + motivo);
+                            Log.w(
+                                    TAG,
+                                    "Servidor desconectado: " + motivo
+                            );
 
                             controleRemotoAtivo = false;
 
@@ -324,8 +418,10 @@ public class MainActivity extends AppCompatActivity {
 
                             if (!atividadeDisponivel()) return;
 
-                            Log.e(TAG,
-                                    "Erro de conexão: " + erro);
+                            Log.e(
+                                    TAG,
+                                    "Erro de conexão: " + erro
+                            );
 
                             status.setText(
                                     "Erro de conexão: " + erro
@@ -335,12 +431,16 @@ public class MainActivity extends AppCompatActivity {
                 }
         );
 
-        Log.d(TAG,
-                "MainActivity reutilizando a conexão existente.");
+        Log.d(
+                TAG,
+                "MainActivity reutilizando a conexão existente."
+        );
 
         status.setText(
                 "Conectado. Aguardando comandos..."
         );
+
+        atualizarVisibilidadeControles();
     }
 
     // =====================================================
@@ -353,14 +453,25 @@ public class MainActivity extends AppCompatActivity {
 
         String tipo = dados.optString("type");
 
-        Log.d(TAG,
-                "Processando mensagem: " + dados);
+        Log.d(
+                TAG,
+                "Processando mensagem: " + dados
+        );
 
         switch (tipo) {
 
             case "joined": {
 
                 int usuarios = dados.optInt("users", 0);
+
+                /*
+                 * O ServicoConexao deve armazenar o campo
+                 * "role" recebido na mensagem joined.
+                 *
+                 * O método getPapelUsuario() retorna A ou B.
+                 */
+
+                atualizarVisibilidadeControles();
 
                 status.setText(
                         usuarios == 1
@@ -377,8 +488,10 @@ public class MainActivity extends AppCompatActivity {
                         "PARCEIRO CONECTADO!"
                 );
 
-                Log.d(TAG,
-                        "O parceiro entrou na sala.");
+                Log.d(
+                        TAG,
+                        "O parceiro entrou na sala."
+                );
 
                 break;
             }
@@ -391,6 +504,35 @@ public class MainActivity extends AppCompatActivity {
 
                 status.setText(
                         "Parceiro desconectado."
+                );
+
+                break;
+            }
+
+            case "unlock_b": {
+
+                /*
+                 * O servidor envia esta mensagem quando:
+                 *
+                 * 1. O usuário A completa 5 movimentos;
+                 *
+                 * OU
+                 *
+                 * 2. O usuário A solta os controles depois
+                 *    de completar pelo menos 3 movimentos.
+                 */
+
+                usuarioBDesbloqueado = true;
+
+                atualizarVisibilidadeControles();
+
+                Log.d(
+                        TAG,
+                        "SERVIDOR LIBEROU OS CONTROLES DO USUÁRIO B."
+                );
+
+                status.setText(
+                        "Controles liberados!"
                 );
 
                 break;
@@ -415,8 +557,10 @@ public class MainActivity extends AppCompatActivity {
 
             default: {
 
-                Log.d(TAG,
-                        "Mensagem não reconhecida: " + tipo);
+                Log.d(
+                        TAG,
+                        "Mensagem não reconhecida: " + tipo
+                );
 
                 break;
             }
@@ -435,8 +579,10 @@ public class MainActivity extends AppCompatActivity {
 
             controleRemotoAtivo = false;
 
-            Log.d(TAG,
-                    "Parceiro liberou os controles.");
+            Log.d(
+                    TAG,
+                    "Parceiro liberou os controles."
+            );
 
             finalizarMovimentoSeLiberado();
 
@@ -526,16 +672,20 @@ public class MainActivity extends AppCompatActivity {
 
         if (servicoConexao == null) {
 
-            Log.w(TAG,
-                    "Comando não enviado: serviço inexistente.");
+            Log.w(
+                    TAG,
+                    "Comando não enviado: serviço inexistente."
+            );
 
             return;
         }
 
         if (!servicoConexao.estaConectado()) {
 
-            Log.w(TAG,
-                    "Comando não enviado: conexão indisponível.");
+            Log.w(
+                    TAG,
+                    "Comando não enviado: conexão indisponível."
+            );
 
             return;
         }
@@ -545,11 +695,13 @@ public class MainActivity extends AppCompatActivity {
                 progresso
         );
 
-        Log.d(TAG,
+        Log.d(
+                TAG,
                 "Controle enviado. Ativo: " +
                         ativo +
                         " Progresso: " +
-                        progresso);
+                        progresso
+        );
     }
 
     // =====================================================
@@ -845,8 +997,10 @@ public class MainActivity extends AppCompatActivity {
         if (!pastaGifs.exists() &&
                 !pastaGifs.mkdirs()) {
 
-            Log.e(TAG,
-                    "Não foi possível criar a pasta de GIFs.");
+            Log.e(
+                    TAG,
+                    "Não foi possível criar a pasta de GIFs."
+            );
         }
 
         botaoProximo.setOnClickListener(v -> {
@@ -862,6 +1016,17 @@ public class MainActivity extends AppCompatActivity {
                 "modo_individual",
                 false
         );
+
+        /*
+         * Define a visibilidade inicial.
+         *
+         * No modo individual: controles visíveis.
+         *
+         * No modo compartilhado: controles ficam ocultos
+         * temporariamente até o servidor identificar A ou B.
+         */
+
+        atualizarVisibilidadeControles();
 
         if (modoIndividual) {
 
@@ -1102,8 +1267,10 @@ public class MainActivity extends AppCompatActivity {
 
             posicaoDedoEsquerdo = y;
 
-            Log.d(TAG,
-                    "Dedo no controle esquerdo. ID: " + id);
+            Log.d(
+                    TAG,
+                    "Dedo no controle esquerdo. ID: " + id
+            );
 
         } else if (controle == 2 &&
                 idDedoDireito == -1) {
@@ -1114,8 +1281,10 @@ public class MainActivity extends AppCompatActivity {
 
             posicaoDedoDireito = y;
 
-            Log.d(TAG,
-                    "Dedo no controle direito. ID: " + id);
+            Log.d(
+                    TAG,
+                    "Dedo no controle direito. ID: " + id
+            );
         }
     }
 
@@ -1155,8 +1324,10 @@ public class MainActivity extends AppCompatActivity {
 
             esquerdoPressionado = false;
 
-            Log.d(TAG,
-                    "Controle esquerdo liberado.");
+            Log.d(
+                    TAG,
+                    "Controle esquerdo liberado."
+            );
         }
 
         if (id == idDedoDireito) {
@@ -1165,8 +1336,10 @@ public class MainActivity extends AppCompatActivity {
 
             direitoPressionado = false;
 
-            Log.d(TAG,
-                    "Controle direito liberado.");
+            Log.d(
+                    TAG,
+                    "Controle direito liberado."
+            );
         }
     }
 
@@ -1199,8 +1372,10 @@ public class MainActivity extends AppCompatActivity {
 
             controleManualAtivo = true;
 
-            Log.d(TAG,
-                    "CONTROLE MANUAL INICIADO.");
+            Log.d(
+                    TAG,
+                    "CONTROLE MANUAL INICIADO."
+            );
 
             pausarAnimacao();
         }
@@ -1378,8 +1553,10 @@ public class MainActivity extends AppCompatActivity {
 
         if (estavaAtivo) {
 
-            Log.d(TAG,
-                    "CONTROLE MANUAL ENCERRADO.");
+            Log.d(
+                    TAG,
+                    "CONTROLE MANUAL ENCERRADO."
+            );
 
             enviarComandoControle(false, 0f);
         }
@@ -1656,9 +1833,11 @@ public class MainActivity extends AppCompatActivity {
 
             } catch (Exception e) {
 
-                Log.e(TAG,
+                Log.e(
+                        TAG,
                         "Erro na planilha.",
-                        e);
+                        e
+                );
 
                 handler.post(() -> {
 
@@ -1917,9 +2096,11 @@ public class MainActivity extends AppCompatActivity {
                     temporario.delete();
                 }
 
-                Log.e(TAG,
+                Log.e(
+                        TAG,
                         "Erro no download do GIF.",
-                        e);
+                        e
+                );
 
                 handler.post(() -> {
 
@@ -1989,9 +2170,11 @@ public class MainActivity extends AppCompatActivity {
 
         } catch (Exception e) {
 
-            Log.e(TAG,
+            Log.e(
+                    TAG,
                     "Não foi possível extrair o ID do Drive.",
-                    e);
+                    e
+            );
 
             return null;
         }
@@ -2040,6 +2223,15 @@ public class MainActivity extends AppCompatActivity {
         reiniciarContagemMovimentos();
 
         limparIdentificacaoDedos();
+
+        /*
+         * Não reinicia usuarioBDesbloqueado.
+         *
+         * A liberação dos controles de B é permanente
+         * durante a sessão, inclusive entre GIFs.
+         */
+
+        atualizarVisibilidadeControles();
 
         areaGif.post(() -> {
 
@@ -2144,9 +2336,11 @@ public class MainActivity extends AppCompatActivity {
 
             } catch (Exception e) {
 
-                Log.e(TAG,
+                Log.e(
+                        TAG,
                         "Erro ao abrir GIF.",
-                        e);
+                        e
+                );
 
                 handler.post(() -> {
 
