@@ -64,7 +64,9 @@ public class MainActivity extends AppCompatActivity {
 
     private static final long JANELA_TEXTO_MS = 7000;
     private static final long TEMPO_TEXTO_MS = 5000;
+
     private static final long INTERVALO_ATUALIZACAO_MS = 50;
+    private static final long INTERVALO_ANIMACAO_MS = 30;
 
     // =====================================================
     // CONFIGURAÇÃO DA MOVIMENTAÇÃO
@@ -129,6 +131,12 @@ public class MainActivity extends AppCompatActivity {
 
     private int indiceAtual = -1;
 
+    // Identifica a solicitação de GIF mais recente.
+    // Impede que uma decodificação antiga substitua
+    // uma animação solicitada posteriormente.
+
+    private long geracaoExibicao = 0;
+
     // =====================================================
     // ANIMAÇÃO PRINCIPAL
     // =====================================================
@@ -163,6 +171,17 @@ public class MainActivity extends AppCompatActivity {
 
     private int idDedoEsquerdo = -1;
     private int idDedoDireito = -1;
+
+    // =====================================================
+    // VERIFICAÇÃO DO CICLO DE VIDA
+    // =====================================================
+
+    private boolean atividadeDisponivel() {
+
+        return !atividadeEncerrada &&
+                !isFinishing() &&
+                !isDestroyed();
+    }
 
     // =====================================================
     // MODO IMERSIVO
@@ -209,7 +228,7 @@ public class MainActivity extends AppCompatActivity {
 
         super.onWindowFocusChanged(hasFocus);
 
-        if (hasFocus) {
+        if (hasFocus && atividadeDisponivel()) {
             ativarModoImersivo();
         }
     }
@@ -252,52 +271,64 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void onConectado() {
 
-                        if (atividadeEncerrada) return;
+                        handler.post(() -> {
 
-                        Log.d(TAG,
-                                "Conexão compartilhada ativa.");
+                            if (!atividadeDisponivel()) return;
 
-                        status.setText(
-                                "Conectado ao servidor."
-                        );
+                            Log.d(TAG,
+                                    "Conexão compartilhada ativa.");
+
+                            status.setText(
+                                    "Conectado ao servidor."
+                            );
+                        });
                     }
 
                     @Override
                     public void onDesconectado(String motivo) {
 
-                        if (atividadeEncerrada) return;
+                        handler.post(() -> {
 
-                        Log.w(TAG,
-                                "Servidor desconectado: " + motivo);
+                            if (!atividadeDisponivel()) return;
 
-                        controleRemotoAtivo = false;
+                            Log.w(TAG,
+                                    "Servidor desconectado: " + motivo);
 
-                        finalizarMovimentoSeLiberado();
+                            controleRemotoAtivo = false;
 
-                        status.setText(
-                                "Servidor desconectado."
-                        );
+                            finalizarMovimentoSeLiberado();
+
+                            status.setText(
+                                    "Servidor desconectado."
+                            );
+                        });
                     }
 
                     @Override
                     public void onMensagem(JSONObject mensagem) {
 
-                        if (atividadeEncerrada) return;
+                        handler.post(() -> {
 
-                        processarMensagemServidor(mensagem);
+                            if (!atividadeDisponivel()) return;
+
+                            processarMensagemServidor(mensagem);
+                        });
                     }
 
                     @Override
                     public void onErro(String erro) {
 
-                        if (atividadeEncerrada) return;
+                        handler.post(() -> {
 
-                        Log.e(TAG,
-                                "Erro de conexão: " + erro);
+                            if (!atividadeDisponivel()) return;
 
-                        status.setText(
-                                "Erro de conexão: " + erro
-                        );
+                            Log.e(TAG,
+                                    "Erro de conexão: " + erro);
+
+                            status.setText(
+                                    "Erro de conexão: " + erro
+                            );
+                        });
                     }
                 }
         );
@@ -315,6 +346,8 @@ public class MainActivity extends AppCompatActivity {
     // =====================================================
 
     private void processarMensagemServidor(JSONObject dados) {
+
+        if (!atividadeDisponivel()) return;
 
         String tipo = dados.optString("type");
 
@@ -415,6 +448,12 @@ public class MainActivity extends AppCompatActivity {
         float progressoRecebido =
                 (float) dados.optDouble("progress", 0);
 
+        if (Float.isNaN(progressoRecebido) ||
+                Float.isInfinite(progressoRecebido)) {
+
+            return;
+        }
+
         progressoRecebido = Math.max(
                 0f,
                 Math.min(1f, progressoRecebido)
@@ -426,11 +465,7 @@ public class MainActivity extends AppCompatActivity {
 
         registrarProgressoMovimento(progressoRecebido);
 
-        int duracao = movie.duration();
-
-        if (duracao <= 0) {
-            duracao = 1000;
-        }
+        int duracao = obterDuracaoGif();
 
         posicaoMs = (long) (
                 progressoRecebido * duracao
@@ -440,7 +475,7 @@ public class MainActivity extends AppCompatActivity {
 
         areaGif.post(() -> {
 
-            if (atividadeEncerrada || movie == null) {
+            if (!atividadeDisponivel() || movie == null) {
                 return;
             }
 
@@ -485,6 +520,8 @@ public class MainActivity extends AppCompatActivity {
             boolean ativo,
             float progresso) {
 
+        if (modoIndividual) return;
+
         if (servicoConexao == null) {
 
             Log.w(TAG,
@@ -511,6 +548,21 @@ public class MainActivity extends AppCompatActivity {
                         ativo +
                         " Progresso: " +
                         progresso);
+    }
+
+    // =====================================================
+    // DURAÇÃO DO GIF
+    // =====================================================
+
+    private int obterDuracaoGif() {
+
+        if (movie == null) {
+            return 1000;
+        }
+
+        int duracao = movie.duration();
+
+        return duracao > 0 ? duracao : 1000;
     }
 
     // =====================================================
@@ -639,15 +691,14 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void run() {
 
-            if (movie == null || !reproduzindo) {
+            if (!atividadeDisponivel() ||
+                    movie == null ||
+                    !reproduzindo) {
+
                 return;
             }
 
-            int duracao = movie.duration();
-
-            if (duracao <= 0) {
-                duracao = 1000;
-            }
+            int duracao = obterDuracaoGif();
 
             long agora = SystemClock.uptimeMillis();
 
@@ -661,7 +712,10 @@ public class MainActivity extends AppCompatActivity {
 
             desenharQuadro();
 
-            handler.postDelayed(this, 30);
+            handler.postDelayed(
+                    this,
+                    INTERVALO_ANIMACAO_MS
+            );
         }
     };
 
@@ -687,7 +741,7 @@ public class MainActivity extends AppCompatActivity {
 
         areaGif.post(() -> {
 
-            if (atividadeEncerrada) return;
+            if (!atividadeDisponivel()) return;
 
             int altura = areaGif.getHeight();
 
@@ -714,10 +768,7 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void run() {
 
-                    if (atividadeEncerrada ||
-                            isFinishing() ||
-                            isDestroyed()) {
-
+                    if (!atividadeDisponivel()) {
                         return;
                     }
 
@@ -789,8 +840,11 @@ public class MainActivity extends AppCompatActivity {
                 "gifs"
         );
 
-        if (!pastaGifs.exists()) {
-            pastaGifs.mkdirs();
+        if (!pastaGifs.exists() &&
+                !pastaGifs.mkdirs()) {
+
+            Log.e(TAG,
+                    "Não foi possível criar a pasta de GIFs.");
         }
 
         botaoProximo.setOnClickListener(v -> {
@@ -1221,11 +1275,7 @@ public class MainActivity extends AppCompatActivity {
 
         registrarProgressoMovimento(progresso);
 
-        int duracao = movie.duration();
-
-        if (duracao <= 0) {
-            duracao = 1000;
-        }
+        int duracao = obterDuracaoGif();
 
         posicaoMs = (long) (
                 progresso * duracao
@@ -1345,11 +1395,7 @@ public class MainActivity extends AppCompatActivity {
 
         if (reproduzindo) {
 
-            int duracao = movie.duration();
-
-            if (duracao <= 0) {
-                duracao = 1000;
-            }
+            int duracao = obterDuracaoGif();
 
             long decorrido =
                     SystemClock.uptimeMillis() -
@@ -1374,7 +1420,8 @@ public class MainActivity extends AppCompatActivity {
         if (movie == null ||
                 reproduzindo ||
                 controleManualAtivo ||
-                controleRemotoAtivo) {
+                controleRemotoAtivo ||
+                !atividadeDisponivel()) {
 
             return;
         }
@@ -1395,7 +1442,8 @@ public class MainActivity extends AppCompatActivity {
 
     private void desenharQuadro() {
 
-        if (movie == null ||
+        if (!atividadeDisponivel() ||
+                movie == null ||
                 areaGif.getWidth() <= 0 ||
                 areaGif.getHeight() <= 0) {
 
@@ -1410,7 +1458,9 @@ public class MainActivity extends AppCompatActivity {
                 quadroBitmap.getWidth() != largura ||
                 quadroBitmap.getHeight() != altura) {
 
-            if (quadroBitmap != null) {
+            if (quadroBitmap != null &&
+                    !quadroBitmap.isRecycled()) {
+
                 quadroBitmap.recycle();
             }
 
@@ -1511,66 +1561,73 @@ public class MainActivity extends AppCompatActivity {
                 conexao.setConnectTimeout(15000);
                 conexao.setReadTimeout(15000);
 
-                BufferedReader leitor =
-                        new BufferedReader(
-                                new InputStreamReader(
-                                        conexao.getInputStream(),
-                                        "UTF-8"
-                                )
-                        );
+                int codigoHttp = conexao.getResponseCode();
 
-                String linha;
+                if (codigoHttp != HttpURLConnection.HTTP_OK) {
 
-                boolean primeiraLinha = true;
+                    throw new Exception(
+                            "Erro HTTP: " + codigoHttp
+                    );
+                }
 
                 nomes.clear();
                 links.clear();
                 textosPlanilha.clear();
 
-                while ((linha = leitor.readLine()) != null) {
+                try (
+                        BufferedReader leitor =
+                                new BufferedReader(
+                                        new InputStreamReader(
+                                                conexao.getInputStream(),
+                                                "UTF-8"
+                                        )
+                                )
+                ) {
 
-                    ArrayList<String> colunas =
-                            separarCSV(linha);
+                    String linha;
 
-                    if (primeiraLinha) {
+                    boolean primeiraLinha = true;
 
-                        primeiraLinha = false;
+                    while ((linha = leitor.readLine()) != null) {
 
-                        continue;
-                    }
+                        ArrayList<String> colunas =
+                                separarCSV(linha);
 
-                    if (colunas.size() < 2) {
-                        continue;
-                    }
+                        if (primeiraLinha) {
 
-                    String nome =
-                            colunas.get(0).trim();
+                            primeiraLinha = false;
 
-                    String link =
-                            colunas.get(1).trim();
+                            continue;
+                        }
 
-                    // A quinta coluna contém o texto associado
-                    // ao GIF principal.
+                        if (colunas.size() < 2) {
+                            continue;
+                        }
 
-                    String texto =
-                            colunas.size() > 4
-                                    ? colunas.get(4).trim()
-                                    : "";
+                        String nome =
+                                colunas.get(0).trim();
 
-                    if (!nome.isEmpty() &&
-                            !link.isEmpty()) {
+                        String link =
+                                colunas.get(1).trim();
 
-                        nomes.add(nome);
-                        links.add(link);
-                        textosPlanilha.add(texto);
+                        String texto =
+                                colunas.size() > 4
+                                        ? colunas.get(4).trim()
+                                        : "";
+
+                        if (!nome.isEmpty() &&
+                                !link.isEmpty()) {
+
+                            nomes.add(nome);
+                            links.add(link);
+                            textosPlanilha.add(texto);
+                        }
                     }
                 }
 
-                leitor.close();
-
                 handler.post(() -> {
 
-                    if (atividadeEncerrada) return;
+                    if (!atividadeDisponivel()) return;
 
                     indiceAtual = -1;
 
@@ -1603,7 +1660,7 @@ public class MainActivity extends AppCompatActivity {
 
                 handler.post(() -> {
 
-                    if (atividadeEncerrada) return;
+                    if (!atividadeDisponivel()) return;
 
                     status.setText(
                             "Erro ao consultar planilha: " +
@@ -1679,7 +1736,9 @@ public class MainActivity extends AppCompatActivity {
 
     private void proximoGif() {
 
-        if (carregando) return;
+        if (!atividadeDisponivel() || carregando) {
+            return;
+        }
 
         if (nomes.isEmpty()) {
 
@@ -1704,6 +1763,12 @@ public class MainActivity extends AppCompatActivity {
     // =====================================================
 
     private void baixarEExibir(int posicao) {
+
+        if (!atividadeDisponivel()) return;
+
+        if (posicao < 0 || posicao >= nomes.size()) {
+            return;
+        }
 
         String nome = nomes.get(posicao);
 
@@ -1765,11 +1830,12 @@ public class MainActivity extends AppCompatActivity {
 
                 conexao.setInstanceFollowRedirects(true);
 
-                if (conexao.getResponseCode() != 200) {
+                int codigoHttp = conexao.getResponseCode();
+
+                if (codigoHttp != HttpURLConnection.HTTP_OK) {
 
                     throw new Exception(
-                            "Erro HTTP: " +
-                                    conexao.getResponseCode()
+                            "Erro HTTP: " + codigoHttp
                     );
                 }
 
@@ -1790,19 +1856,51 @@ public class MainActivity extends AppCompatActivity {
 
                         saida.write(buffer, 0, quantidade);
                     }
+
+                    saida.flush();
                 }
 
                 if (temporario.length() == 0) {
                     throw new Exception("Arquivo vazio.");
                 }
 
+                // Verifica se o conteúdo recebido realmente
+                // pode ser decodificado como GIF.
+
+                try (
+                        FileInputStream entradaValidacao =
+                                new FileInputStream(temporario)
+                ) {
+
+                    Movie teste = Movie.decodeStream(
+                            entradaValidacao
+                    );
+
+                    if (teste == null) {
+
+                        throw new Exception(
+                                "O arquivo recebido não é um GIF válido."
+                        );
+                    }
+                }
+
+                if (arquivo.exists() && !arquivo.delete()) {
+
+                    throw new Exception(
+                            "Não foi possível substituir o arquivo antigo."
+                    );
+                }
+
                 if (!temporario.renameTo(arquivo)) {
-                    throw new Exception("Erro ao salvar GIF.");
+
+                    throw new Exception(
+                            "Erro ao salvar GIF."
+                    );
                 }
 
                 handler.post(() -> {
 
-                    if (atividadeEncerrada) return;
+                    if (!atividadeDisponivel()) return;
 
                     carregando = false;
 
@@ -1813,7 +1911,9 @@ public class MainActivity extends AppCompatActivity {
 
             } catch (Exception e) {
 
-                temporario.delete();
+                if (temporario.exists()) {
+                    temporario.delete();
+                }
 
                 Log.e(TAG,
                         "Erro no download do GIF.",
@@ -1821,7 +1921,7 @@ public class MainActivity extends AppCompatActivity {
 
                 handler.post(() -> {
 
-                    if (atividadeEncerrada) return;
+                    if (!atividadeDisponivel()) return;
 
                     carregando = false;
 
@@ -1848,27 +1948,48 @@ public class MainActivity extends AppCompatActivity {
 
     private String extrairId(String link) {
 
+        if (link == null || link.trim().isEmpty()) {
+            return null;
+        }
+
         try {
+
+            String resultado = null;
 
             if (link.contains("/file/d/")) {
 
                 String parte =
                         link.split("/file/d/")[1];
 
-                return parte.split("/")[0];
-            }
+                resultado = parte.split("/")[0];
 
-            if (link.contains("id=")) {
+            } else if (link.contains("id=")) {
 
                 String parte =
                         link.split("id=")[1];
 
-                return parte.split("&")[0];
+                resultado = parte.split("&")[0];
             }
 
-            return null;
+            if (resultado == null) {
+                return null;
+            }
+
+            resultado = resultado.trim();
+
+            if (resultado.isEmpty() ||
+                    !resultado.matches("[a-zA-Z0-9_-]+")) {
+
+                return null;
+            }
+
+            return resultado;
 
         } catch (Exception e) {
+
+            Log.e(TAG,
+                    "Não foi possível extrair o ID do Drive.",
+                    e);
 
             return null;
         }
@@ -1882,11 +2003,25 @@ public class MainActivity extends AppCompatActivity {
             File arquivo,
             String nome) {
 
+        if (!atividadeDisponivel()) return;
+
+        // Cada nova solicitação invalida as decodificações
+        // anteriores que ainda estejam em andamento.
+
+        long geracaoAtual = ++geracaoExibicao;
+
         handler.removeCallbacks(atualizadorGif);
 
         handler.removeCallbacks(atualizarTextoPlanilha);
 
         reproduzindo = false;
+
+        // Se o usuário avançar enquanto segura um controle,
+        // envia a liberação antes de limpar os estados locais.
+
+        if (controleManualAtivo) {
+            enviarComandoControle(false, 0f);
+        }
 
         movie = null;
 
@@ -1906,7 +2041,11 @@ public class MainActivity extends AppCompatActivity {
 
         areaGif.post(() -> {
 
-            if (atividadeEncerrada) return;
+            if (!atividadeDisponivel() ||
+                    geracaoAtual != geracaoExibicao) {
+
+                return;
+            }
 
             int centro = areaGif.getHeight() / 2;
 
@@ -1948,7 +2087,11 @@ public class MainActivity extends AppCompatActivity {
 
                 handler.post(() -> {
 
-                    if (atividadeEncerrada) return;
+                    if (!atividadeDisponivel() ||
+                            geracaoAtual != geracaoExibicao) {
+
+                        return;
+                    }
 
                     movie = resultado;
 
@@ -1968,7 +2111,11 @@ public class MainActivity extends AppCompatActivity {
 
                     areaGif.post(() -> {
 
-                        if (atividadeEncerrada) return;
+                        if (!atividadeDisponivel() ||
+                                geracaoAtual != geracaoExibicao) {
+
+                            return;
+                        }
 
                         desenharQuadro();
 
@@ -2001,7 +2148,18 @@ public class MainActivity extends AppCompatActivity {
 
                 handler.post(() -> {
 
-                    if (atividadeEncerrada) return;
+                    if (!atividadeDisponivel() ||
+                            geracaoAtual != geracaoExibicao) {
+
+                        return;
+                    }
+
+                    // Remove o arquivo inválido do cache.
+                    // Assim, uma nova tentativa poderá baixá-lo novamente.
+
+                    if (arquivo.exists()) {
+                        arquivo.delete();
+                    }
 
                     textoPlanilha.setVisibility(View.GONE);
 
@@ -2022,6 +2180,10 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
 
         atividadeEncerrada = true;
+
+        // Invalida qualquer decodificação ainda pendente.
+
+        geracaoExibicao++;
 
         handler.removeCallbacksAndMessages(null);
 
@@ -2050,7 +2212,9 @@ public class MainActivity extends AppCompatActivity {
 
         if (quadroBitmap != null) {
 
-            quadroBitmap.recycle();
+            if (!quadroBitmap.isRecycled()) {
+                quadroBitmap.recycle();
+            }
 
             quadroBitmap = null;
 
