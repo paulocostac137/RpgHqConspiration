@@ -1,6 +1,6 @@
 EXPORTAÇÃO DO PROJETO RPG HQ CONSPIRATION
 Arquivos reunidos em um único documento.
-Total de arquivos: 25
+Total de arquivos: 28
 
 ============================================================
 
@@ -202,6 +202,23 @@ public class MainActivity extends AppCompatActivity {
     private GifRepository gifRepository;
 
     // =====================================================
+    // GERENCIADOR DE CARREGAMENTO DA PLANILHA
+    // =====================================================
+
+    private GerenciadorCarregamentoPlanilha
+            gerenciadorCarregamentoPlanilha;
+
+    // =====================================================
+    // GERENCIADOR DE CARREGAMENTO DOS GIFS
+    // =====================================================
+
+    private GerenciadorCarregamentoGif
+            gerenciadorCarregamentoGif;
+
+    // Nome do GIF solicitado ao gerenciador.
+    private String nomeGifSolicitado = "";
+
+    // =====================================================
     // GERENCIADOR DE ESTADO DOS CONTROLES
     // =====================================================
 
@@ -309,10 +326,11 @@ public class MainActivity extends AppCompatActivity {
     private boolean carregando = false;
 
     // =====================================================
-    // NAVEGAÇÃO DOS GIFS
+    // GERENCIADOR DE NAVEGAÇÃO DOS GIFS
     // =====================================================
 
-    private int indiceAtual = -1;
+    private final GerenciadorNavegacaoGif gerenciadorNavegacaoGif =
+            new GerenciadorNavegacaoGif();
 
     private long geracaoExibicao = 0;
 
@@ -754,6 +772,77 @@ public class MainActivity extends AppCompatActivity {
         );
 
         // -------------------------------------------------
+        // GERENCIADOR DE CARREGAMENTO DOS GIFS
+        // -------------------------------------------------
+
+        gerenciadorCarregamentoGif =
+                new GerenciadorCarregamentoGif(
+                        gifRepository,
+                        executor,
+                        handler,
+                        new GerenciadorCarregamentoGif.Listener() {
+
+                            @Override
+                            public void onCarregamentoIniciado() {
+
+                                if (!atividadeDisponivel()) {
+                                    return;
+                                }
+
+                                carregando = true;
+
+                                botaoProximo.setEnabled(false);
+
+                                status.setText(
+                                        "Carregando: " +
+                                                nomeGifSolicitado
+                                );
+                            }
+
+                            @Override
+                            public void onCarregamentoConcluido(
+                                    File arquivo) {
+
+                                if (!atividadeDisponivel()) {
+                                    return;
+                                }
+
+                                carregando = false;
+
+                                botaoProximo.setEnabled(true);
+
+                                exibirGif(
+                                        arquivo,
+                                        nomeGifSolicitado
+                                );
+                            }
+
+                            @Override
+                            public void onErro(Exception erro) {
+
+                                if (!atividadeDisponivel()) {
+                                    return;
+                                }
+
+                                carregando = false;
+
+                                botaoProximo.setEnabled(true);
+
+                                Log.e(
+                                        TAG,
+                                        "Erro ao carregar GIF.",
+                                        erro
+                                );
+
+                                status.setText(
+                                        "Erro ao obter GIF: " +
+                                                erro.getMessage()
+                                );
+                            }
+                        }
+                );
+
+        // -------------------------------------------------
         // GERENCIADOR DE REPRODUÇÃO
         // -------------------------------------------------
 
@@ -927,10 +1016,79 @@ public class MainActivity extends AppCompatActivity {
         atualizarVisibilidadeControles();
 
         // -------------------------------------------------
-        // CARREGAMENTO DA PLANILHA
+        // GERENCIADOR DE CARREGAMENTO DA PLANILHA
         // -------------------------------------------------
 
-        carregarPlanilha();
+        gerenciadorCarregamentoPlanilha =
+                new GerenciadorCarregamentoPlanilha(
+                        planilhaRepository,
+                        executor,
+                        handler,
+                        new GerenciadorCarregamentoPlanilha.Listener() {
+
+                            @Override
+                            public void onCarregamentoConcluido(
+                                    GerenciadorCarregamentoPlanilha.Resultado resultado) {
+
+                                if (!atividadeDisponivel()) {
+                                    return;
+                                }
+
+                                nomes.clear();
+                                links.clear();
+                                textosPlanilha.clear();
+
+                                nomes.addAll(resultado.getNomes());
+                                links.addAll(resultado.getLinks());
+                                textosPlanilha.addAll(resultado.getTextos());
+
+                                gerenciadorNavegacaoGif.reiniciar();
+
+                                if (resultado.estaVazio()) {
+
+                                    status.setText(
+                                            "Nenhum GIF encontrado."
+                                    );
+
+                                    botaoProximo.setEnabled(false);
+
+                                } else {
+
+                                    status.setText(
+                                            resultado.getQuantidade() +
+                                                    " GIFs disponíveis."
+                                    );
+
+                                    botaoProximo.setEnabled(true);
+
+                                    proximoGif();
+                                }
+                            }
+
+                            @Override
+                            public void onErro(Exception erro) {
+
+                                if (!atividadeDisponivel()) {
+                                    return;
+                                }
+
+                                status.setText(
+                                        "Erro ao consultar planilha: " +
+                                                erro.getMessage()
+                                );
+
+                                botaoProximo.setEnabled(false);
+
+                                Log.e(
+                                        TAG,
+                                        "Falha no carregamento da planilha.",
+                                        erro
+                                );
+                            }
+                        }
+                );
+
+        gerenciadorCarregamentoPlanilha.carregar();
     }
 
     // =====================================================
@@ -990,82 +1148,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // =====================================================
-    // CONSULTA À PLANILHA
-    // =====================================================
-
-    private void carregarPlanilha() {
-
-        status.setText(
-                "Consultando Google Planilhas..."
-        );
-
-        botaoProximo.setEnabled(false);
-
-        executor.execute(() -> {
-
-            try {
-
-                String conteudo =
-                        planilhaRepository.baixarConteudo();
-
-                PlanilhaParser.preencherListas(
-                        conteudo,
-                        nomes,
-                        links,
-                        textosPlanilha
-                );
-
-                handler.post(() -> {
-
-                    if (!atividadeDisponivel()) return;
-
-                    indiceAtual = -1;
-
-                    if (nomes.isEmpty()) {
-
-                        status.setText(
-                                "Nenhum GIF encontrado."
-                        );
-
-                        botaoProximo.setEnabled(false);
-
-                    } else {
-
-                        status.setText(
-                                nomes.size() +
-                                        " GIFs disponíveis."
-                        );
-
-                        botaoProximo.setEnabled(true);
-
-                        proximoGif();
-                    }
-                });
-
-            } catch (Exception e) {
-
-                Log.e(
-                        TAG,
-                        "Erro na planilha.",
-                        e
-                );
-
-                handler.post(() -> {
-
-                    if (!atividadeDisponivel()) return;
-
-                    status.setText(
-                            "Erro ao consultar planilha: " +
-                                    e.getMessage()
-                    );
-
-                    botaoProximo.setEnabled(false);
-                });
-            }
-        });
-    }
-
-    // =====================================================
     // PRÓXIMO GIF
     // =====================================================
 
@@ -1084,126 +1166,48 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        indiceAtual++;
+        int indiceSelecionado =
+                gerenciadorNavegacaoGif.proximo(nomes.size());
 
-        if (indiceAtual >= nomes.size()) {
-            indiceAtual = 0;
+        if (indiceSelecionado < 0) {
+            return;
         }
 
-        baixarEExibir(indiceAtual);
+        baixarEExibir(indiceSelecionado);
     }
 
     // =====================================================
-    // LOCALIZAÇÃO E OBTENÇÃO DO GIF
+    // SOLICITAÇÃO DE CARREGAMENTO DO GIF
     // =====================================================
 
     private void baixarEExibir(int posicao) {
 
-        if (!atividadeDisponivel()) return;
-
-        if (posicao < 0 || posicao >= nomes.size()) {
+        if (!atividadeDisponivel() || carregando) {
             return;
         }
 
-        final String nome = nomes.get(posicao);
-
-        final String link = links.get(posicao);
-
-        File arquivoExistente;
-
-        // -------------------------------------------------
-        // VERIFICA SE O GIF JÁ EXISTE LOCALMENTE
-        // -------------------------------------------------
-
-        try {
-
-            arquivoExistente = gifRepository.localizar(link);
-
-        } catch (Exception e) {
+        if (posicao < 0 ||
+                posicao >= nomes.size() ||
+                posicao >= links.size()) {
 
             Log.e(
                     TAG,
-                    "Erro ao localizar GIF.",
-                    e
-            );
-
-            status.setText(
-                    "Link inválido: " + nome
+                    "Posição inválida para carregamento do GIF: " +
+                            posicao
             );
 
             return;
         }
 
-        // -------------------------------------------------
-        // GIF JÁ ARMAZENADO
-        // -------------------------------------------------
+        nomeGifSolicitado = nomes.get(posicao);
 
-        if (arquivoExistente != null) {
-
-            exibirGif(
-                    arquivoExistente,
-                    nome
-            );
-
-            return;
-        }
-
-        // -------------------------------------------------
-        // INICIAR DOWNLOAD
-        // -------------------------------------------------
-
-        carregando = true;
-
-        botaoProximo.setEnabled(false);
+        String link = links.get(posicao);
 
         status.setText(
-                "Baixando: " + nome
+                "Carregando: " + nomeGifSolicitado
         );
 
-        executor.execute(() -> {
-
-            try {
-
-                File arquivoBaixado =
-                        gifRepository.obter(link);
-
-                handler.post(() -> {
-
-                    if (!atividadeDisponivel()) return;
-
-                    carregando = false;
-
-                    botaoProximo.setEnabled(true);
-
-                    exibirGif(
-                            arquivoBaixado,
-                            nome
-                    );
-                });
-
-            } catch (Exception e) {
-
-                Log.e(
-                        TAG,
-                        "Erro ao obter GIF.",
-                        e
-                );
-
-                handler.post(() -> {
-
-                    if (!atividadeDisponivel()) return;
-
-                    carregando = false;
-
-                    botaoProximo.setEnabled(true);
-
-                    status.setText(
-                            "Erro ao obter GIF: " +
-                                    e.getMessage()
-                    );
-                });
-            }
-        });
+        gerenciadorCarregamentoGif.carregar(link);
     }
 
     // =====================================================
@@ -1214,7 +1218,9 @@ public class MainActivity extends AppCompatActivity {
             File arquivo,
             String nome) {
 
-        if (!atividadeDisponivel()) return;
+        if (!atividadeDisponivel()) {
+            return;
+        }
 
         if (arquivo == null ||
                 !arquivo.isFile() ||
@@ -1269,14 +1275,15 @@ public class MainActivity extends AppCompatActivity {
         });
 
         // -------------------------------------------------
-        // CARREGAR O GIF
+        // DECODIFICAR O GIF
         // -------------------------------------------------
 
         executor.execute(() -> {
 
             try {
 
-                final Movie resultado = GifDecoder.carregar(arquivo);
+                final Movie resultado =
+                        GifDecoder.carregar(arquivo);
 
                 if (resultado == null) {
 
@@ -1302,6 +1309,9 @@ public class MainActivity extends AppCompatActivity {
                     // -------------------------------------
 
                     final String textoFinal;
+
+                    int indiceAtual =
+                            gerenciadorNavegacaoGif.getIndiceAtual();
 
                     if (indiceAtual >= 0 &&
                             indiceAtual < textosPlanilha.size()) {
@@ -1416,6 +1426,8 @@ public class MainActivity extends AppCompatActivity {
         controleRemotoAtivo = false;
 
         carregando = false;
+
+        nomeGifSolicitado = "";
 
         gerenciadorMovimento.reiniciarContagem();
 
@@ -5375,5 +5387,436 @@ public final class GerenciadorEstadoControles {
 
 ============================================================
 FIM DO ARQUIVO: app/src/main/java/com/example/rpghqconspiration/GerenciadorEstadoControles.java
+
+============================================================
+
+CAMINHO ORIGINAL:
+app/src/main/java/com/example/rpghqconspiration/GerenciadorCarregamentoPlanilha.java
+INÍCIO DO CONTEÚDO DO ARQUIVO
+
+============================================================
+package com.example.rpghqconspiration;
+
+import android.os.Handler;
+import android.util.Log;
+
+import java.util.ArrayList;
+import java.util.concurrent.ExecutorService;
+
+/**
+ * Responsável pelo carregamento assíncrono
+ * e interpretação dos dados da planilha.
+ *
+ * Não manipula Views nem controla a navegação
+ * ou a reprodução dos GIFs.
+ */
+public final class GerenciadorCarregamentoPlanilha {
+
+    private static final String TAG =
+            "GerenciadorCarregamentoPlanilha";
+
+    // =====================================================
+    // RESULTADO DO CARREGAMENTO
+    // =====================================================
+
+    public static final class Resultado {
+
+        private final ArrayList<String> nomes;
+        private final ArrayList<String> links;
+        private final ArrayList<String> textos;
+
+        private Resultado(
+                ArrayList<String> nomes,
+                ArrayList<String> links,
+                ArrayList<String> textos) {
+
+            this.nomes = new ArrayList<>(nomes);
+            this.links = new ArrayList<>(links);
+            this.textos = new ArrayList<>(textos);
+        }
+
+        public ArrayList<String> getNomes() {
+            return new ArrayList<>(nomes);
+        }
+
+        public ArrayList<String> getLinks() {
+            return new ArrayList<>(links);
+        }
+
+        public ArrayList<String> getTextos() {
+            return new ArrayList<>(textos);
+        }
+
+        public int getQuantidade() {
+            return nomes.size();
+        }
+
+        public boolean estaVazio() {
+            return nomes.isEmpty();
+        }
+    }
+
+    // =====================================================
+    // COMUNICAÇÃO COM A MAINACTIVITY
+    // =====================================================
+
+    public interface Listener {
+
+        void onCarregamentoConcluido(Resultado resultado);
+
+        void onErro(Exception erro);
+    }
+
+    // =====================================================
+    // DEPENDÊNCIAS
+    // =====================================================
+
+    private final PlanilhaRepository planilhaRepository;
+
+    private final ExecutorService executor;
+
+    private final Handler handler;
+
+    private final Listener listener;
+
+    // =====================================================
+    // CONSTRUTOR
+    // =====================================================
+
+    public GerenciadorCarregamentoPlanilha(
+            PlanilhaRepository planilhaRepository,
+            ExecutorService executor,
+            Handler handler,
+            Listener listener) {
+
+        if (planilhaRepository == null ||
+                executor == null ||
+                handler == null ||
+                listener == null) {
+
+            throw new IllegalArgumentException(
+                    "As dependências não podem ser nulas."
+            );
+        }
+
+        this.planilhaRepository = planilhaRepository;
+        this.executor = executor;
+        this.handler = handler;
+        this.listener = listener;
+    }
+
+    // =====================================================
+    // CARREGAR PLANILHA
+    // =====================================================
+
+    public void carregar() {
+
+        executor.execute(() -> {
+
+            try {
+
+                Log.d(
+                        TAG,
+                        "Iniciando consulta à planilha."
+                );
+
+                // -----------------------------------------
+                // BAIXAR CONTEÚDO CSV
+                // -----------------------------------------
+
+                String conteudo =
+                        planilhaRepository.baixarConteudo();
+
+                // -----------------------------------------
+                // INTERPRETAR DADOS
+                // -----------------------------------------
+
+                ArrayList<String> nomes =
+                        new ArrayList<>();
+
+                ArrayList<String> links =
+                        new ArrayList<>();
+
+                ArrayList<String> textos =
+                        new ArrayList<>();
+
+                PlanilhaParser.preencherListas(
+                        conteudo,
+                        nomes,
+                        links,
+                        textos
+                );
+
+                Resultado resultado = new Resultado(
+                        nomes,
+                        links,
+                        textos
+                );
+
+                Log.d(
+                        TAG,
+                        "Planilha carregada. Registros: "
+                                + resultado.getQuantidade()
+                );
+
+                // -----------------------------------------
+                // DEVOLVER RESULTADO À THREAD PRINCIPAL
+                // -----------------------------------------
+
+                handler.post(() ->
+                        listener.onCarregamentoConcluido(
+                                resultado
+                        )
+                );
+
+            } catch (Exception e) {
+
+                Log.e(
+                        TAG,
+                        "Erro ao carregar planilha.",
+                        e
+                );
+
+                handler.post(() ->
+                        listener.onErro(e)
+                );
+            }
+        });
+    }
+}
+
+============================================================
+FIM DO ARQUIVO: app/src/main/java/com/example/rpghqconspiration/GerenciadorCarregamentoPlanilha.java
+
+============================================================
+
+CAMINHO ORIGINAL:
+app/src/main/java/com/example/rpghqconspiration/GerenciadorNavegacaoGif.java
+INÍCIO DO CONTEÚDO DO ARQUIVO
+
+============================================================
+package com.example.rpghqconspiration;
+
+/**
+ * Responsável exclusivamente pela navegação
+ * sequencial entre os GIFs disponíveis.
+ *
+ * Não realiza downloads, não manipula Views
+ * e não controla a reprodução das animações.
+ */
+public final class GerenciadorNavegacaoGif {
+
+    private int indiceAtual = -1;
+
+    /**
+     * Avança para o próximo GIF.
+     *
+     * Retorna -1 quando não existem GIFs.
+     * Ao chegar ao final, retorna ao primeiro.
+     */
+    public int proximo(int quantidade) {
+
+        if (quantidade <= 0) {
+            indiceAtual = -1;
+            return -1;
+        }
+
+        indiceAtual++;
+
+        if (indiceAtual >= quantidade) {
+            indiceAtual = 0;
+        }
+
+        return indiceAtual;
+    }
+
+    /**
+     * Reinicia a navegação.
+     */
+    public void reiniciar() {
+        indiceAtual = -1;
+    }
+
+    /**
+     * Retorna o índice atualmente selecionado.
+     */
+    public int getIndiceAtual() {
+        return indiceAtual;
+    }
+
+    /**
+     * Informa se existe um GIF selecionado.
+     */
+    public boolean possuiSelecao() {
+        return indiceAtual >= 0;
+    }
+}
+
+============================================================
+FIM DO ARQUIVO: app/src/main/java/com/example/rpghqconspiration/GerenciadorNavegacaoGif.java
+
+============================================================
+
+CAMINHO ORIGINAL:
+app/src/main/java/com/example/rpghqconspiration/GerenciadorCarregamentoGif.java
+INÍCIO DO CONTEÚDO DO ARQUIVO
+
+============================================================
+package com.example.rpghqconspiration;
+
+import android.os.Handler;
+import android.util.Log;
+
+import java.io.File;
+import java.util.concurrent.ExecutorService;
+
+/**
+ * Responsável por coordenar a obtenção dos GIFs.
+ *
+ * Utiliza o GifRepository para localizar ou baixar
+ * os arquivos, sem manipular Views ou reproduzir animações.
+ */
+public final class GerenciadorCarregamentoGif {
+
+    private static final String TAG =
+            "GerenciadorCarregamentoGif";
+
+    // =====================================================
+    // LISTENER
+    // =====================================================
+
+    public interface Listener {
+
+        void onCarregamentoIniciado();
+
+        void onCarregamentoConcluido(
+                File arquivo
+        );
+
+        void onErro(Exception erro);
+    }
+
+    // =====================================================
+    // DEPENDÊNCIAS
+    // =====================================================
+
+    private final GifRepository gifRepository;
+
+    private final ExecutorService executor;
+
+    private final Handler handler;
+
+    private final Listener listener;
+
+    // =====================================================
+    // CONSTRUTOR
+    // =====================================================
+
+    public GerenciadorCarregamentoGif(
+            GifRepository gifRepository,
+            ExecutorService executor,
+            Handler handler,
+            Listener listener) {
+
+        if (gifRepository == null ||
+                executor == null ||
+                handler == null ||
+                listener == null) {
+
+            throw new IllegalArgumentException(
+                    "As dependências não podem ser nulas."
+            );
+        }
+
+        this.gifRepository = gifRepository;
+        this.executor = executor;
+        this.handler = handler;
+        this.listener = listener;
+    }
+
+    // =====================================================
+    // SOLICITAR GIF
+    // =====================================================
+
+    public void carregar(String link) {
+
+        if (link == null || link.trim().isEmpty()) {
+
+            handler.post(() ->
+                    listener.onErro(
+                            new IllegalArgumentException(
+                                    "O link do GIF está vazio."
+                            )
+                    )
+            );
+
+            return;
+        }
+
+        handler.post(listener::onCarregamentoIniciado);
+
+        executor.execute(() -> {
+
+            try {
+
+                Log.d(
+                        TAG,
+                        "Obtendo GIF: " + link
+                );
+
+                // O repositório primeiro procura
+                // o arquivo local e baixa se necessário.
+
+                File arquivo =
+                        gifRepository.obter(link);
+
+                validarArquivo(arquivo);
+
+                Log.d(
+                        TAG,
+                        "GIF obtido: " +
+                                arquivo.getAbsolutePath()
+                );
+
+                handler.post(() ->
+                        listener.onCarregamentoConcluido(
+                                arquivo
+                        )
+                );
+
+            } catch (Exception e) {
+
+                Log.e(
+                        TAG,
+                        "Falha ao obter GIF.",
+                        e
+                );
+
+                handler.post(() ->
+                        listener.onErro(e)
+                );
+            }
+        });
+    }
+
+    // =====================================================
+    // VALIDAR ARQUIVO
+    // =====================================================
+
+    private void validarArquivo(File arquivo) {
+
+        if (arquivo == null ||
+                !arquivo.isFile() ||
+                arquivo.length() <= 0) {
+
+            throw new IllegalStateException(
+                    "O arquivo GIF recebido é inválido."
+            );
+        }
+    }
+}
+
+============================================================
+FIM DO ARQUIVO: app/src/main/java/com/example/rpghqconspiration/GerenciadorCarregamentoGif.java
 
 ============================================================
