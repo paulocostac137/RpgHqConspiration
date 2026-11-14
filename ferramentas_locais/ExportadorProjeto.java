@@ -29,6 +29,10 @@ public class ExportadorProjeto {
 
             "app/src/main/java/com/example/rpghqconspiration/GifSincronizadoView.java"
 
+            "app/src/main/java/com/example/rpghqconspiration/ModoImersivo.java"
+
+            "app/src/main/java/com/example/rpghqconspiration/GerenciadorSessao.java"
+
     );
 
     private static final String NOME_ARQUIVO_SAIDA =
