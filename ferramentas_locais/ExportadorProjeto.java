@@ -33,7 +33,11 @@ public class ExportadorProjeto {
 
             "app/src/main/java/com/example/rpghqconspiration/GerenciadorSessao.java",
 
-            "app/src/main/java/com/example/rpghqconspiration/GerenciadorMovimento.java"
+            "app/src/main/java/com/example/rpghqconspiration/GerenciadorMovimento.java",
+
+            "app/src/main/java/com/example/rpghqconspiration/PlanilhaRepository.java",
+
+            "app/src/main/java/com/example/rpghqconspiration/CsvParser.java"
 
     );
 

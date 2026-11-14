@@ -1,6 +1,6 @@
 EXPORTAÇÃO DO PROJETO RPG HQ CONSPIRATION
 Arquivos reunidos em um único documento.
-Total de arquivos: 11
+Total de arquivos: 13
 
 ============================================================
 
@@ -164,15 +164,6 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "RPGHQ_SYNC";
 
     // =====================================================
-    // PLANILHA
-    // =====================================================
-
-    private static final String PLANILHA_ID =
-            "1pJ7XtHx0DLSCjsGj0zlJycm-nzqa7a8flnLfoG7k2ks";
-
-    private static final String GID = "0";
-
-    // =====================================================
     // TEMPOS
     // =====================================================
 
@@ -223,6 +214,9 @@ public class MainActivity extends AppCompatActivity {
             new Handler(Looper.getMainLooper());
 
     private ServicoConexao servicoConexao;
+
+    private final PlanilhaRepository planilhaRepository =
+            new PlanilhaRepository();
 
     private final GerenciadorSessao gerenciadorSessao =
             new GerenciadorSessao();
@@ -1657,84 +1651,58 @@ public class MainActivity extends AppCompatActivity {
 
         executor.execute(() -> {
 
-            HttpURLConnection conexao = null;
-
             try {
 
-                String endereco =
-                        "https://docs.google.com/spreadsheets/d/" +
-                                PLANILHA_ID +
-                                "/export?format=csv&gid=" + GID;
+                // O Repository realiza a conexão HTTP
+                // e retorna o conteúdo CSV.
 
-                URL url = new URL(endereco);
+                String conteudo =
+                        planilhaRepository.baixarConteudo();
 
-                conexao = (HttpURLConnection)
-                        url.openConnection();
-
-                conexao.setConnectTimeout(15000);
-                conexao.setReadTimeout(15000);
-
-                int codigoHttp = conexao.getResponseCode();
-
-                if (codigoHttp != HttpURLConnection.HTTP_OK) {
-
-                    throw new Exception(
-                            "Erro HTTP: " + codigoHttp
-                    );
-                }
+                // A interpretação dos dados permanece
+                // temporariamente na MainActivity.
 
                 nomes.clear();
                 links.clear();
                 textosPlanilha.clear();
 
-                try (
-                        BufferedReader leitor =
-                                new BufferedReader(
-                                        new InputStreamReader(
-                                                conexao.getInputStream(),
-                                                "UTF-8"
-                                        )
-                                )
-                ) {
+                String[] linhas = conteudo.split("\\n");
 
-                    String linha;
+                boolean primeiraLinha = true;
 
-                    boolean primeiraLinha = true;
+                for (String linha : linhas) {
 
-                    while ((linha = leitor.readLine()) != null) {
+                    ArrayList<String> colunas =
+                            CsvParser.separar(linha);
 
-                        ArrayList<String> colunas =
-                                separarCSV(linha);
+                    if (primeiraLinha) {
 
-                        if (primeiraLinha) {
+                        primeiraLinha = false;
 
-                            primeiraLinha = false;
+                        continue;
+                    }
 
-                            continue;
-                        }
+                    if (colunas.size() < 2) {
+                        continue;
+                    }
 
-                        if (colunas.size() < 2) {
-                            continue;
-                        }
+                    String nome =
+                            colunas.get(0).trim();
 
-                        String nome =
-                                colunas.get(0).trim();
+                    String link =
+                            colunas.get(1).trim();
 
-                        String link =
-                                colunas.get(1).trim();
+                    String texto =
+                            colunas.size() > 4
+                                    ? colunas.get(4).trim()
+                                    : "";
 
-                        String texto =
-                                colunas.size() > 4
-                                        ? colunas.get(4).trim()
-                                        : "";
+                    if (!nome.isEmpty() &&
+                            !link.isEmpty()) {
 
-                        if (!nome.isEmpty() &&
-                                !link.isEmpty()) {
-
-                            nomes.add(nome);
-                            links.add(link);
-                            textosPlanilha.add(texto);
-                        }
+                        nomes.add(nome);
+                        links.add(link);
+                        textosPlanilha.add(texto);
                     }
                 }
 
@@ -1784,65 +1752,8 @@ public class MainActivity extends AppCompatActivity {
 
                     botaoProximo.setEnabled(false);
                 });
-
-            } finally {
-
-                if (conexao != null) {
-                    conexao.disconnect();
-                }
             }
         });
-    }
-
-    // =====================================================
-    // LEITURA CSV
-    // =====================================================
-
-    private ArrayList<String> separarCSV(String linha) {
-
-        ArrayList<String> resultado =
-                new ArrayList<>();
-
-        StringBuilder campo =
-                new StringBuilder();
-
-        boolean dentroAspas = false;
-
-        for (int i = 0; i < linha.length(); i++) {
-
-            char caractere = linha.charAt(i);
-
-            if (caractere == '"') {
-
-                if (dentroAspas &&
-                        i + 1 < linha.length() &&
-                        linha.charAt(i + 1) == '"') {
-
-                    campo.append('"');
-
-                    i++;
-
-                } else {
-
-                    dentroAspas = !dentroAspas;
-                }
-
-            } else if (caractere == ',' &&
-                    !dentroAspas) {
-
-                resultado.add(campo.toString());
-
-                campo.setLength(0);
-
-            } else {
-
-                campo.append(caractere);
-            }
-        }
-
-        resultado.add(campo.toString());
-
-        return resultado;
     }
 
     // =====================================================
@@ -4112,5 +4023,187 @@ public final class GerenciadorMovimento {
 
 ============================================================
 FIM DO ARQUIVO: app/src/main/java/com/example/rpghqconspiration/GerenciadorMovimento.java
+
+============================================================
+
+CAMINHO ORIGINAL:
+app/src/main/java/com/example/rpghqconspiration/PlanilhaRepository.java
+INÍCIO DO CONTEÚDO DO ARQUIVO
+
+============================================================
+package com.example.rpghqconspiration;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+
+/**
+ * Responsável exclusivamente pelo acesso à planilha Google Sheets.
+ *
+ * Faz a conexão HTTP e retorna o conteúdo CSV recebido.
+ * Não manipula componentes da interface nem listas da MainActivity.
+ */
+public class PlanilhaRepository {
+
+    // =====================================================
+    // CONFIGURAÇÃO DA PLANILHA
+    // =====================================================
+
+    private static final String PLANILHA_ID =
+            "1pJ7XtHx0DLSCjsGj0zlJycm-nzqa7a8flnLfoG7k2ks";
+
+    private static final String GID = "0";
+
+    private static final int TEMPO_CONEXAO_MS = 15000;
+
+    private static final int TEMPO_LEITURA_MS = 15000;
+
+    // =====================================================
+    // CONSULTA À PLANILHA
+    // =====================================================
+
+    public String baixarConteudo() throws Exception {
+
+        HttpURLConnection conexao = null;
+
+        try {
+
+            String endereco =
+                    "https://docs.google.com/spreadsheets/d/" +
+                            PLANILHA_ID +
+                            "/export?format=csv&gid=" + GID;
+
+            URL url = new URL(endereco);
+
+            conexao = (HttpURLConnection)
+                    url.openConnection();
+
+            conexao.setConnectTimeout(TEMPO_CONEXAO_MS);
+
+            conexao.setReadTimeout(TEMPO_LEITURA_MS);
+
+            int codigoHttp = conexao.getResponseCode();
+
+            if (codigoHttp != HttpURLConnection.HTTP_OK) {
+
+                throw new Exception(
+                        "Erro HTTP: " + codigoHttp
+                );
+            }
+
+            StringBuilder conteudo = new StringBuilder();
+
+            try (
+                    BufferedReader leitor =
+                            new BufferedReader(
+                                    new InputStreamReader(
+                                            conexao.getInputStream(),
+                                            "UTF-8"
+                                    )
+                            )
+            ) {
+
+                String linha;
+
+                while ((linha = leitor.readLine()) != null) {
+
+                    conteudo.append(linha).append('\n');
+                }
+            }
+
+            return conteudo.toString();
+
+        } finally {
+
+            if (conexao != null) {
+
+                conexao.disconnect();
+            }
+        }
+    }
+}
+
+============================================================
+FIM DO ARQUIVO: app/src/main/java/com/example/rpghqconspiration/PlanilhaRepository.java
+
+============================================================
+
+CAMINHO ORIGINAL:
+app/src/main/java/com/example/rpghqconspiration/CsvParser.java
+INÍCIO DO CONTEÚDO DO ARQUIVO
+
+============================================================
+package com.example.rpghqconspiration;
+
+import java.util.ArrayList;
+
+/**
+ * Responsável por interpretar linhas no formato CSV.
+ *
+ * Identifica vírgulas que separam colunas, respeitando
+ * vírgulas dentro de campos delimitados por aspas.
+ */
+public final class CsvParser {
+
+    private CsvParser() {
+        // Impede a criação de instâncias.
+    }
+
+    /**
+     * Separa uma linha CSV em suas respectivas colunas.
+     *
+     * Também interpreta aspas duplas escapadas ("").
+     */
+    public static ArrayList<String> separar(String linha) {
+
+        ArrayList<String> resultado =
+                new ArrayList<>();
+
+        StringBuilder campo =
+                new StringBuilder();
+
+        boolean dentroAspas = false;
+
+        for (int i = 0; i < linha.length(); i++) {
+
+            char caractere = linha.charAt(i);
+
+            if (caractere == '"') {
+
+                if (dentroAspas &&
+                        i + 1 < linha.length() &&
+                        linha.charAt(i + 1) == '"') {
+
+                    campo.append('"');
+
+                    i++;
+
+                } else {
+
+                    dentroAspas = !dentroAspas;
+                }
+
+            } else if (caractere == ',' &&
+                    !dentroAspas) {
+
+                resultado.add(campo.toString());
+
+                campo.setLength(0);
+
+            } else {
+
+                campo.append(caractere);
+            }
+        }
+
+        resultado.add(campo.toString());
+
+        return resultado;
+    }
+}
+
+============================================================
+FIM DO ARQUIVO: app/src/main/java/com/example/rpghqconspiration/CsvParser.java
 
 ============================================================
