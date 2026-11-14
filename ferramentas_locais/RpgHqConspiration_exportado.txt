@@ -1,6 +1,6 @@
 EXPORTAÇÃO DO PROJETO RPG HQ CONSPIRATION
 Arquivos reunidos em um único documento.
-Total de arquivos: 19
+Total de arquivos: 20
 
 ============================================================
 
@@ -212,6 +212,92 @@ public class MainActivity extends AppCompatActivity {
 
     private final GerenciadorSessao gerenciadorSessao =
             new GerenciadorSessao();
+
+    // =====================================================
+// GERENCIADOR DE MENSAGENS
+// =====================================================
+
+    private final GerenciadorMensagens gerenciadorMensagens =
+            new GerenciadorMensagens(
+                    new GerenciadorMensagens.Listener() {
+
+                        @Override
+                        public void onJoined(int usuarios) {
+
+                            atualizarVisibilidadeControles();
+
+                            status.setText(
+                                    usuarios == 1
+                                            ? "Conectado. Aguardando parceiro..."
+                                            : "Conectado! Dois usuários na sala."
+                            );
+                        }
+
+                        @Override
+                        public void onPeerConnected() {
+
+                            status.setText(
+                                    "PARCEIRO CONECTADO!"
+                            );
+
+                            Log.d(
+                                    TAG,
+                                    "O parceiro entrou na sala."
+                            );
+                        }
+
+                        @Override
+                        public void onPeerDisconnected() {
+
+                            controleRemotoAtivo = false;
+
+                            finalizarMovimentoSeLiberado();
+
+                            status.setText(
+                                    "Parceiro desconectado."
+                            );
+                        }
+
+                        @Override
+                        public void onUnlockB() {
+
+                            usuarioBDesbloqueado = true;
+
+                            atualizarVisibilidadeControles();
+
+                            Log.d(
+                                    TAG,
+                                    "SERVIDOR LIBEROU OS CONTROLES DO USUÁRIO B."
+                            );
+
+                            status.setText(
+                                    "Controles liberados!"
+                            );
+                        }
+
+                        @Override
+                        public void onError(String mensagem) {
+
+                            status.setText(
+                                    "Erro do servidor: " + mensagem
+                            );
+                        }
+
+                        @Override
+                        public void onControl(JSONObject dados) {
+
+                            processarControleRemoto(dados);
+                        }
+
+                        @Override
+                        public void onMensagemDesconhecida(String tipo) {
+
+                            Log.d(
+                                    TAG,
+                                    "Mensagem não reconhecida: " + tipo
+                            );
+                        }
+                    });
 
     private boolean atividadeEncerrada = false;
 
@@ -485,109 +571,16 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // =====================================================
-    // MENSAGENS RECEBIDAS
-    // =====================================================
+// MENSAGENS RECEBIDAS
+// =====================================================
 
     private void processarMensagemServidor(JSONObject dados) {
 
-        if (!atividadeDisponivel()) return;
-
-        String tipo = dados.optString("type");
-
-        Log.d(
-                TAG,
-                "Processando mensagem: " + dados
-        );
-
-        switch (tipo) {
-
-            case "joined": {
-
-                int usuarios = dados.optInt("users", 0);
-
-                atualizarVisibilidadeControles();
-
-                status.setText(
-                        usuarios == 1
-                                ? "Conectado. Aguardando parceiro..."
-                                : "Conectado! Dois usuários na sala."
-                );
-
-                break;
-            }
-
-            case "peer_connected": {
-
-                status.setText(
-                        "PARCEIRO CONECTADO!"
-                );
-
-                Log.d(
-                        TAG,
-                        "O parceiro entrou na sala."
-                );
-
-                break;
-            }
-
-            case "peer_disconnected": {
-
-                controleRemotoAtivo = false;
-
-                finalizarMovimentoSeLiberado();
-
-                status.setText(
-                        "Parceiro desconectado."
-                );
-
-                break;
-            }
-
-            case "unlock_b": {
-
-                usuarioBDesbloqueado = true;
-
-                atualizarVisibilidadeControles();
-
-                Log.d(
-                        TAG,
-                        "SERVIDOR LIBEROU OS CONTROLES DO USUÁRIO B."
-                );
-
-                status.setText(
-                        "Controles liberados!"
-                );
-
-                break;
-            }
-
-            case "error": {
-
-                status.setText(
-                        "Erro do servidor: " +
-                                dados.optString("message")
-                );
-
-                break;
-            }
-
-            case "control": {
-
-                processarControleRemoto(dados);
-
-                break;
-            }
-
-            default: {
-
-                Log.d(
-                        TAG,
-                        "Mensagem não reconhecida: " + tipo
-                );
-
-                break;
-            }
+        if (!atividadeDisponivel()) {
+            return;
         }
+
+        gerenciadorMensagens.processar(dados);
     }
 
     // =====================================================
@@ -4486,5 +4479,162 @@ public class AnimationTicker {
 
 ============================================================
 FIM DO ARQUIVO: app/src/main/java/com/example/rpghqconspiration/AnimationTicker.java
+
+============================================================
+
+CAMINHO ORIGINAL:
+app/src/main/java/com/example/rpghqconspiration/GerenciadorMensagens.java
+INÍCIO DO CONTEÚDO DO ARQUIVO
+
+============================================================
+package com.example.rpghqconspiration;
+
+import android.util.Log;
+
+import org.json.JSONObject;
+
+/**
+ * Responsável por identificar e encaminhar
+ * as mensagens recebidas do servidor.
+ *
+ * Não manipula Views nem controla diretamente
+ * a animação dos GIFs.
+ */
+public final class GerenciadorMensagens {
+
+    private static final String TAG = "GerenciadorMensagens";
+
+    // =====================================================
+    // COMUNICAÇÃO COM A MAINACTIVITY
+    // =====================================================
+
+    public interface Listener {
+
+        void onJoined(int usuarios);
+
+        void onPeerConnected();
+
+        void onPeerDisconnected();
+
+        void onUnlockB();
+
+        void onError(String mensagem);
+
+        void onControl(JSONObject dados);
+
+        void onMensagemDesconhecida(String tipo);
+    }
+
+    // =====================================================
+    // LISTENER
+    // =====================================================
+
+    private final Listener listener;
+
+    // =====================================================
+    // CONSTRUTOR
+    // =====================================================
+
+    public GerenciadorMensagens(Listener listener) {
+
+        if (listener == null) {
+
+            throw new IllegalArgumentException(
+                    "O Listener não pode ser nulo."
+            );
+        }
+
+        this.listener = listener;
+    }
+
+    // =====================================================
+    // PROCESSAR MENSAGEM
+    // =====================================================
+
+    public void processar(JSONObject dados) {
+
+        if (dados == null) {
+
+            Log.e(
+                    TAG,
+                    "Mensagem recebida é nula."
+            );
+
+            return;
+        }
+
+        String tipo = dados.optString("type");
+
+        Log.d(
+                TAG,
+                "Processando mensagem: " + dados
+        );
+
+        switch (tipo) {
+
+            case "joined": {
+
+                int usuarios = dados.optInt("users", 0);
+
+                listener.onJoined(usuarios);
+
+                break;
+            }
+
+            case "peer_connected": {
+
+                listener.onPeerConnected();
+
+                break;
+            }
+
+            case "peer_disconnected": {
+
+                listener.onPeerDisconnected();
+
+                break;
+            }
+
+            case "unlock_b": {
+
+                listener.onUnlockB();
+
+                break;
+            }
+
+            case "error": {
+
+                String mensagem =
+                        dados.optString("message");
+
+                listener.onError(mensagem);
+
+                break;
+            }
+
+            case "control": {
+
+                listener.onControl(dados);
+
+                break;
+            }
+
+            default: {
+
+                Log.d(
+                        TAG,
+                        "Mensagem não reconhecida: " + tipo
+                );
+
+                listener.onMensagemDesconhecida(tipo);
+
+                break;
+            }
+        }
+    }
+}
+
+============================================================
+FIM DO ARQUIVO: app/src/main/java/com/example/rpghqconspiration/GerenciadorMensagens.java
 
 ============================================================
