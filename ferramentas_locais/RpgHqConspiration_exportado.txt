@@ -1,6 +1,6 @@
 EXPORTAÇÃO DO PROJETO RPG HQ CONSPIRATION
 Arquivos reunidos em um único documento.
-Total de arquivos: 13
+Total de arquivos: 19
 
 ============================================================
 
@@ -144,15 +144,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-
-import java.net.HttpURLConnection;
-import java.net.URL;
 
 import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
@@ -269,8 +261,9 @@ public class MainActivity extends AppCompatActivity {
 
     private Movie movie;
 
-    private Bitmap quadroBitmap;
-    private Canvas quadroCanvas;
+    private AnimationTicker animationTicker;
+
+    private GifFrameRenderer renderizadorGif;
 
     private final Paint pincel = new Paint(
             Paint.ANTI_ALIAS_FLAG |
@@ -771,38 +764,29 @@ public class MainActivity extends AppCompatActivity {
     // ATUALIZAÇÃO AUTOMÁTICA DA ANIMAÇÃO
     // =====================================================
 
-    private final Runnable atualizadorGif = new Runnable() {
+    private void atualizarQuadroAnimacao() {
 
-        @Override
-        public void run() {
+        if (!atividadeDisponivel() ||
+                movie == null ||
+                !reproduzindo) {
 
-            if (!atividadeDisponivel() ||
-                    movie == null ||
-                    !reproduzindo) {
-
-                return;
-            }
-
-            int duracao = obterDuracaoGif();
-
-            long agora = SystemClock.uptimeMillis();
-
-            long decorrido = agora - inicioReproducao;
-
-            posicaoMs = (
-                    posicaoMs + decorrido
-            ) % duracao;
-
-            inicioReproducao = agora;
-
-            desenharQuadro();
-
-            handler.postDelayed(
-                    this,
-                    INTERVALO_ANIMACAO_MS
-            );
+            return;
         }
-    };
+
+        int duracao = obterDuracaoGif();
+
+        long agora = SystemClock.uptimeMillis();
+
+        long decorrido = agora - inicioReproducao;
+
+        posicaoMs = (
+                posicaoMs + decorrido
+        ) % duracao;
+
+        inicioReproducao = agora;
+
+        desenharQuadro();
+    }
 
     // =====================================================
     // TEXTO DA PLANILHA
@@ -902,6 +886,14 @@ public class MainActivity extends AppCompatActivity {
         ModoImersivo.ativar(getWindow());
 
         imagemGif = findViewById(R.id.imagemGif);
+
+        renderizadorGif = new GifFrameRenderer(imagemGif);
+
+        animationTicker = new AnimationTicker(
+                handler,
+                this::atualizarQuadroAnimacao,
+                INTERVALO_ANIMACAO_MS
+        );
 
         status = findViewById(R.id.status);
 
@@ -1515,7 +1507,7 @@ public class MainActivity extends AppCompatActivity {
 
         reproduzindo = false;
 
-        handler.removeCallbacks(atualizadorGif);
+        animationTicker.parar();
     }
 
     // =====================================================
@@ -1538,9 +1530,7 @@ public class MainActivity extends AppCompatActivity {
         inicioReproducao =
                 SystemClock.uptimeMillis();
 
-        handler.removeCallbacks(atualizadorGif);
-
-        handler.post(atualizadorGif);
+        animationTicker.iniciar();
     }
 
     // =====================================================
@@ -1551,90 +1541,16 @@ public class MainActivity extends AppCompatActivity {
 
         if (!atividadeDisponivel() ||
                 movie == null ||
-                areaGif.getWidth() <= 0 ||
-                areaGif.getHeight() <= 0) {
+                renderizadorGif == null) {
 
             return;
         }
 
-        int largura = areaGif.getWidth();
-
-        int altura = areaGif.getHeight();
-
-        if (quadroBitmap == null ||
-                quadroBitmap.getWidth() != largura ||
-                quadroBitmap.getHeight() != altura) {
-
-            if (quadroBitmap != null &&
-                    !quadroBitmap.isRecycled()) {
-
-                quadroBitmap.recycle();
-            }
-
-            quadroBitmap = Bitmap.createBitmap(
-                    largura,
-                    altura,
-                    Bitmap.Config.ARGB_8888
-            );
-
-            quadroCanvas = new Canvas(quadroBitmap);
-
-            imagemGif.setImageBitmap(quadroBitmap);
-        }
-
-        quadroCanvas.drawColor(Color.BLACK);
-
-        int larguraGif = movie.width();
-
-        int alturaGif = movie.height();
-
-        if (larguraGif <= 0 ||
-                alturaGif <= 0) {
-
-            return;
-        }
-
-        float escala = Math.min(
-                (float) largura / larguraGif,
-                (float) altura / alturaGif
-        );
-
-        float larguraFinal =
-                larguraGif * escala;
-
-        float alturaFinal =
-                alturaGif * escala;
-
-        float deslocamentoX =
-                (largura - larguraFinal) / 2f;
-
-        float deslocamentoY =
-                (altura - alturaFinal) / 2f;
-
-        quadroCanvas.save();
-
-        quadroCanvas.translate(
-                deslocamentoX,
-                deslocamentoY
-        );
-
-        quadroCanvas.scale(
-                escala,
-                escala
-        );
-
-        movie.setTime((int) posicaoMs);
-
-        movie.draw(
-                quadroCanvas,
-                0,
-                0,
+        renderizadorGif.desenhar(
+                movie,
+                posicaoMs,
                 pincel
         );
-
-        quadroCanvas.restore();
-
-        imagemGif.invalidate();
     }
 
     // =====================================================
@@ -1653,58 +1569,15 @@ public class MainActivity extends AppCompatActivity {
 
             try {
 
-                // O Repository realiza a conexão HTTP
-                // e retorna o conteúdo CSV.
-
                 String conteudo =
                         planilhaRepository.baixarConteudo();
 
-                // A interpretação dos dados permanece
-                // temporariamente na MainActivity.
-
-                nomes.clear();
-                links.clear();
-                textosPlanilha.clear();
-
-                String[] linhas = conteudo.split("\\n");
-
-                boolean primeiraLinha = true;
-
-                for (String linha : linhas) {
-
-                    ArrayList<String> colunas =
-                            CsvParser.separar(linha);
-
-                    if (primeiraLinha) {
-
-                        primeiraLinha = false;
-
-                        continue;
-                    }
-
-                    if (colunas.size() < 2) {
-                        continue;
-                    }
-
-                    String nome =
-                            colunas.get(0).trim();
-
-                    String link =
-                            colunas.get(1).trim();
-
-                    String texto =
-                            colunas.size() > 4
-                                    ? colunas.get(4).trim()
-                                    : "";
-
-                    if (!nome.isEmpty() &&
-                            !link.isEmpty()) {
-
-                        nomes.add(nome);
-                        links.add(link);
-                        textosPlanilha.add(texto);
-                    }
-                }
+                PlanilhaParser.preencherListas(
+                        conteudo,
+                        nomes,
+                        links,
+                        textosPlanilha
+                );
 
                 handler.post(() -> {
 
@@ -1800,7 +1673,7 @@ public class MainActivity extends AppCompatActivity {
 
         String link = links.get(posicao);
 
-        String id = extrairId(link);
+        String id = GoogleDriveUtils.extrairId(link);
 
         if (id == null) {
 
@@ -1834,92 +1707,13 @@ public class MainActivity extends AppCompatActivity {
 
         executor.execute(() -> {
 
-            HttpURLConnection conexao = null;
-
-            File temporario = new File(
-                    pastaGifs,
-                    id + ".part"
-            );
-
             try {
 
-                String endereco =
-                        "https://drive.usercontent.google.com/download?id=" +
-                                id +
-                                "&export=download&confirm=t";
-
-                conexao = (HttpURLConnection)
-                        new URL(endereco).openConnection();
-
-                conexao.setConnectTimeout(20000);
-                conexao.setReadTimeout(30000);
-
-                conexao.setInstanceFollowRedirects(true);
-
-                int codigoHttp = conexao.getResponseCode();
-
-                if (codigoHttp != HttpURLConnection.HTTP_OK) {
-
-                    throw new Exception(
-                            "Erro HTTP: " + codigoHttp
-                    );
-                }
-
-                try (
-                        InputStream entrada =
-                                conexao.getInputStream();
-
-                        FileOutputStream saida =
-                                new FileOutputStream(temporario)
-                ) {
-
-                    byte[] buffer = new byte[8192];
-
-                    int quantidade;
-
-                    while ((quantidade =
-                            entrada.read(buffer)) != -1) {
-
-                        saida.write(buffer, 0, quantidade);
-                    }
-
-                    saida.flush();
-                }
-
-                if (temporario.length() == 0) {
-                    throw new Exception("Arquivo vazio.");
-                }
-
-                try (
-                        FileInputStream entradaValidacao =
-                                new FileInputStream(temporario)
-                ) {
-
-                    Movie teste = Movie.decodeStream(
-                            entradaValidacao
-                    );
-
-                    if (teste == null) {
-
-                        throw new Exception(
-                                "O arquivo recebido não é um GIF válido."
+                File arquivoBaixado =
+                        GoogleDriveDownloader.baixar(
+                                id,
+                                pastaGifs
                         );
-                    }
-                }
-
-                if (arquivo.exists() && !arquivo.delete()) {
-
-                    throw new Exception(
-                            "Não foi possível substituir o arquivo antigo."
-                    );
-                }
-
-                if (!temporario.renameTo(arquivo)) {
-
-                    throw new Exception(
-                            "Erro ao salvar GIF."
-                    );
-                }
 
                 handler.post(() -> {
 
@@ -1929,14 +1723,10 @@ public class MainActivity extends AppCompatActivity {
 
                     botaoProximo.setEnabled(true);
 
-                    exibirGif(arquivo, nome);
+                    exibirGif(arquivoBaixado, nome);
                 });
 
             } catch (Exception e) {
-
-                if (temporario.exists()) {
-                    temporario.delete();
-                }
 
                 Log.e(
                         TAG,
@@ -1957,69 +1747,8 @@ public class MainActivity extends AppCompatActivity {
                                     e.getMessage()
                     );
                 });
-
-            } finally {
-
-                if (conexao != null) {
-                    conexao.disconnect();
-                }
             }
         });
-    }
-
-    // =====================================================
-    // EXTRAIR ID DO GOOGLE DRIVE
-    // =====================================================
-
-    private String extrairId(String link) {
-
-        if (link == null || link.trim().isEmpty()) {
-            return null;
-        }
-
-        try {
-
-            String resultado = null;
-
-            if (link.contains("/file/d/")) {
-
-                String parte =
-                        link.split("/file/d/")[1];
-
-                resultado = parte.split("/")[0];
-
-            } else if (link.contains("id=")) {
-
-                String parte =
-                        link.split("id=")[1];
-
-                resultado = parte.split("&")[0];
-            }
-
-            if (resultado == null) {
-                return null;
-            }
-
-            resultado = resultado.trim();
-
-            if (resultado.isEmpty() ||
-                    !resultado.matches("[a-zA-Z0-9_-]+")) {
-
-                return null;
-            }
-
-            return resultado;
-
-        } catch (Exception e) {
-
-            Log.e(
-                    TAG,
-                    "Não foi possível extrair o ID do Drive.",
-                    e
-            );
-
-            return null;
-        }
     }
 
     // =====================================================
@@ -2034,7 +1763,7 @@ public class MainActivity extends AppCompatActivity {
 
         long geracaoAtual = ++geracaoExibicao;
 
-        handler.removeCallbacks(atualizadorGif);
+        animationTicker.parar();
 
         handler.removeCallbacks(atualizarTextoPlanilha);
 
@@ -2089,24 +1818,7 @@ public class MainActivity extends AppCompatActivity {
 
             try {
 
-                Movie novoMovie;
-
-                try (
-                        FileInputStream entrada =
-                                new FileInputStream(arquivo)
-                ) {
-
-                    novoMovie = Movie.decodeStream(entrada);
-                }
-
-                if (novoMovie == null) {
-
-                    throw new Exception(
-                            "Não foi possível decodificar o GIF."
-                    );
-                }
-
-                Movie resultado = novoMovie;
+                Movie resultado = GifDecoder.carregar(arquivo);
 
                 handler.post(() -> {
 
@@ -2205,6 +1917,13 @@ public class MainActivity extends AppCompatActivity {
 
         geracaoExibicao++;
 
+        if (animationTicker != null) {
+
+            animationTicker.parar();
+
+            animationTicker = null;
+        }
+
         handler.removeCallbacksAndMessages(null);
 
         reproduzindo = false;
@@ -2228,15 +1947,11 @@ public class MainActivity extends AppCompatActivity {
 
         gerenciadorSessao.removerCallback();
 
-        if (quadroBitmap != null) {
+        if (renderizadorGif != null) {
 
-            if (!quadroBitmap.isRecycled()) {
-                quadroBitmap.recycle();
-            }
+            renderizadorGif.liberar();
 
-            quadroBitmap = null;
-
-            quadroCanvas = null;
+            renderizadorGif = null;
         }
 
         executor.shutdownNow();
@@ -4205,5 +3920,571 @@ public final class CsvParser {
 
 ============================================================
 FIM DO ARQUIVO: app/src/main/java/com/example/rpghqconspiration/CsvParser.java
+
+============================================================
+
+CAMINHO ORIGINAL:
+app/src/main/java/com/example/rpghqconspiration/PlanilhaParser.java
+INÍCIO DO CONTEÚDO DO ARQUIVO
+
+============================================================
+package com.example.rpghqconspiration;
+
+import java.util.ArrayList;
+
+/**
+ * Responsável por interpretar os registros
+ * recebidos da planilha Google Sheets.
+ *
+ * Não realiza conexões HTTP e não manipula Views.
+ */
+public final class PlanilhaParser {
+
+    private PlanilhaParser() {
+        // Impede a criação de instâncias.
+    }
+
+    /**
+     * Interpreta o conteúdo CSV e preenche
+     * as listas utilizadas pela MainActivity.
+     */
+    public static void preencherListas(
+            String conteudo,
+            ArrayList<String> nomes,
+            ArrayList<String> links,
+            ArrayList<String> textosPlanilha) {
+
+        nomes.clear();
+        links.clear();
+        textosPlanilha.clear();
+
+        String[] linhas = conteudo.split("\\n");
+
+        boolean primeiraLinha = true;
+
+        for (String linha : linhas) {
+
+            ArrayList<String> colunas =
+                    CsvParser.separar(linha);
+
+            if (primeiraLinha) {
+
+                primeiraLinha = false;
+
+                continue;
+            }
+
+            if (colunas.size() < 2) {
+                continue;
+            }
+
+            String nome =
+                    colunas.get(0).trim();
+
+            String link =
+                    colunas.get(1).trim();
+
+            String texto =
+                    colunas.size() > 4
+                            ? colunas.get(4).trim()
+                            : "";
+
+            if (!nome.isEmpty() &&
+                    !link.isEmpty()) {
+
+                nomes.add(nome);
+                links.add(link);
+                textosPlanilha.add(texto);
+            }
+        }
+    }
+}
+
+============================================================
+FIM DO ARQUIVO: app/src/main/java/com/example/rpghqconspiration/PlanilhaParser.java
+
+============================================================
+
+CAMINHO ORIGINAL:
+app/src/main/java/com/example/rpghqconspiration/GoogleDriveUtils.java
+INÍCIO DO CONTEÚDO DO ARQUIVO
+
+============================================================
+package com.example.rpghqconspiration;
+
+/**
+ * Funções utilitárias relacionadas ao Google Drive.
+ *
+ * Não realiza conexões e não manipula Views.
+ */
+public final class GoogleDriveUtils {
+
+    private GoogleDriveUtils() {
+        // Impede a criação de instâncias.
+    }
+
+    /**
+     * Extrai o ID de um arquivo a partir de um link
+     * do Google Drive.
+     */
+    public static String extrairId(String link) {
+
+        if (link == null || link.trim().isEmpty()) {
+            return null;
+        }
+
+        try {
+
+            String resultado = null;
+
+            if (link.contains("/file/d/")) {
+
+                String parte =
+                        link.split("/file/d/")[1];
+
+                resultado = parte.split("/")[0];
+
+            } else if (link.contains("id=")) {
+
+                String parte =
+                        link.split("id=")[1];
+
+                resultado = parte.split("&")[0];
+            }
+
+            if (resultado == null) {
+                return null;
+            }
+
+            resultado = resultado.trim();
+
+            if (resultado.isEmpty() ||
+                    !resultado.matches("[a-zA-Z0-9_-]+")) {
+
+                return null;
+            }
+
+            return resultado;
+
+        } catch (Exception e) {
+
+            return null;
+        }
+    }
+}
+
+============================================================
+FIM DO ARQUIVO: app/src/main/java/com/example/rpghqconspiration/GoogleDriveUtils.java
+
+============================================================
+
+CAMINHO ORIGINAL:
+app/src/main/java/com/example/rpghqconspiration/GoogleDriveDownloader.java
+INÍCIO DO CONTEÚDO DO ARQUIVO
+
+============================================================
+package com.example.rpghqconspiration;
+
+import android.graphics.Movie;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+
+/**
+ * Responsável por baixar e validar arquivos GIF
+ * armazenados no Google Drive.
+ *
+ * Não manipula Views nem controla a navegação.
+ */
+public final class GoogleDriveDownloader {
+
+    private GoogleDriveDownloader() {
+        // Impede a criação de instâncias.
+    }
+
+    /**
+     * Baixa um GIF e retorna o arquivo salvo.
+     *
+     * @param id ID do arquivo no Google Drive.
+     * @param pastaGifs Pasta onde os GIFs são armazenados.
+     */
+    public static File baixar(
+            String id,
+            File pastaGifs) throws Exception {
+
+        if (id == null || id.trim().isEmpty()) {
+            throw new Exception("ID do arquivo inválido.");
+        }
+
+        if (pastaGifs == null) {
+            throw new Exception("Pasta de GIFs inválida.");
+        }
+
+        if (!pastaGifs.exists() && !pastaGifs.mkdirs()) {
+            throw new Exception("Não foi possível criar a pasta de GIFs.");
+        }
+
+        File arquivo = new File(
+                pastaGifs,
+                id + ".gif"
+        );
+
+        File temporario = new File(
+                pastaGifs,
+                id + ".part"
+        );
+
+        HttpURLConnection conexao = null;
+
+        try {
+
+            String endereco =
+                    "https://drive.usercontent.google.com/download?id=" +
+                            id +
+                            "&export=download&confirm=t";
+
+            conexao = (HttpURLConnection)
+                    new URL(endereco).openConnection();
+
+            conexao.setConnectTimeout(20000);
+            conexao.setReadTimeout(30000);
+            conexao.setInstanceFollowRedirects(true);
+
+            int codigoHttp = conexao.getResponseCode();
+
+            if (codigoHttp != HttpURLConnection.HTTP_OK) {
+                throw new Exception("Erro HTTP: " + codigoHttp);
+            }
+
+            try (
+                    InputStream entrada = conexao.getInputStream();
+
+                    FileOutputStream saida =
+                            new FileOutputStream(temporario)
+            ) {
+
+                byte[] buffer = new byte[8192];
+
+                int quantidade;
+
+                while ((quantidade = entrada.read(buffer)) != -1) {
+                    saida.write(buffer, 0, quantidade);
+                }
+
+                saida.flush();
+            }
+
+            if (temporario.length() == 0) {
+                throw new Exception("Arquivo vazio.");
+            }
+
+            try (
+                    FileInputStream entradaValidacao =
+                            new FileInputStream(temporario)
+            ) {
+
+                Movie teste = Movie.decodeStream(
+                        entradaValidacao
+                );
+
+                if (teste == null) {
+                    throw new Exception(
+                            "O arquivo recebido não é um GIF válido."
+                    );
+                }
+            }
+
+            if (arquivo.exists() && !arquivo.delete()) {
+                throw new Exception(
+                        "Não foi possível substituir o arquivo antigo."
+                );
+            }
+
+            if (!temporario.renameTo(arquivo)) {
+                throw new Exception("Erro ao salvar GIF.");
+            }
+
+            return arquivo;
+
+        } catch (Exception e) {
+
+            if (temporario.exists()) {
+                temporario.delete();
+            }
+
+            throw e;
+
+        } finally {
+
+            if (conexao != null) {
+                conexao.disconnect();
+            }
+        }
+    }
+}
+
+============================================================
+FIM DO ARQUIVO: app/src/main/java/com/example/rpghqconspiration/GoogleDriveDownloader.java
+
+============================================================
+
+CAMINHO ORIGINAL:
+app/src/main/java/com/example/rpghqconspiration/GifDecoder.java
+INÍCIO DO CONTEÚDO DO ARQUIVO
+
+============================================================
+package com.example.rpghqconspiration;
+
+import android.graphics.Movie;
+
+import java.io.File;
+import java.io.FileInputStream;
+
+/**
+ * Responsável por abrir e decodificar arquivos GIF.
+ *
+ * Não manipula Views nem controla a animação.
+ */
+public final class GifDecoder {
+
+    private GifDecoder() {
+        // Impede a criação de instâncias.
+    }
+
+    /**
+     * Abre um arquivo GIF e retorna seu objeto Movie.
+     */
+    public static Movie carregar(File arquivo) throws Exception {
+
+        if (arquivo == null || !arquivo.exists()) {
+            throw new Exception("Arquivo GIF não encontrado.");
+        }
+
+        if (arquivo.length() == 0) {
+            throw new Exception("Arquivo GIF vazio.");
+        }
+
+        try (
+                FileInputStream entrada =
+                        new FileInputStream(arquivo)
+        ) {
+
+            Movie movie = Movie.decodeStream(entrada);
+
+            if (movie == null) {
+                throw new Exception(
+                        "Não foi possível decodificar o GIF."
+                );
+            }
+
+            return movie;
+        }
+    }
+}
+
+============================================================
+FIM DO ARQUIVO: app/src/main/java/com/example/rpghqconspiration/GifDecoder.java
+
+============================================================
+
+CAMINHO ORIGINAL:
+app/src/main/java/com/example/rpghqconspiration/GifFrameRenderer.java
+INÍCIO DO CONTEÚDO DO ARQUIVO
+
+============================================================
+package com.example.rpghqconspiration;
+
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Movie;
+import android.graphics.Paint;
+import android.widget.ImageView;
+
+/**
+ * Responsável por desenhar os quadros dos GIFs.
+ *
+ * Controla o Bitmap e o Canvas utilizados
+ * para apresentar a animação na ImageView.
+ */
+public class GifFrameRenderer {
+
+    private final ImageView imagemGif;
+
+    private Bitmap quadroBitmap;
+    private Canvas quadroCanvas;
+
+    public GifFrameRenderer(ImageView imagemGif) {
+        this.imagemGif = imagemGif;
+    }
+
+    public void desenhar(
+            Movie movie,
+            long posicaoMs,
+            Paint pincel) {
+
+        if (movie == null ||
+                imagemGif == null ||
+                imagemGif.getWidth() <= 0 ||
+                imagemGif.getHeight() <= 0) {
+
+            return;
+        }
+
+        int largura = imagemGif.getWidth();
+        int altura = imagemGif.getHeight();
+
+        if (quadroBitmap == null ||
+                quadroBitmap.getWidth() != largura ||
+                quadroBitmap.getHeight() != altura) {
+
+            liberarBitmap();
+
+            quadroBitmap = Bitmap.createBitmap(
+                    largura,
+                    altura,
+                    Bitmap.Config.ARGB_8888
+            );
+
+            quadroCanvas = new Canvas(quadroBitmap);
+
+            imagemGif.setImageBitmap(quadroBitmap);
+        }
+
+        quadroCanvas.drawColor(Color.BLACK);
+
+        int larguraGif = movie.width();
+        int alturaGif = movie.height();
+
+        if (larguraGif <= 0 || alturaGif <= 0) {
+            return;
+        }
+
+        float escala = Math.min(
+                (float) largura / larguraGif,
+                (float) altura / alturaGif
+        );
+
+        float larguraFinal = larguraGif * escala;
+        float alturaFinal = alturaGif * escala;
+
+        float deslocamentoX =
+                (largura - larguraFinal) / 2f;
+
+        float deslocamentoY =
+                (altura - alturaFinal) / 2f;
+
+        quadroCanvas.save();
+
+        quadroCanvas.translate(
+                deslocamentoX,
+                deslocamentoY
+        );
+
+        quadroCanvas.scale(escala, escala);
+
+        movie.setTime((int) posicaoMs);
+
+        movie.draw(
+                quadroCanvas,
+                0,
+                0,
+                pincel
+        );
+
+        quadroCanvas.restore();
+
+        imagemGif.invalidate();
+    }
+
+    public void liberar() {
+
+        liberarBitmap();
+
+        quadroCanvas = null;
+    }
+
+    private void liberarBitmap() {
+
+        if (quadroBitmap != null) {
+
+            if (!quadroBitmap.isRecycled()) {
+                quadroBitmap.recycle();
+            }
+
+            quadroBitmap = null;
+        }
+    }
+}
+
+============================================================
+FIM DO ARQUIVO: app/src/main/java/com/example/rpghqconspiration/GifFrameRenderer.java
+
+============================================================
+
+CAMINHO ORIGINAL:
+app/src/main/java/com/example/rpghqconspiration/AnimationTicker.java
+INÍCIO DO CONTEÚDO DO ARQUIVO
+
+============================================================
+package com.example.rpghqconspiration;
+
+import android.os.Handler;
+
+/**
+ * Responsável por agendar atualizações periódicas
+ * da animação.
+ *
+ * Não controla o conteúdo dos quadros nem o GIF.
+ */
+public class AnimationTicker {
+
+    private final Handler handler;
+    private final Runnable atualizacao;
+    private final long intervalo;
+
+    private final Runnable ciclo = new Runnable() {
+
+        @Override
+        public void run() {
+
+            atualizacao.run();
+
+            handler.postDelayed(
+                    this,
+                    intervalo
+            );
+        }
+    };
+
+    public AnimationTicker(
+            Handler handler,
+            Runnable atualizacao,
+            long intervalo) {
+
+        this.handler = handler;
+        this.atualizacao = atualizacao;
+        this.intervalo = intervalo;
+    }
+
+    public void iniciar() {
+
+        parar();
+
+        handler.post(ciclo);
+    }
+
+    public void parar() {
+
+        handler.removeCallbacks(ciclo);
+    }
+}
+
+============================================================
+FIM DO ARQUIVO: app/src/main/java/com/example/rpghqconspiration/AnimationTicker.java
 
 ============================================================

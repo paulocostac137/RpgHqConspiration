@@ -37,7 +37,19 @@ public class ExportadorProjeto {
 
             "app/src/main/java/com/example/rpghqconspiration/PlanilhaRepository.java",
 
-            "app/src/main/java/com/example/rpghqconspiration/CsvParser.java"
+            "app/src/main/java/com/example/rpghqconspiration/CsvParser.java",
+
+            "app/src/main/java/com/example/rpghqconspiration/PlanilhaParser.java",
+
+            "app/src/main/java/com/example/rpghqconspiration/GoogleDriveUtils.java",
+
+            "app/src/main/java/com/example/rpghqconspiration/GoogleDriveDownloader.java",
+
+            "app/src/main/java/com/example/rpghqconspiration/GifDecoder.java",
+
+            "app/src/main/java/com/example/rpghqconspiration/GifFrameRenderer.java",
+
+            "app/src/main/java/com/example/rpghqconspiration/AnimationTicker.java"
 
     );
 
