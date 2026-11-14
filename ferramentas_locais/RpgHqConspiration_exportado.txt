@@ -1,6 +1,6 @@
 EXPORTAÇÃO DO PROJETO RPG HQ CONSPIRATION
 Arquivos reunidos em um único documento.
-Total de arquivos: 28
+Total de arquivos: 30
 
 ============================================================
 
@@ -190,16 +190,16 @@ public class MainActivity extends AppCompatActivity {
     private ServicoConexao servicoConexao;
 
     // =====================================================
-    // REPOSITÓRIOS E SESSÃO
+    // REPOSITÓRIOS E COMUNICAÇÃO
     // =====================================================
 
     private final PlanilhaRepository planilhaRepository =
             new PlanilhaRepository();
 
-    private final GerenciadorSessao gerenciadorSessao =
-            new GerenciadorSessao();
-
     private GifRepository gifRepository;
+
+    private GerenciadorComunicacaoServidor
+            gerenciadorComunicacaoServidor;
 
     // =====================================================
     // GERENCIADOR DE CARREGAMENTO DA PLANILHA
@@ -480,67 +480,8 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        gerenciadorSessao.registrarCallbacks(
-                servicoConexao,
-                new GerenciadorSessao.Listener() {
-
-                    @Override
-                    public boolean atividadeDisponivel() {
-
-                        return MainActivity.this.atividadeDisponivel();
-                    }
-
-                    @Override
-                    public void onConectado() {
-
-                        Log.d(
-                                TAG,
-                                "Conexão compartilhada ativa."
-                        );
-
-                        status.setText(
-                                "Conectado ao servidor."
-                        );
-
-                        atualizarVisibilidadeControles();
-                    }
-
-                    @Override
-                    public void onDesconectado(String motivo) {
-
-                        Log.w(
-                                TAG,
-                                "Servidor desconectado: " + motivo
-                        );
-
-                        controleRemotoAtivo = false;
-
-                        finalizarMovimentoSeLiberado();
-
-                        status.setText(
-                                "Servidor desconectado."
-                        );
-                    }
-
-                    @Override
-                    public void onMensagem(JSONObject mensagem) {
-
-                        processarMensagemServidor(mensagem);
-                    }
-
-                    @Override
-                    public void onErro(String erro) {
-
-                        Log.e(
-                                TAG,
-                                "Erro de conexão: " + erro
-                        );
-
-                        status.setText(
-                                "Erro de conexão: " + erro
-                        );
-                    }
-                }
+        gerenciadorComunicacaoServidor.registrarCallbacks(
+                servicoConexao
         );
 
         Log.d(
@@ -553,19 +494,6 @@ public class MainActivity extends AppCompatActivity {
         );
 
         atualizarVisibilidadeControles();
-    }
-
-    // =====================================================
-    // MENSAGENS RECEBIDAS
-    // =====================================================
-
-    private void processarMensagemServidor(JSONObject dados) {
-
-        if (!atividadeDisponivel()) {
-            return;
-        }
-
-        gerenciadorMensagens.processar(dados);
     }
 
     // =====================================================
@@ -730,6 +658,68 @@ public class MainActivity extends AppCompatActivity {
 
         textoPlanilha =
                 findViewById(R.id.textoPlanilha);
+
+        // -------------------------------------------------
+        // GERENCIADOR DE COMUNICAÇÃO COM O SERVIDOR
+        // -------------------------------------------------
+
+        gerenciadorComunicacaoServidor =
+                new GerenciadorComunicacaoServidor(
+                        gerenciadorMensagens,
+                        new GerenciadorComunicacaoServidor.Listener() {
+
+                            @Override
+                            public boolean atividadeDisponivel() {
+
+                                return MainActivity.this.atividadeDisponivel();
+                            }
+
+                            @Override
+                            public void onConectado() {
+
+                                Log.d(
+                                        TAG,
+                                        "Conexão compartilhada ativa."
+                                );
+
+                                status.setText(
+                                        "Conectado ao servidor."
+                                );
+
+                                atualizarVisibilidadeControles();
+                            }
+
+                            @Override
+                            public void onDesconectado(String motivo) {
+
+                                Log.w(
+                                        TAG,
+                                        "Servidor desconectado: " + motivo
+                                );
+
+                                controleRemotoAtivo = false;
+
+                                finalizarMovimentoSeLiberado();
+
+                                status.setText(
+                                        "Servidor desconectado."
+                                );
+                            }
+
+                            @Override
+                            public void onErroConexao(String erro) {
+
+                                Log.e(
+                                        TAG,
+                                        "Erro de conexão: " + erro
+                                );
+
+                                status.setText(
+                                        "Erro de conexão: " + erro
+                                );
+                            }
+                        }
+                );
 
         // -------------------------------------------------
         // MODO DE EXECUÇÃO
@@ -1437,17 +1427,21 @@ public class MainActivity extends AppCompatActivity {
         }
 
         // -------------------------------------------------
-        // REMOVER CALLBACK DA SESSÃO
+        // REMOVER CALLBACK DA COMUNICAÇÃO
         // -------------------------------------------------
 
         /*
-         * O GerenciadorSessao remove somente o callback.
+         * O GerenciadorComunicacaoServidor remove somente
+         * o callback registrado pela MainActivity.
          *
          * A conexão WebSocket continua pertencendo
          * à ConexaoActivity.
          */
 
-        gerenciadorSessao.removerCallback();
+        if (gerenciadorComunicacaoServidor != null) {
+
+            gerenciadorComunicacaoServidor.removerCallback();
+        }
 
         // -------------------------------------------------
         // LIBERAR RENDERIZADOR
@@ -5818,5 +5812,261 @@ public final class GerenciadorCarregamentoGif {
 
 ============================================================
 FIM DO ARQUIVO: app/src/main/java/com/example/rpghqconspiration/GerenciadorCarregamentoGif.java
+
+============================================================
+
+CAMINHO ORIGINAL:
+app/src/main/java/com/example/rpghqconspiration/GerenciadorComunicacaoServidor.java
+INÍCIO DO CONTEÚDO DO ARQUIVO
+
+============================================================
+package com.example.rpghqconspiration;
+
+import android.util.Log;
+
+import org.json.JSONObject;
+
+/**
+ * Coordena a comunicação recebida do servidor.
+ *
+ * Responsabilidades:
+ * - Registrar os callbacks da conexão compartilhada.
+ * - Encaminhar mensagens para o GerenciadorMensagens.
+ * - Informar à MainActivity os eventos da conexão.
+ * - Remover os callbacks ao encerrar a atividade.
+ *
+ * Não manipula Views nem controla GIFs.
+ */
+public final class GerenciadorComunicacaoServidor {
+
+    private static final String TAG =
+            "GerenciadorComunicacao";
+
+    public interface Listener {
+
+        boolean atividadeDisponivel();
+
+        void onConectado();
+
+        void onDesconectado(String motivo);
+
+        void onErroConexao(String erro);
+    }
+
+    private final GerenciadorSessao gerenciadorSessao;
+
+    private final GerenciadorMensagens gerenciadorMensagens;
+
+    private final Listener listener;
+
+    public GerenciadorComunicacaoServidor(
+            GerenciadorMensagens gerenciadorMensagens,
+            Listener listener) {
+
+        if (gerenciadorMensagens == null || listener == null) {
+
+            throw new IllegalArgumentException(
+                    "Os gerenciadores e o Listener são obrigatórios."
+            );
+        }
+
+        this.gerenciadorMensagens = gerenciadorMensagens;
+        this.listener = listener;
+
+        this.gerenciadorSessao = new GerenciadorSessao();
+    }
+
+    // =====================================================
+    // REGISTRAR COMUNICAÇÃO
+    // =====================================================
+
+    public void registrarCallbacks(ServicoConexao servico) {
+
+        if (servico == null) {
+
+            Log.e(
+                    TAG,
+                    "Não foi possível registrar: serviço nulo."
+            );
+
+            return;
+        }
+
+        gerenciadorSessao.registrarCallbacks(
+                servico,
+                new GerenciadorSessao.Listener() {
+
+                    @Override
+                    public boolean atividadeDisponivel() {
+
+                        return listener.atividadeDisponivel();
+                    }
+
+                    @Override
+                    public void onConectado() {
+
+                        if (listener.atividadeDisponivel()) {
+                            listener.onConectado();
+                        }
+                    }
+
+                    @Override
+                    public void onDesconectado(String motivo) {
+
+                        if (listener.atividadeDisponivel()) {
+                            listener.onDesconectado(motivo);
+                        }
+                    }
+
+                    @Override
+                    public void onMensagem(JSONObject mensagem) {
+
+                        if (!listener.atividadeDisponivel()) {
+                            return;
+                        }
+
+                        gerenciadorMensagens.processar(mensagem);
+                    }
+
+                    @Override
+                    public void onErro(String erro) {
+
+                        if (listener.atividadeDisponivel()) {
+                            listener.onErroConexao(erro);
+                        }
+                    }
+                }
+        );
+
+        Log.d(
+                TAG,
+                "Comunicação com o servidor registrada."
+        );
+    }
+
+    // =====================================================
+    // REMOVER COMUNICAÇÃO
+    // =====================================================
+
+    public void removerCallback() {
+
+        gerenciadorSessao.removerCallback();
+
+        Log.d(
+                TAG,
+                "Comunicação com o servidor encerrada."
+        );
+    }
+}
+
+============================================================
+FIM DO ARQUIVO: app/src/main/java/com/example/rpghqconspiration/GerenciadorComunicacaoServidor.java
+
+============================================================
+
+CAMINHO ORIGINAL:
+app/src/main/java/com/example/rpghqconspiration/GerenciadorDecodificacaoGif.java
+INÍCIO DO CONTEÚDO DO ARQUIVO
+
+============================================================
+package com.example.rpghqconspiration;
+
+import android.graphics.Movie;
+import android.os.Handler;
+import android.util.Log;
+
+import java.io.File;
+import java.util.concurrent.ExecutorService;
+
+/**
+ * Responsável pela decodificação assíncrona dos GIFs.
+ *
+ * Utiliza GifDecoder para abrir os arquivos.
+ * Não manipula Views e não controla a reprodução.
+ */
+public final class GerenciadorDecodificacaoGif {
+
+    private static final String TAG =
+            "GerenciadorDecodificacaoGif";
+
+    public interface Listener {
+
+        void onDecodificacaoConcluida(Movie movie);
+
+        void onErro(Exception erro);
+    }
+
+    private final ExecutorService executor;
+    private final Handler handler;
+    private final Listener listener;
+
+    public GerenciadorDecodificacaoGif(
+            ExecutorService executor,
+            Handler handler,
+            Listener listener) {
+
+        if (executor == null ||
+                handler == null ||
+                listener == null) {
+
+            throw new IllegalArgumentException(
+                    "As dependências não podem ser nulas."
+            );
+        }
+
+        this.executor = executor;
+        this.handler = handler;
+        this.listener = listener;
+    }
+
+    public void decodificar(File arquivo) {
+
+        if (arquivo == null) {
+
+            handler.post(() ->
+                    listener.onErro(
+                            new IllegalArgumentException(
+                                    "Arquivo GIF nulo."
+                            )
+                    )
+            );
+
+            return;
+        }
+
+        executor.execute(() -> {
+
+            try {
+
+                Log.d(
+                        TAG,
+                        "Iniciando decodificação: " +
+                                arquivo.getName()
+                );
+
+                Movie movie = GifDecoder.carregar(arquivo);
+
+                handler.post(() ->
+                        listener.onDecodificacaoConcluida(movie)
+                );
+
+            } catch (Exception erro) {
+
+                Log.e(
+                        TAG,
+                        "Falha na decodificação do GIF.",
+                        erro
+                );
+
+                handler.post(() ->
+                        listener.onErro(erro)
+                );
+            }
+        });
+    }
+}
+
+============================================================
+FIM DO ARQUIVO: app/src/main/java/com/example/rpghqconspiration/GerenciadorDecodificacaoGif.java
 
 ============================================================
