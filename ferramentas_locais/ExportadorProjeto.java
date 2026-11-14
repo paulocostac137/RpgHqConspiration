@@ -51,7 +51,9 @@ public class ExportadorProjeto {
 
             "app/src/main/java/com/example/rpghqconspiration/AnimationTicker.java",
 
-            "app/src/main/java/com/example/rpghqconspiration/GerenciadorMensagens.java"
+            "app/src/main/java/com/example/rpghqconspiration/GerenciadorMensagens.java",
+
+            "app/src/main/java/com/example/rpghqconspiration/GerenciadorControleMultitoque.java"
 
     );
 
