@@ -31,7 +31,9 @@ public class ExportadorProjeto {
 
             "app/src/main/java/com/example/rpghqconspiration/ModoImersivo.java",
 
-            "app/src/main/java/com/example/rpghqconspiration/GerenciadorSessao.java"
+            "app/src/main/java/com/example/rpghqconspiration/GerenciadorSessao.java",
+
+            "app/src/main/java/com/example/rpghqconspiration/GerenciadorMovimento.java"
 
     );
 

@@ -1,6 +1,6 @@
 EXPORTAÇÃO DO PROJETO RPG HQ CONSPIRATION
 Arquivos reunidos em um único documento.
-Total de arquivos: 10
+Total de arquivos: 11
 
 ============================================================
 
@@ -183,21 +183,6 @@ public class MainActivity extends AppCompatActivity {
     private static final long INTERVALO_ANIMACAO_MS = 30;
 
     // =====================================================
-    // CONFIGURAÇÃO DA MOVIMENTAÇÃO
-    // =====================================================
-
-    private static final int CICLOS_NECESSARIOS = 3;
-
-    private static final float LIMITE_EXTREMO_SUPERIOR = 0.15f;
-    private static final float LIMITE_EXTREMO_INFERIOR = 0.85f;
-
-    private int ciclosConcluidos = 0;
-
-    private int extremoInicial = -1;
-
-    private boolean alcancouExtremoOposto = false;
-
-    // =====================================================
     // LIBERAÇÃO DOS CONTROLES DO USUÁRIO B
     // =====================================================
 
@@ -239,9 +224,8 @@ public class MainActivity extends AppCompatActivity {
 
     private ServicoConexao servicoConexao;
 
-    // Novo módulo de gerenciamento da sessão.
     private final GerenciadorSessao gerenciadorSessao =
-            new GerenciadorSessao(handler);
+            new GerenciadorSessao();
 
     private boolean atividadeEncerrada = false;
 
@@ -255,9 +239,35 @@ public class MainActivity extends AppCompatActivity {
 
     private int indiceAtual = -1;
 
-    // Identifica a solicitação de GIF mais recente.
-
     private long geracaoExibicao = 0;
+
+    // =====================================================
+    // GERENCIADOR DE MOVIMENTAÇÃO
+    // =====================================================
+
+    private final GerenciadorMovimento gerenciadorMovimento =
+            new GerenciadorMovimento(
+                    new GerenciadorMovimento.Listener() {
+
+                        @Override
+                        public boolean possuiGif() {
+
+                            return movie != null;
+                        }
+
+                        @Override
+                        public void avancarParaProximoGif() {
+
+                            proximoGif();
+                        }
+
+                        @Override
+                        public void retomarAnimacao() {
+
+                            iniciarAnimacao();
+                        }
+                    }
+            );
 
     // =====================================================
     // ANIMAÇÃO PRINCIPAL
@@ -411,8 +421,6 @@ public class MainActivity extends AppCompatActivity {
 
             return;
         }
-
-        // O GerenciadorSessao passa a registrar os callbacks.
 
         gerenciadorSessao.registrarCallbacks(
                 servicoConexao,
@@ -639,7 +647,11 @@ public class MainActivity extends AppCompatActivity {
 
         pausarAnimacao();
 
-        registrarProgressoMovimento(progressoRecebido);
+        gerenciadorMovimento.registrarProgresso(
+                progressoRecebido,
+                controleManualAtivo,
+                controleRemotoAtivo
+        );
 
         int duracao = obterDuracaoGif();
 
@@ -748,120 +760,17 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // =====================================================
-    // CONTAGEM DOS CICLOS DE MOVIMENTAÇÃO
-    // =====================================================
-
-    private void registrarProgressoMovimento(float progresso) {
-
-        if (!controleManualAtivo &&
-                !controleRemotoAtivo) {
-
-            return;
-        }
-
-        int extremoAtual = -1;
-
-        if (progresso <= LIMITE_EXTREMO_SUPERIOR) {
-
-            extremoAtual = 0;
-
-        } else if (progresso >= LIMITE_EXTREMO_INFERIOR) {
-
-            extremoAtual = 1;
-        }
-
-        if (extremoAtual == -1) {
-            return;
-        }
-
-        if (extremoInicial == -1) {
-
-            extremoInicial = extremoAtual;
-
-            return;
-        }
-
-        if (!alcancouExtremoOposto &&
-                extremoAtual != extremoInicial) {
-
-            alcancouExtremoOposto = true;
-
-            return;
-        }
-
-        if (alcancouExtremoOposto &&
-                extremoAtual == extremoInicial) {
-
-            ciclosConcluidos++;
-
-            alcancouExtremoOposto = false;
-
-            Log.d(
-                    TAG,
-                    "Ciclo completo: " +
-                            ciclosConcluidos +
-                            "/" +
-                            CICLOS_NECESSARIOS
-            );
-        }
-    }
-
-    private void reiniciarContagemMovimentos() {
-
-        ciclosConcluidos = 0;
-
-        extremoInicial = -1;
-
-        alcancouExtremoOposto = false;
-    }
-
-    // =====================================================
     // DECISÃO APÓS SOLTAR TODOS OS CONTROLES
     // =====================================================
 
     private void finalizarMovimentoSeLiberado() {
 
-        if (esquerdoPressionado ||
-                direitoPressionado ||
-                controleManualAtivo ||
-                controleRemotoAtivo) {
-
-            return;
-        }
-
-        if (movie == null) {
-
-            reiniciarContagemMovimentos();
-
-            return;
-        }
-
-        if (ciclosConcluidos >= CICLOS_NECESSARIOS) {
-
-            Log.d(
-                    TAG,
-                    "Três ciclos concluídos. Avançando para o próximo GIF."
-            );
-
-            reiniciarContagemMovimentos();
-
-            proximoGif();
-
-            return;
-        }
-
-        Log.d(
-                TAG,
-                "Movimento insuficiente: " +
-                        ciclosConcluidos +
-                        "/" +
-                        CICLOS_NECESSARIOS +
-                        ". Mantendo o GIF atual."
+        gerenciadorMovimento.finalizarMovimentoSeLiberado(
+                esquerdoPressionado,
+                direitoPressionado,
+                controleManualAtivo,
+                controleRemotoAtivo
         );
-
-        reiniciarContagemMovimentos();
-
-        iniciarAnimacao();
     }
 
     // =====================================================
@@ -996,8 +905,6 @@ public class MainActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_main);
 
-        // Modo imersivo agora pertence à classe ModoImersivo.
-
         ModoImersivo.ativar(getWindow());
 
         imagemGif = findViewById(R.id.imagemGif);
@@ -1035,7 +942,7 @@ public class MainActivity extends AppCompatActivity {
 
         botaoProximo.setOnClickListener(v -> {
 
-            reiniciarContagemMovimentos();
+            gerenciadorMovimento.reiniciarContagem();
 
             proximoGif();
         });
@@ -1471,7 +1378,13 @@ public class MainActivity extends AppCompatActivity {
                 Math.min(1f, progresso)
         );
 
-        registrarProgressoMovimento(progresso);
+        // O GerenciadorMovimento recebe o progresso manual.
+
+        gerenciadorMovimento.registrarProgresso(
+                progresso,
+                controleManualAtivo,
+                controleRemotoAtivo
+        );
 
         int duracao = obterDuracaoGif();
 
@@ -2232,11 +2145,9 @@ public class MainActivity extends AppCompatActivity {
 
         controleRemotoAtivo = false;
 
-        reiniciarContagemMovimentos();
+        gerenciadorMovimento.reiniciarContagem();
 
         limparIdentificacaoDedos();
-
-        // A liberação de B permanece ativa durante a sessão.
 
         atualizarVisibilidadeControles();
 
@@ -2393,7 +2304,7 @@ public class MainActivity extends AppCompatActivity {
 
         controleRemotoAtivo = false;
 
-        reiniciarContagemMovimentos();
+        gerenciadorMovimento.reiniciarContagem();
 
         limparIdentificacaoDedos();
 
@@ -3814,57 +3725,392 @@ INÍCIO DO CONTEÚDO DO ARQUIVO
 ============================================================
 package com.example.rpghqconspiration;
 
-import android.os.Build;
-import android.view.View;
-import android.view.Window;
-import android.view.WindowInsets;
-import android.view.WindowInsetsController;
+import android.util.Log;
 
-public final class ModoImersivo {
+import org.json.JSONObject;
 
-    private ModoImersivo() {
-        // Impede a criação de instâncias.
+public final class GerenciadorSessao {
+
+    private static final String TAG = "GerenciadorSessao";
+
+    private ServicoConexao servicoConexao;
+
+    private Listener listener;
+
+    private ServicoConexao.Callback callbackRegistrado;
+
+    // =====================================================
+    // INTERFACE DE COMUNICAÇÃO COM A MAINACTIVITY
+    // =====================================================
+
+    public interface Listener {
+
+        boolean atividadeDisponivel();
+
+        void onConectado();
+
+        void onDesconectado(String motivo);
+
+        void onMensagem(JSONObject mensagem);
+
+        void onErro(String erro);
     }
 
-    public static void ativar(Window window) {
+    // =====================================================
+    // CONSTRUTOR
+    // =====================================================
 
-        if (window == null) {
+    public GerenciadorSessao() {
+    }
+
+    // =====================================================
+    // REGISTRAR CALLBACKS
+    // =====================================================
+
+    public void registrarCallbacks(
+            ServicoConexao servico,
+            Listener novoListener) {
+
+        if (servico == null || novoListener == null) {
+
+            Log.e(TAG, "Serviço ou listener inválido.");
+
             return;
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        this.servicoConexao = servico;
+        this.listener = novoListener;
 
-            WindowInsetsController controller =
-                    window.getInsetsController();
+        callbackRegistrado = new ServicoConexao.Callback() {
 
-            if (controller != null) {
+            @Override
+            public void onConectado() {
 
-                controller.hide(
-                        WindowInsets.Type.statusBars() |
-                                WindowInsets.Type.navigationBars()
-                );
+                Listener atual = obterListenerAtivo();
 
-                controller.setSystemBarsBehavior(
-                        WindowInsetsController
-                                .BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                );
+                if (atual != null) {
+                    atual.onConectado();
+                }
             }
 
-        } else {
+            @Override
+            public void onDesconectado(String motivo) {
 
-            window.getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_FULLSCREEN |
-                            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
-                            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY |
-                            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
-                            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
-                            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            );
+                Listener atual = obterListenerAtivo();
+
+                if (atual != null) {
+                    atual.onDesconectado(motivo);
+                }
+            }
+
+            @Override
+            public void onMensagem(JSONObject mensagem) {
+
+                Listener atual = obterListenerAtivo();
+
+                if (atual != null) {
+                    atual.onMensagem(mensagem);
+                }
+            }
+
+            @Override
+            public void onErro(String erro) {
+
+                Listener atual = obterListenerAtivo();
+
+                if (atual != null) {
+                    atual.onErro(erro);
+                }
+            }
+        };
+
+        servicoConexao.definirCallback(callbackRegistrado);
+
+        Log.d(TAG, "Callbacks registrados.");
+    }
+
+    // =====================================================
+    // VERIFICAR DISPONIBILIDADE DA ATIVIDADE
+    // =====================================================
+
+    private Listener obterListenerAtivo() {
+
+        Listener atual = listener;
+
+        if (atual == null) {
+            return null;
         }
+
+        if (!atual.atividadeDisponivel()) {
+            return null;
+        }
+
+        return atual;
+    }
+
+    // =====================================================
+    // REMOVER CALLBACK
+    // =====================================================
+
+    public void removerCallback() {
+
+        if (servicoConexao != null) {
+
+            servicoConexao.definirCallback(null);
+        }
+
+        callbackRegistrado = null;
+
+        listener = null;
+
+        servicoConexao = null;
+
+        Log.d(TAG, "Callbacks removidos.");
     }
 }
 
 ============================================================
 FIM DO ARQUIVO: app/src/main/java/com/example/rpghqconspiration/GerenciadorSessao.java
+
+============================================================
+
+CAMINHO ORIGINAL:
+app/src/main/java/com/example/rpghqconspiration/GerenciadorMovimento.java
+INÍCIO DO CONTEÚDO DO ARQUIVO
+
+============================================================
+package com.example.rpghqconspiration;
+
+import android.util.Log;
+
+/**
+ * Gerencia a contagem dos ciclos de movimentação
+ * e decide o que fazer quando os controles são liberados.
+ *
+ * Não controla diretamente Views, MotionEvents ou GIFs.
+ */
+public final class GerenciadorMovimento {
+
+    private static final String TAG = "GerenciadorMovimento";
+
+    // =====================================================
+    // CONFIGURAÇÕES
+    // =====================================================
+
+    private static final int CICLOS_NECESSARIOS = 3;
+
+    private static final float LIMITE_EXTREMO_SUPERIOR = 0.15f;
+
+    private static final float LIMITE_EXTREMO_INFERIOR = 0.85f;
+
+    // =====================================================
+    // ESTADO DA MOVIMENTAÇÃO
+    // =====================================================
+
+    private int ciclosConcluidos = 0;
+
+    private int extremoInicial = -1;
+
+    private boolean alcancouExtremoOposto = false;
+
+    // =====================================================
+    // COMUNICAÇÃO COM A MAINACTIVITY
+    // =====================================================
+
+    public interface Listener {
+
+        boolean possuiGif();
+
+        void avancarParaProximoGif();
+
+        void retomarAnimacao();
+    }
+
+    private final Listener listener;
+
+    // =====================================================
+    // CONSTRUTOR
+    // =====================================================
+
+    public GerenciadorMovimento(Listener listener) {
+
+        if (listener == null) {
+            throw new IllegalArgumentException(
+                    "O Listener não pode ser nulo."
+            );
+        }
+
+        this.listener = listener;
+    }
+
+    // =====================================================
+    // REGISTRAR PROGRESSO DO MOVIMENTO
+    // =====================================================
+
+    public void registrarProgresso(
+            float progresso,
+            boolean controleManualAtivo,
+            boolean controleRemotoAtivo) {
+
+        if (!controleManualAtivo &&
+                !controleRemotoAtivo) {
+
+            return;
+        }
+
+        if (Float.isNaN(progresso) ||
+                Float.isInfinite(progresso)) {
+
+            return;
+        }
+
+        progresso = Math.max(
+                0f,
+                Math.min(1f, progresso)
+        );
+
+        int extremoAtual = -1;
+
+        if (progresso <= LIMITE_EXTREMO_SUPERIOR) {
+
+            extremoAtual = 0;
+
+        } else if (progresso >= LIMITE_EXTREMO_INFERIOR) {
+
+            extremoAtual = 1;
+        }
+
+        if (extremoAtual == -1) {
+            return;
+        }
+
+        if (extremoInicial == -1) {
+
+            extremoInicial = extremoAtual;
+
+            return;
+        }
+
+        if (!alcancouExtremoOposto &&
+                extremoAtual != extremoInicial) {
+
+            alcancouExtremoOposto = true;
+
+            return;
+        }
+
+        if (alcancouExtremoOposto &&
+                extremoAtual == extremoInicial) {
+
+            ciclosConcluidos++;
+
+            alcancouExtremoOposto = false;
+
+            Log.d(
+                    TAG,
+                    "Ciclo completo: " +
+                            ciclosConcluidos +
+                            "/" +
+                            CICLOS_NECESSARIOS
+            );
+        }
+    }
+
+    // =====================================================
+    // REINICIAR CONTAGEM
+    // =====================================================
+
+    public void reiniciarContagem() {
+
+        ciclosConcluidos = 0;
+
+        extremoInicial = -1;
+
+        alcancouExtremoOposto = false;
+
+        Log.d(
+                TAG,
+                "Contagem de movimentos reiniciada."
+        );
+    }
+
+    // =====================================================
+    // FINALIZAR MOVIMENTO
+    // =====================================================
+
+    public void finalizarMovimentoSeLiberado(
+            boolean esquerdoPressionado,
+            boolean direitoPressionado,
+            boolean controleManualAtivo,
+            boolean controleRemotoAtivo) {
+
+        // Ainda existe algum controle em utilização.
+
+        if (esquerdoPressionado ||
+                direitoPressionado ||
+                controleManualAtivo ||
+                controleRemotoAtivo) {
+
+            return;
+        }
+
+        // Não existe GIF carregado.
+
+        if (!listener.possuiGif()) {
+
+            reiniciarContagem();
+
+            return;
+        }
+
+        // Movimento suficiente para avançar.
+
+        if (ciclosConcluidos >= CICLOS_NECESSARIOS) {
+
+            Log.d(
+                    TAG,
+                    "Três ciclos concluídos. Avançando para o próximo GIF."
+            );
+
+            reiniciarContagem();
+
+            listener.avancarParaProximoGif();
+
+            return;
+        }
+
+        // Movimento insuficiente: mantém o GIF atual.
+
+        Log.d(
+                TAG,
+                "Movimento insuficiente: " +
+                        ciclosConcluidos +
+                        "/" +
+                        CICLOS_NECESSARIOS +
+                        ". Mantendo o GIF atual."
+        );
+
+        reiniciarContagem();
+
+        listener.retomarAnimacao();
+    }
+
+    // =====================================================
+    // CONSULTA DO PROGRESSO
+    // =====================================================
+
+    public int getCiclosConcluidos() {
+
+        return ciclosConcluidos;
+    }
+
+    public int getCiclosNecessarios() {
+
+        return CICLOS_NECESSARIOS;
+    }
+}
+
+============================================================
+FIM DO ARQUIVO: app/src/main/java/com/example/rpghqconspiration/GerenciadorMovimento.java
 
 ============================================================
