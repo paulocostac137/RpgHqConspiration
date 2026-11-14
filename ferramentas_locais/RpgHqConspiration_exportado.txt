@@ -215,6 +215,13 @@ public class MainActivity extends AppCompatActivity {
     private GerenciadorCarregamentoGif
             gerenciadorCarregamentoGif;
 
+    // =====================================================
+    // GERENCIADOR DE DECODIFICAÇÃO DOS GIFS
+    // =====================================================
+
+    private GerenciadorDecodificacaoGif
+            gerenciadorDecodificacaoGif;
+
     // Nome do GIF solicitado ao gerenciador.
     private String nomeGifSolicitado = "";
 
@@ -751,6 +758,16 @@ public class MainActivity extends AppCompatActivity {
         renderizadorGif = new GifFrameRenderer(imagemGif);
 
         // -------------------------------------------------
+        // GERENCIADOR DE DECODIFICAÇÃO DOS GIFS
+        // -------------------------------------------------
+
+        gerenciadorDecodificacaoGif =
+                new GerenciadorDecodificacaoGif(
+                        executor,
+                        handler
+                );
+
+        // -------------------------------------------------
         // REPOSITÓRIO DE GIFS
         // -------------------------------------------------
 
@@ -1268,54 +1285,13 @@ public class MainActivity extends AppCompatActivity {
         // DECODIFICAR O GIF
         // -------------------------------------------------
 
-        executor.execute(() -> {
+        gerenciadorDecodificacaoGif.decodificar(
+                arquivo,
+                new GerenciadorDecodificacaoGif.Listener() {
 
-            try {
-
-                final Movie resultado =
-                        GifDecoder.carregar(arquivo);
-
-                if (resultado == null) {
-
-                    throw new IllegalStateException(
-                            "Não foi possível decodificar o GIF."
-                    );
-                }
-
-                handler.post(() -> {
-
-                    if (!atividadeDisponivel() ||
-                            geracaoAtual != geracaoExibicao) {
-
-                        return;
-                    }
-
-                    movie = resultado;
-
-                    gerenciadorReproducao.reiniciar();
-
-                    // -------------------------------------
-                    // TEXTO ASSOCIADO AO GIF
-                    // -------------------------------------
-
-                    final String textoFinal;
-
-                    int indiceAtual =
-                            gerenciadorNavegacaoGif.getIndiceAtual();
-
-                    if (indiceAtual >= 0 &&
-                            indiceAtual < textosPlanilha.size()) {
-
-                        textoFinal = textosPlanilha.get(indiceAtual);
-
-                    } else {
-
-                        textoFinal = "";
-                    }
-
-                    final int indiceExibido = indiceAtual + 1;
-
-                    areaGif.post(() -> {
+                    @Override
+                    public void onDecodificacaoConcluida(
+                            Movie resultado) {
 
                         if (!atividadeDisponivel() ||
                                 geracaoAtual != geracaoExibicao) {
@@ -1323,53 +1299,89 @@ public class MainActivity extends AppCompatActivity {
                             return;
                         }
 
-                        desenharQuadro();
+                        movie = resultado;
 
-                        iniciarAnimacao();
+                        gerenciadorReproducao.reiniciar();
 
-                        gerenciadorTextoPlanilha.iniciar(textoFinal);
+                        // ---------------------------------
+                        // TEXTO ASSOCIADO AO GIF
+                        // ---------------------------------
+
+                        final String textoFinal;
+
+                        int indiceAtual =
+                                gerenciadorNavegacaoGif.getIndiceAtual();
+
+                        if (indiceAtual >= 0 &&
+                                indiceAtual < textosPlanilha.size()) {
+
+                            textoFinal =
+                                    textosPlanilha.get(indiceAtual);
+
+                        } else {
+
+                            textoFinal = "";
+                        }
+
+                        final int indiceExibido =
+                                indiceAtual + 1;
+
+                        areaGif.post(() -> {
+
+                            if (!atividadeDisponivel() ||
+                                    geracaoAtual != geracaoExibicao) {
+
+                                return;
+                            }
+
+                            desenharQuadro();
+
+                            iniciarAnimacao();
+
+                            gerenciadorTextoPlanilha.iniciar(
+                                    textoFinal
+                            );
+
+                            status.setText(
+                                    nome + " | " +
+                                            indiceExibido +
+                                            "/" + nomes.size()
+                            );
+                        });
+                    }
+
+                    @Override
+                    public void onErro(Exception erro) {
+
+                        if (!atividadeDisponivel() ||
+                                geracaoAtual != geracaoExibicao) {
+
+                            return;
+                        }
+
+                        gerenciadorReproducao.reiniciar();
+
+                        gerenciadorTextoPlanilha.parar();
+
+                        movie = null;
+
+                        if (arquivo.exists()) {
+                            arquivo.delete();
+                        }
 
                         status.setText(
-                                nome + " | " +
-                                        indiceExibido +
-                                        "/" + nomes.size()
+                                "Erro ao abrir GIF: " +
+                                        erro.getMessage()
                         );
-                    });
-                });
 
-            } catch (Exception e) {
-
-                Log.e(
-                        TAG,
-                        "Erro ao abrir GIF.",
-                        e
-                );
-
-                handler.post(() -> {
-
-                    if (!atividadeDisponivel() ||
-                            geracaoAtual != geracaoExibicao) {
-
-                        return;
+                        Log.e(
+                                TAG,
+                                "Erro ao decodificar GIF.",
+                                erro
+                        );
                     }
-
-                    gerenciadorReproducao.reiniciar();
-
-                    gerenciadorTextoPlanilha.parar();
-
-                    movie = null;
-
-                    if (arquivo.exists()) {
-                        arquivo.delete();
-                    }
-
-                    status.setText(
-                            "Erro ao abrir GIF: " +
-                                    e.getMessage()
-                    );
-                });
-            }
-        });
+                }
+        );
     }
 
     // =====================================================
@@ -5979,10 +5991,12 @@ import java.io.File;
 import java.util.concurrent.ExecutorService;
 
 /**
- * Responsável pela decodificação assíncrona dos GIFs.
+ * Responsável exclusivamente pela decodificação
+ * assíncrona dos arquivos GIF.
  *
- * Utiliza GifDecoder para abrir os arquivos.
- * Não manipula Views e não controla a reprodução.
+ * Não manipula Views.
+ * Não controla a reprodução.
+ * Não altera o estado da MainActivity.
  */
 public final class GerenciadorDecodificacaoGif {
 
@@ -5998,16 +6012,12 @@ public final class GerenciadorDecodificacaoGif {
 
     private final ExecutorService executor;
     private final Handler handler;
-    private final Listener listener;
 
     public GerenciadorDecodificacaoGif(
             ExecutorService executor,
-            Handler handler,
-            Listener listener) {
+            Handler handler) {
 
-        if (executor == null ||
-                handler == null ||
-                listener == null) {
+        if (executor == null || handler == null) {
 
             throw new IllegalArgumentException(
                     "As dependências não podem ser nulas."
@@ -6016,17 +6026,30 @@ public final class GerenciadorDecodificacaoGif {
 
         this.executor = executor;
         this.handler = handler;
-        this.listener = listener;
     }
 
-    public void decodificar(File arquivo) {
+    // =====================================================
+    // DECODIFICAR GIF
+    // =====================================================
 
-        if (arquivo == null) {
+    public void decodificar(
+            File arquivo,
+            Listener listener) {
+
+        if (listener == null) {
+            throw new IllegalArgumentException(
+                    "O Listener é obrigatório."
+            );
+        }
+
+        if (arquivo == null ||
+                !arquivo.isFile() ||
+                arquivo.length() <= 0) {
 
             handler.post(() ->
                     listener.onErro(
                             new IllegalArgumentException(
-                                    "Arquivo GIF nulo."
+                                    "Arquivo GIF inválido."
                             )
                     )
             );
@@ -6034,35 +6057,66 @@ public final class GerenciadorDecodificacaoGif {
             return;
         }
 
-        executor.execute(() -> {
+        try {
 
-            try {
+            executor.execute(() -> {
 
-                Log.d(
-                        TAG,
-                        "Iniciando decodificação: " +
-                                arquivo.getName()
-                );
+                try {
 
-                Movie movie = GifDecoder.carregar(arquivo);
+                    Log.d(
+                            TAG,
+                            "Iniciando decodificação: " +
+                                    arquivo.getName()
+                    );
 
-                handler.post(() ->
-                        listener.onDecodificacaoConcluida(movie)
-                );
+                    Movie movie =
+                            GifDecoder.carregar(arquivo);
 
-            } catch (Exception erro) {
+                    if (movie == null) {
 
-                Log.e(
-                        TAG,
-                        "Falha na decodificação do GIF.",
-                        erro
-                );
+                        throw new IllegalStateException(
+                                "Não foi possível decodificar o GIF."
+                        );
+                    }
 
-                handler.post(() ->
-                        listener.onErro(erro)
-                );
-            }
-        });
+                    Log.d(
+                            TAG,
+                            "Decodificação concluída: " +
+                                    arquivo.getName()
+                    );
+
+                    handler.post(() ->
+                            listener.onDecodificacaoConcluida(
+                                    movie
+                            )
+                    );
+
+                } catch (Exception erro) {
+
+                    Log.e(
+                            TAG,
+                            "Falha na decodificação do GIF.",
+                            erro
+                    );
+
+                    handler.post(() ->
+                            listener.onErro(erro)
+                    );
+                }
+            });
+
+        } catch (RuntimeException erro) {
+
+            Log.e(
+                    TAG,
+                    "Não foi possível iniciar a decodificação.",
+                    erro
+            );
+
+            handler.post(() ->
+                    listener.onErro(erro)
+            );
+        }
     }
 }
 
