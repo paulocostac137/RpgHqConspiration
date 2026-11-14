@@ -53,7 +53,15 @@ public class ExportadorProjeto {
 
             "app/src/main/java/com/example/rpghqconspiration/GerenciadorMensagens.java",
 
-            "app/src/main/java/com/example/rpghqconspiration/GerenciadorControleMultitoque.java"
+            "app/src/main/java/com/example/rpghqconspiration/GerenciadorControleMultitoque.java",
+
+            "app/src/main/java/com/example/rpghqconspiration/GifRepository.java",
+
+            "app/src/main/java/com/example/rpghqconspiration/GerenciadorReproducaoGif.java",
+
+            "app/src/main/java/com/example/rpghqconspiration/GerenciadorControleRemoto.java",
+
+            "app/src/main/java/com/example/rpghqconspiration/GerenciadorEstadoControles.java"
 
     );
 
