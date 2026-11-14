@@ -27,9 +27,9 @@ public class ExportadorProjeto {
 
             "app/src/main/res/layout/activity_conexao.xml",
 
-            "app/src/main/java/com/example/rpghqconspiration/GifSincronizadoView.java"
+            "app/src/main/java/com/example/rpghqconspiration/GifSincronizadoView.java",
 
-            "app/src/main/java/com/example/rpghqconspiration/ModoImersivo.java"
+            "app/src/main/java/com/example/rpghqconspiration/ModoImersivo.java",
 
             "app/src/main/java/com/example/rpghqconspiration/GerenciadorSessao.java"
 
