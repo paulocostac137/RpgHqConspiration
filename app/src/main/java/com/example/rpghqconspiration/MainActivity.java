@@ -3,23 +3,13 @@ package com.example.rpghqconspiration;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.SystemClock;
 
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Movie;
 import android.graphics.Paint;
-import android.graphics.drawable.GradientDrawable;
 
 import android.util.Log;
 
-import android.view.Gravity;
-import android.view.MotionEvent;
 import android.view.View;
-import android.view.Window;
-import android.view.WindowInsets;
-import android.view.WindowInsetsController;
 
 import android.widget.Button;
 import android.widget.FrameLayout;
@@ -30,74 +20,21 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-
-import java.net.HttpURLConnection;
-import java.net.URL;
 
 import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
 
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "RPGHQ_SYNC";
 
     // =====================================================
-    // PLANILHA
-    // =====================================================
-
-    private static final String PLANILHA_ID =
-            "1pJ7XtHx0DLSCjsGj0zlJycm-nzqa7a8flnLfoG7k2ks";
-
-    private static final String GID = "0";
-
-    // =====================================================
     // TEMPOS
     // =====================================================
 
-    private static final long JANELA_TEXTO_MS = 7000;
-    private static final long TEMPO_TEXTO_MS = 5000;
-
-    private static final long INTERVALO_ATUALIZACAO_MS = 50;
     private static final long INTERVALO_ANIMACAO_MS = 30;
-
-    // =====================================================
-    // CONFIGURAÇÃO DA MOVIMENTAÇÃO
-    // =====================================================
-
-    private static final int CICLOS_NECESSARIOS = 3;
-
-    private static final float LIMITE_EXTREMO_SUPERIOR = 0.15f;
-    private static final float LIMITE_EXTREMO_INFERIOR = 0.85f;
-
-    private int ciclosConcluidos = 0;
-
-    private int extremoInicial = -1;
-
-    private boolean alcancouExtremoOposto = false;
-
-    // =====================================================
-    // LIBERAÇÃO DOS CONTROLES DO USUÁRIO B
-    // =====================================================
-
-    /*
-     * Este estado é atualizado quando o servidor envia
-     * a mensagem:
-     *
-     * {"type":"unlock_b"}
-     *
-     * Depois de liberados, os controles permanecem visíveis
-     * durante toda a sessão.
-     */
-
-    private boolean usuarioBDesbloqueado = false;
 
     // =====================================================
     // COMPONENTES
@@ -135,6 +72,141 @@ public class MainActivity extends AppCompatActivity {
 
     private ServicoConexao servicoConexao;
 
+    // =====================================================
+    // REPOSITÓRIOS E COMUNICAÇÃO
+    // =====================================================
+
+    private final PlanilhaRepository planilhaRepository =
+            new PlanilhaRepository();
+
+    private GifRepository gifRepository;
+
+    private GerenciadorComunicacaoServidor
+            gerenciadorComunicacaoServidor;
+
+    // =====================================================
+    // GERENCIADOR DE CARREGAMENTO DA PLANILHA
+    // =====================================================
+
+    private GerenciadorCarregamentoPlanilha
+            gerenciadorCarregamentoPlanilha;
+
+    // =====================================================
+    // GERENCIADOR DE CARREGAMENTO DOS GIFS
+    // =====================================================
+
+    private GerenciadorCarregamentoGif
+            gerenciadorCarregamentoGif;
+
+    // =====================================================
+    // GERENCIADOR DE DECODIFICAÇÃO DOS GIFS
+    // =====================================================
+
+    private GerenciadorDecodificacaoGif
+            gerenciadorDecodificacaoGif;
+
+    // Nome do GIF solicitado ao gerenciador.
+    private String nomeGifSolicitado = "";
+
+    // =====================================================
+    // GERENCIADOR DE ESTADO DOS CONTROLES
+    // =====================================================
+
+    private GerenciadorEstadoControles gerenciadorEstadoControles;
+
+    // =====================================================
+    // GERENCIADOR DE MENSAGENS
+    // =====================================================
+
+    private final GerenciadorMensagens gerenciadorMensagens =
+            new GerenciadorMensagens(
+                    new GerenciadorMensagens.Listener() {
+
+                        @Override
+                        public void onJoined(int usuarios) {
+
+                            atualizarVisibilidadeControles();
+
+                            status.setText(
+                                    usuarios == 1
+                                            ? "Conectado. Aguardando parceiro..."
+                                            : "Conectado! Dois usuários na sala."
+                            );
+                        }
+
+                        @Override
+                        public void onPeerConnected() {
+
+                            status.setText(
+                                    "PARCEIRO CONECTADO!"
+                            );
+
+                            Log.d(
+                                    TAG,
+                                    "O parceiro entrou na sala."
+                            );
+                        }
+
+                        @Override
+                        public void onPeerDisconnected() {
+
+                            controleRemotoAtivo = false;
+
+                            finalizarMovimentoSeLiberado();
+
+                            status.setText(
+                                    "Parceiro desconectado."
+                            );
+                        }
+
+                        @Override
+                        public void onUnlockB() {
+
+                            if (gerenciadorEstadoControles != null) {
+
+                                gerenciadorEstadoControles.liberarUsuarioB();
+                            }
+
+                            atualizarVisibilidadeControles();
+
+                            Log.d(
+                                    TAG,
+                                    "SERVIDOR LIBEROU OS CONTROLES DO USUÁRIO B."
+                            );
+
+                            status.setText(
+                                    "Controles liberados!"
+                            );
+                        }
+
+                        @Override
+                        public void onError(String mensagem) {
+
+                            status.setText(
+                                    "Erro do servidor: " + mensagem
+                            );
+                        }
+
+                        @Override
+                        public void onControl(JSONObject dados) {
+
+                            processarControleRemoto(dados);
+                        }
+
+                        @Override
+                        public void onMensagemDesconhecida(String tipo) {
+
+                            Log.d(
+                                    TAG,
+                                    "Mensagem não reconhecida: " + tipo
+                            );
+                        }
+                    });
+
+    // =====================================================
+    // ESTADO DA ATIVIDADE
+    // =====================================================
+
     private boolean atividadeEncerrada = false;
 
     private boolean modoIndividual = false;
@@ -143,50 +215,79 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean carregando = false;
 
-    private File pastaGifs;
+    // =====================================================
+    // GERENCIADOR DE NAVEGAÇÃO DOS GIFS
+    // =====================================================
 
-    private int indiceAtual = -1;
-
-    // Identifica a solicitação de GIF mais recente.
-    // Impede que uma decodificação antiga substitua
-    // uma animação solicitada posteriormente.
+    private final GerenciadorNavegacaoGif gerenciadorNavegacaoGif =
+            new GerenciadorNavegacaoGif();
 
     private long geracaoExibicao = 0;
 
     // =====================================================
-    // ANIMAÇÃO PRINCIPAL
+    // GERENCIADOR DE MOVIMENTAÇÃO
+    // =====================================================
+
+    private final GerenciadorMovimento gerenciadorMovimento =
+            new GerenciadorMovimento(
+                    new GerenciadorMovimento.Listener() {
+
+                        @Override
+                        public boolean possuiGif() {
+
+                            return movie != null;
+                        }
+
+                        @Override
+                        public void avancarParaProximoGif() {
+
+                            proximoGif();
+                        }
+
+                        @Override
+                        public void retomarAnimacao() {
+
+                            iniciarAnimacao();
+                        }
+                    }
+            );
+
+    // =====================================================
+    // GERENCIADOR MULTITOQUE
+    // =====================================================
+
+    private GerenciadorControleMultitoque gerenciadorControle;
+
+    // =====================================================
+    // GERENCIADOR DE CONTROLE REMOTO
+    // =====================================================
+
+    private GerenciadorControleRemoto gerenciadorControleRemoto;
+
+    // =====================================================
+    // GERENCIADOR DE REPRODUÇÃO
+    // =====================================================
+
+    private GerenciadorReproducaoGif gerenciadorReproducao;
+
+    // =====================================================
+    // GERENCIADOR DO TEXTO DA PLANILHA
+    // =====================================================
+
+    private GerenciadorTextoPlanilha gerenciadorTextoPlanilha;
+
+    // =====================================================
+    // ANIMAÇÃO E RENDERIZAÇÃO
     // =====================================================
 
     private Movie movie;
 
-    private Bitmap quadroBitmap;
-    private Canvas quadroCanvas;
+    private GifFrameRenderer renderizadorGif;
 
     private final Paint pincel = new Paint(
             Paint.ANTI_ALIAS_FLAG |
                     Paint.FILTER_BITMAP_FLAG
     );
-
-    private long posicaoMs = 0;
-    private long inicioReproducao = 0;
-    private long inicioExibicaoGif = 0;
-
-    private boolean reproduzindo = false;
-
-    // =====================================================
-    // CONTROLES MULTITOQUE
-    // =====================================================
-
-    private boolean esquerdoPressionado = false;
-    private boolean direitoPressionado = false;
-
-    private boolean controleManualAtivo = false;
-
-    private float posicaoDedoEsquerdo = 0;
-    private float posicaoDedoDireito = 0;
-
-    private int idDedoEsquerdo = -1;
-    private int idDedoDireito = -1;
 
     // =====================================================
     // VERIFICAÇÃO DO CICLO DE VIDA
@@ -200,68 +301,17 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // =====================================================
-    // VISIBILIDADE DOS CONTROLES DOS USUÁRIOS
+    // VISIBILIDADE DOS CONTROLES
     // =====================================================
 
     private void atualizarVisibilidadeControles() {
 
-        if (controleEsquerdo == null ||
-                controleDireito == null) {
-
+        if (gerenciadorEstadoControles == null) {
             return;
         }
 
-        // No modo individual, os dois controles ficam visíveis.
-
-        if (modoIndividual) {
-
-            controleEsquerdo.setVisibility(View.VISIBLE);
-            controleDireito.setVisibility(View.VISIBLE);
-
-            return;
-        }
-
-        String papel = "";
-
-        if (servicoConexao != null) {
-
-            papel = servicoConexao.getPapelUsuario();
-
-            if (papel == null) {
-                papel = "";
-            }
-        }
-
-        /*
-         * O servidor identifica os usuários como A ou B.
-         *
-         * A: controles visíveis.
-         *
-         * B: controles ocultos até receber unlock_b.
-         *
-         * Se o papel ainda não foi recebido, os controles
-         * ficam temporariamente ocultos para evitar que
-         * os controles de B apareçam antes da identificação.
-         */
-
-        boolean ocultarControles =
-                !"A".equalsIgnoreCase(papel) &&
-                        !usuarioBDesbloqueado;
-
-        int visibilidade = ocultarControles
-                ? View.INVISIBLE
-                : View.VISIBLE;
-
-        controleEsquerdo.setVisibility(visibilidade);
-        controleDireito.setVisibility(visibilidade);
-
-        Log.d(
-                TAG,
-                "Papel: " + papel +
-                        " | Usuário B liberado: " +
-                        usuarioBDesbloqueado +
-                        " | Controles visíveis: " +
-                        !ocultarControles
+        gerenciadorEstadoControles.atualizar(
+                servicoConexao
         );
     }
 
@@ -269,49 +319,14 @@ public class MainActivity extends AppCompatActivity {
     // MODO IMERSIVO
     // =====================================================
 
-    private void ativarModoImersivo() {
-
-        Window window = getWindow();
-
-        if (android.os.Build.VERSION.SDK_INT >=
-                android.os.Build.VERSION_CODES.R) {
-
-            WindowInsetsController controller =
-                    window.getInsetsController();
-
-            if (controller != null) {
-
-                controller.hide(
-                        WindowInsets.Type.statusBars() |
-                                WindowInsets.Type.navigationBars()
-                );
-
-                controller.setSystemBarsBehavior(
-                        WindowInsetsController
-                                .BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                );
-            }
-
-        } else {
-
-            window.getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_FULLSCREEN |
-                            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
-                            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY |
-                            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
-                            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
-                            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            );
-        }
-    }
-
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
 
         super.onWindowFocusChanged(hasFocus);
 
         if (hasFocus && atividadeDisponivel()) {
-            ativarModoImersivo();
+
+            ModoImersivo.ativar(getWindow());
         }
     }
 
@@ -355,80 +370,8 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        servicoConexao.definirCallback(
-                new ServicoConexao.Callback() {
-
-                    @Override
-                    public void onConectado() {
-
-                        handler.post(() -> {
-
-                            if (!atividadeDisponivel()) return;
-
-                            Log.d(
-                                    TAG,
-                                    "Conexão compartilhada ativa."
-                            );
-
-                            status.setText(
-                                    "Conectado ao servidor."
-                            );
-
-                            atualizarVisibilidadeControles();
-                        });
-                    }
-
-                    @Override
-                    public void onDesconectado(String motivo) {
-
-                        handler.post(() -> {
-
-                            if (!atividadeDisponivel()) return;
-
-                            Log.w(
-                                    TAG,
-                                    "Servidor desconectado: " + motivo
-                            );
-
-                            controleRemotoAtivo = false;
-
-                            finalizarMovimentoSeLiberado();
-
-                            status.setText(
-                                    "Servidor desconectado."
-                            );
-                        });
-                    }
-
-                    @Override
-                    public void onMensagem(JSONObject mensagem) {
-
-                        handler.post(() -> {
-
-                            if (!atividadeDisponivel()) return;
-
-                            processarMensagemServidor(mensagem);
-                        });
-                    }
-
-                    @Override
-                    public void onErro(String erro) {
-
-                        handler.post(() -> {
-
-                            if (!atividadeDisponivel()) return;
-
-                            Log.e(
-                                    TAG,
-                                    "Erro de conexão: " + erro
-                            );
-
-                            status.setText(
-                                    "Erro de conexão: " + erro
-                            );
-                        });
-                    }
-                }
+        gerenciadorComunicacaoServidor.registrarCallbacks(
+                servicoConexao
         );
 
         Log.d(
@@ -444,220 +387,81 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // =====================================================
-    // MENSAGENS RECEBIDAS
-    // =====================================================
-
-    private void processarMensagemServidor(JSONObject dados) {
-
-        if (!atividadeDisponivel()) return;
-
-        String tipo = dados.optString("type");
-
-        Log.d(
-                TAG,
-                "Processando mensagem: " + dados
-        );
-
-        switch (tipo) {
-
-            case "joined": {
-
-                int usuarios = dados.optInt("users", 0);
-
-                /*
-                 * O ServicoConexao deve armazenar o campo
-                 * "role" recebido na mensagem joined.
-                 *
-                 * O método getPapelUsuario() retorna A ou B.
-                 */
-
-                atualizarVisibilidadeControles();
-
-                status.setText(
-                        usuarios == 1
-                                ? "Conectado. Aguardando parceiro..."
-                                : "Conectado! Dois usuários na sala."
-                );
-
-                break;
-            }
-
-            case "peer_connected": {
-
-                status.setText(
-                        "PARCEIRO CONECTADO!"
-                );
-
-                Log.d(
-                        TAG,
-                        "O parceiro entrou na sala."
-                );
-
-                break;
-            }
-
-            case "peer_disconnected": {
-
-                controleRemotoAtivo = false;
-
-                finalizarMovimentoSeLiberado();
-
-                status.setText(
-                        "Parceiro desconectado."
-                );
-
-                break;
-            }
-
-            case "unlock_b": {
-
-                /*
-                 * O servidor envia esta mensagem quando:
-                 *
-                 * 1. O usuário A completa 5 movimentos;
-                 *
-                 * OU
-                 *
-                 * 2. O usuário A solta os controles depois
-                 *    de completar pelo menos 3 movimentos.
-                 */
-
-                usuarioBDesbloqueado = true;
-
-                atualizarVisibilidadeControles();
-
-                Log.d(
-                        TAG,
-                        "SERVIDOR LIBEROU OS CONTROLES DO USUÁRIO B."
-                );
-
-                status.setText(
-                        "Controles liberados!"
-                );
-
-                break;
-            }
-
-            case "error": {
-
-                status.setText(
-                        "Erro do servidor: " +
-                                dados.optString("message")
-                );
-
-                break;
-            }
-
-            case "control": {
-
-                processarControleRemoto(dados);
-
-                break;
-            }
-
-            default: {
-
-                Log.d(
-                        TAG,
-                        "Mensagem não reconhecida: " + tipo
-                );
-
-                break;
-            }
-        }
-    }
-
-    // =====================================================
     // CONTROLE RECEBIDO DO PARCEIRO
     // =====================================================
 
     private void processarControleRemoto(JSONObject dados) {
 
-        boolean ativo = dados.optBoolean("active", false);
-
-        if (!ativo) {
-
-            controleRemotoAtivo = false;
-
-            Log.d(
-                    TAG,
-                    "Parceiro liberou os controles."
-            );
-
-            finalizarMovimentoSeLiberado();
+        if (!atividadeDisponivel() ||
+                gerenciadorControleRemoto == null) {
 
             return;
         }
 
-        if (movie == null) {
+        gerenciadorControleRemoto.processar(dados);
+    }
+
+    // =====================================================
+    // APLICAR CONTROLE REMOTO
+    // =====================================================
+
+    private void aplicarControleRemoto(float progressoRecebido) {
+
+        if (!atividadeDisponivel() ||
+                movie == null ||
+                gerenciadorReproducao == null ||
+                gerenciadorControle == null) {
+
             return;
         }
-
-        float progressoRecebido =
-                (float) dados.optDouble("progress", 0);
-
-        if (Float.isNaN(progressoRecebido) ||
-                Float.isInfinite(progressoRecebido)) {
-
-            return;
-        }
-
-        progressoRecebido = Math.max(
-                0f,
-                Math.min(1f, progressoRecebido)
-        );
 
         controleRemotoAtivo = true;
 
         pausarAnimacao();
 
-        registrarProgressoMovimento(progressoRecebido);
+        gerenciadorMovimento.registrarProgresso(
+                progressoRecebido,
+                gerenciadorControle.isControleManualAtivo(),
+                controleRemotoAtivo
+        );
 
         int duracao = obterDuracaoGif();
 
-        posicaoMs = (long) (
-                progressoRecebido * duracao
+        gerenciadorReproducao.definirPosicao(
+                (long) (progressoRecebido * duracao)
         );
-
-        final float progressoFinal = progressoRecebido;
 
         areaGif.post(() -> {
 
-            if (!atividadeDisponivel() || movie == null) {
+            if (!atividadeDisponivel() ||
+                    movie == null ||
+                    gerenciadorControle == null) {
+
                 return;
             }
 
-            int altura = areaGif.getHeight();
-
-            int alturaBotao =
-                    controleEsquerdo.getHeight();
-
-            if (altura <= 0 || alturaBotao <= 0) {
-                return;
-            }
-
-            float metadeBotao = alturaBotao / 2f;
-
-            int centroY = (int) (
-                    metadeBotao +
-                            progressoFinal *
-                                    (altura - 2f * metadeBotao)
-            );
-
-            moverBotao(
-                    controleEsquerdo,
-                    centroY,
-                    true
-            );
-
-            moverBotao(
-                    controleDireito,
-                    centroY,
-                    false
+            gerenciadorControle.moverControles(
+                    progressoRecebido
             );
 
             desenharQuadro();
         });
+    }
+
+    // =====================================================
+    // LIBERAÇÃO DO CONTROLE REMOTO
+    // =====================================================
+
+    private void liberarControleRemoto() {
+
+        controleRemotoAtivo = false;
+
+        Log.d(
+                TAG,
+                "Parceiro liberou os controles."
+        );
+
+        finalizarMovimentoSeLiberado();
     }
 
     // =====================================================
@@ -668,39 +472,15 @@ public class MainActivity extends AppCompatActivity {
             boolean ativo,
             float progresso) {
 
-        if (modoIndividual) return;
-
-        if (servicoConexao == null) {
-
-            Log.w(
-                    TAG,
-                    "Comando não enviado: serviço inexistente."
-            );
-
+        if (gerenciadorControleRemoto == null) {
             return;
         }
 
-        if (!servicoConexao.estaConectado()) {
-
-            Log.w(
-                    TAG,
-                    "Comando não enviado: conexão indisponível."
-            );
-
-            return;
-        }
-
-        servicoConexao.enviarControle(
+        gerenciadorControleRemoto.enviar(
+                servicoConexao,
+                modoIndividual,
                 ativo,
                 progresso
-        );
-
-        Log.d(
-                TAG,
-                "Controle enviado. Ativo: " +
-                        ativo +
-                        " Progresso: " +
-                        progresso
         );
     }
 
@@ -710,81 +490,11 @@ public class MainActivity extends AppCompatActivity {
 
     private int obterDuracaoGif() {
 
-        if (movie == null) {
+        if (gerenciadorReproducao == null) {
             return 1000;
         }
 
-        int duracao = movie.duration();
-
-        return duracao > 0 ? duracao : 1000;
-    }
-
-    // =====================================================
-    // CONTAGEM DOS CICLOS DE MOVIMENTAÇÃO
-    // =====================================================
-
-    private void registrarProgressoMovimento(float progresso) {
-
-        if (!controleManualAtivo &&
-                !controleRemotoAtivo) {
-
-            return;
-        }
-
-        int extremoAtual = -1;
-
-        if (progresso <= LIMITE_EXTREMO_SUPERIOR) {
-
-            extremoAtual = 0;
-
-        } else if (progresso >= LIMITE_EXTREMO_INFERIOR) {
-
-            extremoAtual = 1;
-        }
-
-        if (extremoAtual == -1) {
-            return;
-        }
-
-        if (extremoInicial == -1) {
-
-            extremoInicial = extremoAtual;
-
-            return;
-        }
-
-        if (!alcancouExtremoOposto &&
-                extremoAtual != extremoInicial) {
-
-            alcancouExtremoOposto = true;
-
-            return;
-        }
-
-        if (alcancouExtremoOposto &&
-                extremoAtual == extremoInicial) {
-
-            ciclosConcluidos++;
-
-            alcancouExtremoOposto = false;
-
-            Log.d(
-                    TAG,
-                    "Ciclo completo: " +
-                            ciclosConcluidos +
-                            "/" +
-                            CICLOS_NECESSARIOS
-            );
-        }
-    }
-
-    private void reiniciarContagemMovimentos() {
-
-        ciclosConcluidos = 0;
-
-        extremoInicial = -1;
-
-        alcancouExtremoOposto = false;
+        return gerenciadorReproducao.obterDuracao(movie);
     }
 
     // =====================================================
@@ -793,169 +503,17 @@ public class MainActivity extends AppCompatActivity {
 
     private void finalizarMovimentoSeLiberado() {
 
-        if (esquerdoPressionado ||
-                direitoPressionado ||
-                controleManualAtivo ||
-                controleRemotoAtivo) {
-
+        if (gerenciadorControle == null) {
             return;
         }
 
-        if (movie == null) {
-
-            reiniciarContagemMovimentos();
-
-            return;
-        }
-
-        if (ciclosConcluidos >= CICLOS_NECESSARIOS) {
-
-            Log.d(
-                    TAG,
-                    "Três ciclos concluídos. Avançando para o próximo GIF."
-            );
-
-            reiniciarContagemMovimentos();
-
-            proximoGif();
-
-            return;
-        }
-
-        Log.d(
-                TAG,
-                "Movimento insuficiente: " +
-                        ciclosConcluidos +
-                        "/" +
-                        CICLOS_NECESSARIOS +
-                        ". Mantendo o GIF atual."
+        gerenciadorMovimento.finalizarMovimentoSeLiberado(
+                gerenciadorControle.isEsquerdoPressionado(),
+                gerenciadorControle.isDireitoPressionado(),
+                gerenciadorControle.isControleManualAtivo(),
+                controleRemotoAtivo
         );
-
-        reiniciarContagemMovimentos();
-
-        iniciarAnimacao();
     }
-
-    // =====================================================
-    // ATUALIZAÇÃO AUTOMÁTICA DA ANIMAÇÃO
-    // =====================================================
-
-    private final Runnable atualizadorGif = new Runnable() {
-
-        @Override
-        public void run() {
-
-            if (!atividadeDisponivel() ||
-                    movie == null ||
-                    !reproduzindo) {
-
-                return;
-            }
-
-            int duracao = obterDuracaoGif();
-
-            long agora = SystemClock.uptimeMillis();
-
-            long decorrido = agora - inicioReproducao;
-
-            posicaoMs = (
-                    posicaoMs + decorrido
-            ) % duracao;
-
-            inicioReproducao = agora;
-
-            desenharQuadro();
-
-            handler.postDelayed(
-                    this,
-                    INTERVALO_ANIMACAO_MS
-            );
-        }
-    };
-
-    // =====================================================
-    // TEXTO DA PLANILHA
-    // =====================================================
-
-    private void configurarTextoPlanilha() {
-
-        textoPlanilha.setBackground(
-                new GradientDrawable(
-                        GradientDrawable.Orientation.TOP_BOTTOM,
-                        new int[]{
-                                Color.argb(250, 0, 0, 0),
-                                Color.argb(220, 0, 0, 0),
-                                Color.argb(140, 0, 0, 0),
-                                Color.argb(0, 0, 0, 0)
-                        }
-                )
-        );
-
-        textoPlanilha.setVisibility(View.GONE);
-
-        areaGif.post(() -> {
-
-            if (!atividadeDisponivel()) return;
-
-            int altura = areaGif.getHeight();
-
-            if (altura <= 0) return;
-
-            FrameLayout.LayoutParams parametros =
-                    (FrameLayout.LayoutParams)
-                            textoPlanilha.getLayoutParams();
-
-            parametros.width =
-                    FrameLayout.LayoutParams.MATCH_PARENT;
-
-            parametros.height = altura / 4;
-
-            parametros.gravity = Gravity.TOP;
-
-            textoPlanilha.setLayoutParams(parametros);
-        });
-    }
-
-    private final Runnable atualizarTextoPlanilha =
-            new Runnable() {
-
-                @Override
-                public void run() {
-
-                    if (!atividadeDisponivel()) {
-                        return;
-                    }
-
-                    if (movie == null || inicioExibicaoGif == 0) {
-
-                        textoPlanilha.setVisibility(View.GONE);
-
-                        return;
-                    }
-
-                    long decorrido =
-                            SystemClock.uptimeMillis() -
-                                    inicioExibicaoGif;
-
-                    if (decorrido >= TEMPO_TEXTO_MS &&
-                            decorrido < JANELA_TEXTO_MS) {
-
-                        textoPlanilha.setVisibility(View.VISIBLE);
-
-                    } else {
-
-                        textoPlanilha.setVisibility(View.GONE);
-                    }
-
-                    if (decorrido < JANELA_TEXTO_MS) {
-
-                        handler.postDelayed(
-                                this,
-                                INTERVALO_ATUALIZACAO_MS
-                        );
-                    }
-                }
-            };
 
     // =====================================================
     // ONCREATE
@@ -968,7 +526,11 @@ public class MainActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_main);
 
-        ativarModoImersivo();
+        ModoImersivo.ativar(getWindow());
+
+        // -------------------------------------------------
+        // COMPONENTES VISUAIS
+        // -------------------------------------------------
 
         imagemGif = findViewById(R.id.imagemGif);
 
@@ -987,46 +549,341 @@ public class MainActivity extends AppCompatActivity {
         textoPlanilha =
                 findViewById(R.id.textoPlanilha);
 
-        configurarTextoPlanilha();
+        // -------------------------------------------------
+        // GERENCIADOR DE COMUNICAÇÃO COM O SERVIDOR
+        // -------------------------------------------------
 
-        pastaGifs = new File(
-                getFilesDir(),
-                "gifs"
-        );
+        gerenciadorComunicacaoServidor =
+                new GerenciadorComunicacaoServidor(
+                        gerenciadorMensagens,
+                        new GerenciadorComunicacaoServidor.Listener() {
 
-        if (!pastaGifs.exists() &&
-                !pastaGifs.mkdirs()) {
+                            @Override
+                            public boolean atividadeDisponivel() {
 
-            Log.e(
-                    TAG,
-                    "Não foi possível criar a pasta de GIFs."
-            );
-        }
+                                return MainActivity.this.atividadeDisponivel();
+                            }
 
-        botaoProximo.setOnClickListener(v -> {
+                            @Override
+                            public void onConectado() {
 
-            reiniciarContagemMovimentos();
+                                Log.d(
+                                        TAG,
+                                        "Conexão compartilhada ativa."
+                                );
 
-            proximoGif();
-        });
+                                status.setText(
+                                        "Conectado ao servidor."
+                                );
 
-        configurarControles();
+                                atualizarVisibilidadeControles();
+                            }
+
+                            @Override
+                            public void onDesconectado(String motivo) {
+
+                                Log.w(
+                                        TAG,
+                                        "Servidor desconectado: " + motivo
+                                );
+
+                                controleRemotoAtivo = false;
+
+                                finalizarMovimentoSeLiberado();
+
+                                status.setText(
+                                        "Servidor desconectado."
+                                );
+                            }
+
+                            @Override
+                            public void onErroConexao(String erro) {
+
+                                Log.e(
+                                        TAG,
+                                        "Erro de conexão: " + erro
+                                );
+
+                                status.setText(
+                                        "Erro de conexão: " + erro
+                                );
+                            }
+                        }
+                );
+
+        // -------------------------------------------------
+        // MODO DE EXECUÇÃO
+        // -------------------------------------------------
 
         modoIndividual = getIntent().getBooleanExtra(
                 "modo_individual",
                 false
         );
 
-        /*
-         * Define a visibilidade inicial.
-         *
-         * No modo individual: controles visíveis.
-         *
-         * No modo compartilhado: controles ficam ocultos
-         * temporariamente até o servidor identificar A ou B.
-         */
+        // -------------------------------------------------
+        // GERENCIADOR DE ESTADO DOS CONTROLES
+        // -------------------------------------------------
 
-        atualizarVisibilidadeControles();
+        gerenciadorEstadoControles =
+                new GerenciadorEstadoControles(
+                        controleEsquerdo,
+                        controleDireito
+                );
+
+        gerenciadorEstadoControles.definirModoIndividual(
+                modoIndividual
+        );
+
+        // -------------------------------------------------
+        // RENDERIZADOR
+        // -------------------------------------------------
+
+        renderizadorGif = new GifFrameRenderer(imagemGif);
+
+        // -------------------------------------------------
+        // GERENCIADOR DE DECODIFICAÇÃO DOS GIFS
+        // -------------------------------------------------
+
+        gerenciadorDecodificacaoGif =
+                new GerenciadorDecodificacaoGif(
+                        executor,
+                        handler
+                );
+
+        // -------------------------------------------------
+        // REPOSITÓRIO DE GIFS
+        // -------------------------------------------------
+
+        gifRepository = new GifRepository(
+                new File(
+                        getFilesDir(),
+                        "gifs"
+                )
+        );
+
+        // -------------------------------------------------
+        // GERENCIADOR DE CARREGAMENTO DOS GIFS
+        // -------------------------------------------------
+
+        gerenciadorCarregamentoGif =
+                new GerenciadorCarregamentoGif(
+                        gifRepository,
+                        executor,
+                        handler,
+                        new GerenciadorCarregamentoGif.Listener() {
+
+                            @Override
+                            public void onCarregamentoIniciado() {
+
+                                if (!atividadeDisponivel()) {
+                                    return;
+                                }
+
+                                carregando = true;
+
+                                botaoProximo.setEnabled(false);
+
+                                status.setText(
+                                        "Carregando: " +
+                                                nomeGifSolicitado
+                                );
+                            }
+
+                            @Override
+                            public void onCarregamentoConcluido(
+                                    File arquivo) {
+
+                                if (!atividadeDisponivel()) {
+                                    return;
+                                }
+
+                                carregando = false;
+
+                                botaoProximo.setEnabled(true);
+
+                                exibirGif(
+                                        arquivo,
+                                        nomeGifSolicitado
+                                );
+                            }
+
+                            @Override
+                            public void onErro(Exception erro) {
+
+                                if (!atividadeDisponivel()) {
+                                    return;
+                                }
+
+                                carregando = false;
+
+                                botaoProximo.setEnabled(true);
+
+                                Log.e(
+                                        TAG,
+                                        "Erro ao carregar GIF.",
+                                        erro
+                                );
+
+                                status.setText(
+                                        "Erro ao obter GIF: " +
+                                                erro.getMessage()
+                                );
+                            }
+                        }
+                );
+
+        // -------------------------------------------------
+        // GERENCIADOR DE REPRODUÇÃO
+        // -------------------------------------------------
+
+        gerenciadorReproducao =
+                new GerenciadorReproducaoGif(
+                        handler,
+                        INTERVALO_ANIMACAO_MS,
+                        new GerenciadorReproducaoGif.Listener() {
+
+                            @Override
+                            public boolean podeIniciar() {
+
+                                return atividadeDisponivel() &&
+                                        movie != null &&
+                                        (gerenciadorControle == null ||
+                                                !gerenciadorControle.isControleManualAtivo()) &&
+                                        !controleRemotoAtivo;
+                            }
+
+                            @Override
+                            public void atualizarQuadro() {
+
+                                desenharQuadro();
+                            }
+                        }
+                );
+
+        // -------------------------------------------------
+        // GERENCIADOR DO TEXTO DA PLANILHA
+        // -------------------------------------------------
+
+        gerenciadorTextoPlanilha =
+                new GerenciadorTextoPlanilha(
+                        textoPlanilha,
+                        areaGif,
+                        handler,
+                        new GerenciadorTextoPlanilha.Listener() {
+
+                            @Override
+                            public boolean atividadeDisponivel() {
+
+                                return MainActivity.this.atividadeDisponivel();
+                            }
+
+                            @Override
+                            public boolean possuiGif() {
+
+                                return movie != null;
+                            }
+                        }
+                );
+
+        gerenciadorTextoPlanilha.configurar();
+
+        // -------------------------------------------------
+        // GERENCIADOR MULTITOQUE
+        // -------------------------------------------------
+
+        gerenciadorControle =
+                new GerenciadorControleMultitoque(
+                        areaGif,
+                        controleEsquerdo,
+                        controleDireito,
+                        new GerenciadorControleMultitoque.Listener() {
+
+                            @Override
+                            public boolean possuiGif() {
+
+                                return movie != null;
+                            }
+
+                            @Override
+                            public void onControleManualIniciado() {
+
+                                pausarAnimacao();
+                            }
+
+                            @Override
+                            public void onProgressoManual(float progresso) {
+
+                                gerenciadorMovimento.registrarProgresso(
+                                        progresso,
+                                        true,
+                                        controleRemotoAtivo
+                                );
+
+                                int duracao = obterDuracaoGif();
+
+                                gerenciadorReproducao.definirPosicao(
+                                        (long) (progresso * duracao)
+                                );
+
+                                desenharQuadro();
+
+                                enviarComandoControle(
+                                        true,
+                                        progresso
+                                );
+                            }
+
+                            @Override
+                            public void onControleManualLiberado() {
+
+                                enviarComandoControle(
+                                        false,
+                                        0f
+                                );
+
+                                finalizarMovimentoSeLiberado();
+                            }
+                        }
+                );
+
+        // -------------------------------------------------
+        // GERENCIADOR DE CONTROLE REMOTO
+        // -------------------------------------------------
+
+        gerenciadorControleRemoto =
+                new GerenciadorControleRemoto(
+                        new GerenciadorControleRemoto.Listener() {
+
+                            @Override
+                            public void onControleRecebido(float progresso) {
+
+                                aplicarControleRemoto(progresso);
+                            }
+
+                            @Override
+                            public void onControleLiberado() {
+
+                                liberarControleRemoto();
+                            }
+                        }
+                );
+
+        // -------------------------------------------------
+        // BOTÃO PRÓXIMO GIF
+        // -------------------------------------------------
+
+        botaoProximo.setOnClickListener(v -> {
+
+            gerenciadorMovimento.reiniciarContagem();
+
+            proximoGif();
+        });
+
+        configurarControles();
+
+        // -------------------------------------------------
+        // CONFIGURAÇÃO DA CONEXÃO
+        // -------------------------------------------------
 
         if (modoIndividual) {
 
@@ -1046,7 +903,82 @@ public class MainActivity extends AppCompatActivity {
             conectarServidor();
         }
 
-        carregarPlanilha();
+        atualizarVisibilidadeControles();
+
+        // -------------------------------------------------
+        // GERENCIADOR DE CARREGAMENTO DA PLANILHA
+        // -------------------------------------------------
+
+        gerenciadorCarregamentoPlanilha =
+                new GerenciadorCarregamentoPlanilha(
+                        planilhaRepository,
+                        executor,
+                        handler,
+                        new GerenciadorCarregamentoPlanilha.Listener() {
+
+                            @Override
+                            public void onCarregamentoConcluido(
+                                    GerenciadorCarregamentoPlanilha.Resultado resultado) {
+
+                                if (!atividadeDisponivel()) {
+                                    return;
+                                }
+
+                                nomes.clear();
+                                links.clear();
+                                textosPlanilha.clear();
+
+                                nomes.addAll(resultado.getNomes());
+                                links.addAll(resultado.getLinks());
+                                textosPlanilha.addAll(resultado.getTextos());
+
+                                gerenciadorNavegacaoGif.reiniciar();
+
+                                if (resultado.estaVazio()) {
+
+                                    status.setText(
+                                            "Nenhum GIF encontrado."
+                                    );
+
+                                    botaoProximo.setEnabled(false);
+
+                                } else {
+
+                                    status.setText(
+                                            resultado.getQuantidade() +
+                                                    " GIFs disponíveis."
+                                    );
+
+                                    botaoProximo.setEnabled(true);
+
+                                    proximoGif();
+                                }
+                            }
+
+                            @Override
+                            public void onErro(Exception erro) {
+
+                                if (!atividadeDisponivel()) {
+                                    return;
+                                }
+
+                                status.setText(
+                                        "Erro ao consultar planilha: " +
+                                                erro.getMessage()
+                                );
+
+                                botaoProximo.setEnabled(false);
+
+                                Log.e(
+                                        TAG,
+                                        "Falha no carregamento da planilha.",
+                                        erro
+                                );
+                            }
+                        }
+                );
+
+        gerenciadorCarregamentoPlanilha.carregar();
     }
 
     // =====================================================
@@ -1055,513 +987,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void configurarControles() {
 
-        areaGif.setMotionEventSplittingEnabled(false);
-
-        View.OnTouchListener listenerMultitoque =
-                (view, evento) -> {
-
-                    processarEventoMultitoque(
-                            view,
-                            evento
-                    );
-
-                    return true;
-                };
-
-        controleEsquerdo.setOnTouchListener(
-                listenerMultitoque
-        );
-
-        controleDireito.setOnTouchListener(
-                listenerMultitoque
-        );
-    }
-
-    // =====================================================
-    // PROCESSAMENTO MULTITOQUE
-    // =====================================================
-
-    private void processarEventoMultitoque(
-            View view,
-            MotionEvent evento) {
-
-        int acao = evento.getActionMasked();
-
-        int indice = evento.getActionIndex();
-
-        switch (acao) {
-
-            case MotionEvent.ACTION_DOWN:
-
-                atribuirPonteiro(
-                        view,
-                        evento,
-                        indice
-                );
-
-                verificarControleManual();
-
-                atualizarControleManual();
-
-                break;
-
-            case MotionEvent.ACTION_POINTER_DOWN:
-
-                atribuirPonteiro(
-                        view,
-                        evento,
-                        indice
-                );
-
-                verificarControleManual();
-
-                atualizarControleManual();
-
-                break;
-
-            case MotionEvent.ACTION_MOVE:
-
-                atualizarPosicoesDedos(evento);
-
-                atualizarControleManual();
-
-                break;
-
-            case MotionEvent.ACTION_POINTER_UP:
-
-                atualizarPosicoesDedos(evento);
-
-                int id =
-                        evento.getPointerId(indice);
-
-                liberarPonteiro(id);
-
-                verificarLiberacao();
-
-                break;
-
-            case MotionEvent.ACTION_UP:
-
-            case MotionEvent.ACTION_CANCEL:
-
-                liberarTodosOsDedos();
-
-                verificarLiberacao();
-
-                break;
-        }
-    }
-
-    // =====================================================
-    // IDENTIFICAÇÃO DOS DEDOS
-    // =====================================================
-
-    private void limparIdentificacaoDedos() {
-
-        idDedoEsquerdo = -1;
-        idDedoDireito = -1;
-
-        esquerdoPressionado = false;
-        direitoPressionado = false;
-
-        controleManualAtivo = false;
-    }
-
-    // =====================================================
-    // CONVERTE COORDENADAS PARA A TELA
-    // =====================================================
-
-    private float obterXNaTela(
-            MotionEvent evento,
-            int indice) {
-
-        float deslocamentoX =
-                evento.getRawX() - evento.getX(0);
-
-        return evento.getX(indice) + deslocamentoX;
-    }
-
-    private float obterYNaTela(
-            MotionEvent evento,
-            int indice) {
-
-        float deslocamentoY =
-                evento.getRawY() - evento.getY(0);
-
-        return evento.getY(indice) + deslocamentoY;
-    }
-
-    // =====================================================
-    // IDENTIFICA QUAL CONTROLE RECEBEU O DEDO
-    // =====================================================
-
-    private int identificarControle(
-            float x,
-            float y) {
-
-        int[] localizacao = new int[2];
-
-        controleEsquerdo.getLocationOnScreen(
-                localizacao
-        );
-
-        if (x >= localizacao[0] &&
-                x <= localizacao[0] +
-                        controleEsquerdo.getWidth() &&
-                y >= localizacao[1] &&
-                y <= localizacao[1] +
-                        controleEsquerdo.getHeight()) {
-
-            return 1;
-        }
-
-        controleDireito.getLocationOnScreen(
-                localizacao
-        );
-
-        if (x >= localizacao[0] &&
-                x <= localizacao[0] +
-                        controleDireito.getWidth() &&
-                y >= localizacao[1] &&
-                y <= localizacao[1] +
-                        controleDireito.getHeight()) {
-
-            return 2;
-        }
-
-        return 0;
-    }
-
-    // =====================================================
-    // ATRIBUI UM DEDO A UM CONTROLE
-    // =====================================================
-
-    private void atribuirPonteiro(
-            View view,
-            MotionEvent evento,
-            int indice) {
-
-        int id = evento.getPointerId(indice);
-
-        float x = obterXNaTela(evento, indice);
-
-        float y = obterYNaTela(evento, indice);
-
-        int controle = identificarControle(x, y);
-
-        if (controle == 0) {
-
-            if (view == controleEsquerdo) {
-                controle = 1;
-
-            } else if (view == controleDireito) {
-                controle = 2;
-            }
-        }
-
-        if (controle == 1 && idDedoEsquerdo == -1) {
-
-            idDedoEsquerdo = id;
-
-            esquerdoPressionado = true;
-
-            posicaoDedoEsquerdo = y;
-
-            Log.d(
-                    TAG,
-                    "Dedo no controle esquerdo. ID: " + id
-            );
-
-        } else if (controle == 2 &&
-                idDedoDireito == -1) {
-
-            idDedoDireito = id;
-
-            direitoPressionado = true;
-
-            posicaoDedoDireito = y;
-
-            Log.d(
-                    TAG,
-                    "Dedo no controle direito. ID: " + id
-            );
-        }
-    }
-
-    // =====================================================
-    // ATUALIZA POSIÇÕES DOS DEDOS
-    // =====================================================
-
-    private void atualizarPosicoesDedos(
-            MotionEvent evento) {
-
-        for (int i = 0; i < evento.getPointerCount(); i++) {
-
-            int id = evento.getPointerId(i);
-
-            float y = obterYNaTela(evento, i);
-
-            if (id == idDedoEsquerdo) {
-
-                posicaoDedoEsquerdo = y;
-
-            } else if (id == idDedoDireito) {
-
-                posicaoDedoDireito = y;
-            }
-        }
-    }
-
-    // =====================================================
-    // LIBERA UM DEDO
-    // =====================================================
-
-    private void liberarPonteiro(int id) {
-
-        if (id == idDedoEsquerdo) {
-
-            idDedoEsquerdo = -1;
-
-            esquerdoPressionado = false;
-
-            Log.d(
-                    TAG,
-                    "Controle esquerdo liberado."
-            );
-        }
-
-        if (id == idDedoDireito) {
-
-            idDedoDireito = -1;
-
-            direitoPressionado = false;
-
-            Log.d(
-                    TAG,
-                    "Controle direito liberado."
-            );
-        }
-    }
-
-    private void liberarTodosOsDedos() {
-
-        idDedoEsquerdo = -1;
-        idDedoDireito = -1;
-
-        esquerdoPressionado = false;
-        direitoPressionado = false;
-    }
-
-    // =====================================================
-    // INICIA CONTROLE MANUAL
-    // =====================================================
-
-    private void verificarControleManual() {
-
-        if (!esquerdoPressionado &&
-                !direitoPressionado) {
-
-            return;
-        }
-
-        if (movie == null) {
-            return;
-        }
-
-        if (!controleManualAtivo) {
-
-            controleManualAtivo = true;
-
-            Log.d(
-                    TAG,
-                    "CONTROLE MANUAL INICIADO."
-            );
-
-            pausarAnimacao();
-        }
-    }
-
-    // =====================================================
-    // ATUALIZA POSIÇÃO DOS CONTROLES
-    // =====================================================
-
-    private void atualizarControleManual() {
-
-        if (!controleManualAtivo ||
-                (!esquerdoPressionado &&
-                        !direitoPressionado) ||
-                movie == null) {
-
-            return;
-        }
-
-        int altura = areaGif.getHeight();
-
-        if (altura <= 0) return;
-
-        int[] localizacao = new int[2];
-
-        areaGif.getLocationOnScreen(localizacao);
-
-        float posicaoMedia;
-
-        if (esquerdoPressionado &&
-                direitoPressionado) {
-
-            posicaoMedia =
-                    (posicaoDedoEsquerdo +
-                            posicaoDedoDireito) / 2f;
-
-        } else if (esquerdoPressionado) {
-
-            posicaoMedia = posicaoDedoEsquerdo;
-
-        } else {
-
-            posicaoMedia = posicaoDedoDireito;
-        }
-
-        float posicaoLocal =
-                posicaoMedia - localizacao[1];
-
-        float metadeBotao =
-                controleEsquerdo.getHeight() / 2f;
-
-        float limiteInferior = metadeBotao;
-
-        float limiteSuperior =
-                altura - metadeBotao;
-
-        if (limiteSuperior <= limiteInferior) {
-            return;
-        }
-
-        posicaoLocal = Math.max(
-                limiteInferior,
-                Math.min(limiteSuperior, posicaoLocal)
-        );
-
-        float progresso =
-                (posicaoLocal - metadeBotao) /
-                        (altura - 2f * metadeBotao);
-
-        progresso = Math.max(
-                0f,
-                Math.min(1f, progresso)
-        );
-
-        registrarProgressoMovimento(progresso);
-
-        int duracao = obterDuracaoGif();
-
-        posicaoMs = (long) (
-                progresso * duracao
-        );
-
-        int centroY = (int) posicaoLocal;
-
-        if (esquerdoPressionado &&
-                direitoPressionado) {
-
-            moverBotao(
-                    controleEsquerdo,
-                    centroY,
-                    true
-            );
-
-            moverBotao(
-                    controleDireito,
-                    centroY,
-                    false
-            );
-
-        } else if (esquerdoPressionado) {
-
-            moverBotao(
-                    controleEsquerdo,
-                    centroY,
-                    true
-            );
-
-        } else {
-
-            moverBotao(
-                    controleDireito,
-                    centroY,
-                    false
-            );
-        }
-
-        desenharQuadro();
-
-        enviarComandoControle(
-                true,
-                progresso
-        );
-    }
-
-    // =====================================================
-    // MOVIMENTAÇÃO DOS BOTÕES
-    // =====================================================
-
-    private void moverBotao(
-            TextView botao,
-            int centroY,
-            boolean esquerdo) {
-
-        if (botao == null ||
-                botao.getLayoutParams() == null) {
-
-            return;
-        }
-
-        FrameLayout.LayoutParams parametros =
-                (FrameLayout.LayoutParams)
-                        botao.getLayoutParams();
-
-        parametros.gravity =
-                Gravity.TOP |
-                        (esquerdo
-                                ? Gravity.START
-                                : Gravity.END);
-
-        parametros.topMargin = Math.max(
-                0,
-                centroY - botao.getHeight() / 2
-        );
-
-        botao.setLayoutParams(parametros);
-    }
-
-    // =====================================================
-    // LIBERAÇÃO DO CONTROLE MANUAL
-    // =====================================================
-
-    private void verificarLiberacao() {
-
-        if (esquerdoPressionado ||
-                direitoPressionado) {
-
-            atualizarControleManual();
-
-            return;
-        }
-
-        boolean estavaAtivo = controleManualAtivo;
-
-        controleManualAtivo = false;
-
-        if (estavaAtivo) {
-
-            Log.d(
-                    TAG,
-                    "CONTROLE MANUAL ENCERRADO."
-            );
-
-            enviarComandoControle(false, 0f);
-        }
-
-        finalizarMovimentoSeLiberado();
+        gerenciadorControle.configurar();
     }
 
     // =====================================================
@@ -1570,24 +996,11 @@ public class MainActivity extends AppCompatActivity {
 
     private void pausarAnimacao() {
 
-        if (movie == null) return;
-
-        if (reproduzindo) {
-
-            int duracao = obterDuracaoGif();
-
-            long decorrido =
-                    SystemClock.uptimeMillis() -
-                            inicioReproducao;
-
-            posicaoMs = (
-                    posicaoMs + decorrido
-            ) % duracao;
+        if (gerenciadorReproducao == null) {
+            return;
         }
 
-        reproduzindo = false;
-
-        handler.removeCallbacks(atualizadorGif);
+        gerenciadorReproducao.pausar(movie);
     }
 
     // =====================================================
@@ -1596,23 +1009,11 @@ public class MainActivity extends AppCompatActivity {
 
     private void iniciarAnimacao() {
 
-        if (movie == null ||
-                reproduzindo ||
-                controleManualAtivo ||
-                controleRemotoAtivo ||
-                !atividadeDisponivel()) {
-
+        if (gerenciadorReproducao == null) {
             return;
         }
 
-        reproduzindo = true;
-
-        inicioReproducao =
-                SystemClock.uptimeMillis();
-
-        handler.removeCallbacks(atualizadorGif);
-
-        handler.post(atualizadorGif);
+        gerenciadorReproducao.iniciar(movie);
     }
 
     // =====================================================
@@ -1623,292 +1024,17 @@ public class MainActivity extends AppCompatActivity {
 
         if (!atividadeDisponivel() ||
                 movie == null ||
-                areaGif.getWidth() <= 0 ||
-                areaGif.getHeight() <= 0) {
+                renderizadorGif == null ||
+                gerenciadorReproducao == null) {
 
             return;
         }
 
-        int largura = areaGif.getWidth();
-
-        int altura = areaGif.getHeight();
-
-        if (quadroBitmap == null ||
-                quadroBitmap.getWidth() != largura ||
-                quadroBitmap.getHeight() != altura) {
-
-            if (quadroBitmap != null &&
-                    !quadroBitmap.isRecycled()) {
-
-                quadroBitmap.recycle();
-            }
-
-            quadroBitmap = Bitmap.createBitmap(
-                    largura,
-                    altura,
-                    Bitmap.Config.ARGB_8888
-            );
-
-            quadroCanvas = new Canvas(quadroBitmap);
-
-            imagemGif.setImageBitmap(quadroBitmap);
-        }
-
-        quadroCanvas.drawColor(Color.BLACK);
-
-        int larguraGif = movie.width();
-
-        int alturaGif = movie.height();
-
-        if (larguraGif <= 0 ||
-                alturaGif <= 0) {
-
-            return;
-        }
-
-        float escala = Math.min(
-                (float) largura / larguraGif,
-                (float) altura / alturaGif
-        );
-
-        float larguraFinal =
-                larguraGif * escala;
-
-        float alturaFinal =
-                alturaGif * escala;
-
-        float deslocamentoX =
-                (largura - larguraFinal) / 2f;
-
-        float deslocamentoY =
-                (altura - alturaFinal) / 2f;
-
-        quadroCanvas.save();
-
-        quadroCanvas.translate(
-                deslocamentoX,
-                deslocamentoY
-        );
-
-        quadroCanvas.scale(
-                escala,
-                escala
-        );
-
-        movie.setTime((int) posicaoMs);
-
-        movie.draw(
-                quadroCanvas,
-                0,
-                0,
+        renderizadorGif.desenhar(
+                movie,
+                gerenciadorReproducao.getPosicaoMs(),
                 pincel
         );
-
-        quadroCanvas.restore();
-
-        imagemGif.invalidate();
-    }
-
-    // =====================================================
-    // CONSULTA À PLANILHA
-    // =====================================================
-
-    private void carregarPlanilha() {
-
-        status.setText(
-                "Consultando Google Planilhas..."
-        );
-
-        botaoProximo.setEnabled(false);
-
-        executor.execute(() -> {
-
-            HttpURLConnection conexao = null;
-
-            try {
-
-                String endereco =
-                        "https://docs.google.com/spreadsheets/d/" +
-                                PLANILHA_ID +
-                                "/export?format=csv&gid=" + GID;
-
-                URL url = new URL(endereco);
-
-                conexao = (HttpURLConnection)
-                        url.openConnection();
-
-                conexao.setConnectTimeout(15000);
-                conexao.setReadTimeout(15000);
-
-                int codigoHttp = conexao.getResponseCode();
-
-                if (codigoHttp != HttpURLConnection.HTTP_OK) {
-
-                    throw new Exception(
-                            "Erro HTTP: " + codigoHttp
-                    );
-                }
-
-                nomes.clear();
-                links.clear();
-                textosPlanilha.clear();
-
-                try (
-                        BufferedReader leitor =
-                                new BufferedReader(
-                                        new InputStreamReader(
-                                                conexao.getInputStream(),
-                                                "UTF-8"
-                                        )
-                                )
-                ) {
-
-                    String linha;
-
-                    boolean primeiraLinha = true;
-
-                    while ((linha = leitor.readLine()) != null) {
-
-                        ArrayList<String> colunas =
-                                separarCSV(linha);
-
-                        if (primeiraLinha) {
-
-                            primeiraLinha = false;
-
-                            continue;
-                        }
-
-                        if (colunas.size() < 2) {
-                            continue;
-                        }
-
-                        String nome =
-                                colunas.get(0).trim();
-
-                        String link =
-                                colunas.get(1).trim();
-
-                        String texto =
-                                colunas.size() > 4
-                                        ? colunas.get(4).trim()
-                                        : "";
-
-                        if (!nome.isEmpty() &&
-                                !link.isEmpty()) {
-
-                            nomes.add(nome);
-                            links.add(link);
-                            textosPlanilha.add(texto);
-                        }
-                    }
-                }
-
-                handler.post(() -> {
-
-                    if (!atividadeDisponivel()) return;
-
-                    indiceAtual = -1;
-
-                    if (nomes.isEmpty()) {
-
-                        status.setText(
-                                "Nenhum GIF encontrado."
-                        );
-
-                        botaoProximo.setEnabled(false);
-
-                    } else {
-
-                        status.setText(
-                                nomes.size() +
-                                        " GIFs disponíveis."
-                        );
-
-                        botaoProximo.setEnabled(true);
-
-                        proximoGif();
-                    }
-                });
-
-            } catch (Exception e) {
-
-                Log.e(
-                        TAG,
-                        "Erro na planilha.",
-                        e
-                );
-
-                handler.post(() -> {
-
-                    if (!atividadeDisponivel()) return;
-
-                    status.setText(
-                            "Erro ao consultar planilha: " +
-                                    e.getMessage()
-                    );
-
-                    botaoProximo.setEnabled(false);
-                });
-
-            } finally {
-
-                if (conexao != null) {
-                    conexao.disconnect();
-                }
-            }
-        });
-    }
-
-    // =====================================================
-    // LEITURA CSV
-    // =====================================================
-
-    private ArrayList<String> separarCSV(String linha) {
-
-        ArrayList<String> resultado =
-                new ArrayList<>();
-
-        StringBuilder campo =
-                new StringBuilder();
-
-        boolean dentroAspas = false;
-
-        for (int i = 0; i < linha.length(); i++) {
-
-            char caractere = linha.charAt(i);
-
-            if (caractere == '"') {
-
-                if (dentroAspas &&
-                        i + 1 < linha.length() &&
-                        linha.charAt(i + 1) == '"') {
-
-                    campo.append('"');
-
-                    i++;
-
-                } else {
-
-                    dentroAspas = !dentroAspas;
-                }
-
-            } else if (caractere == ',' &&
-                    !dentroAspas) {
-
-                resultado.add(campo.toString());
-
-                campo.setLength(0);
-
-            } else {
-
-                campo.append(caractere);
-            }
-        }
-
-        resultado.add(campo.toString());
-
-        return resultado;
     }
 
     // =====================================================
@@ -1930,254 +1056,48 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        indiceAtual++;
+        int indiceSelecionado =
+                gerenciadorNavegacaoGif.proximo(nomes.size());
 
-        if (indiceAtual >= nomes.size()) {
-            indiceAtual = 0;
+        if (indiceSelecionado < 0) {
+            return;
         }
 
-        baixarEExibir(indiceAtual);
+        baixarEExibir(indiceSelecionado);
     }
 
     // =====================================================
-    // DOWNLOAD DO GIF PRINCIPAL
+    // SOLICITAÇÃO DE CARREGAMENTO DO GIF
     // =====================================================
 
     private void baixarEExibir(int posicao) {
 
-        if (!atividadeDisponivel()) return;
-
-        if (posicao < 0 || posicao >= nomes.size()) {
+        if (!atividadeDisponivel() || carregando) {
             return;
         }
 
-        String nome = nomes.get(posicao);
-
-        String link = links.get(posicao);
-
-        String id = extrairId(link);
-
-        if (id == null) {
-
-            status.setText(
-                    "Link inválido: " + nome
-            );
-
-            return;
-        }
-
-        File arquivo = new File(
-                pastaGifs,
-                id + ".gif"
-        );
-
-        if (arquivo.exists() &&
-                arquivo.length() > 0) {
-
-            exibirGif(arquivo, nome);
-
-            return;
-        }
-
-        carregando = true;
-
-        botaoProximo.setEnabled(false);
-
-        status.setText(
-                "Baixando: " + nome
-        );
-
-        executor.execute(() -> {
-
-            HttpURLConnection conexao = null;
-
-            File temporario = new File(
-                    pastaGifs,
-                    id + ".part"
-            );
-
-            try {
-
-                String endereco =
-                        "https://drive.usercontent.google.com/download?id=" +
-                                id +
-                                "&export=download&confirm=t";
-
-                conexao = (HttpURLConnection)
-                        new URL(endereco).openConnection();
-
-                conexao.setConnectTimeout(20000);
-                conexao.setReadTimeout(30000);
-
-                conexao.setInstanceFollowRedirects(true);
-
-                int codigoHttp = conexao.getResponseCode();
-
-                if (codigoHttp != HttpURLConnection.HTTP_OK) {
-
-                    throw new Exception(
-                            "Erro HTTP: " + codigoHttp
-                    );
-                }
-
-                try (
-                        InputStream entrada =
-                                conexao.getInputStream();
-
-                        FileOutputStream saida =
-                                new FileOutputStream(temporario)
-                ) {
-
-                    byte[] buffer = new byte[8192];
-
-                    int quantidade;
-
-                    while ((quantidade =
-                            entrada.read(buffer)) != -1) {
-
-                        saida.write(buffer, 0, quantidade);
-                    }
-
-                    saida.flush();
-                }
-
-                if (temporario.length() == 0) {
-                    throw new Exception("Arquivo vazio.");
-                }
-
-                // Verifica se o conteúdo recebido realmente
-                // pode ser decodificado como GIF.
-
-                try (
-                        FileInputStream entradaValidacao =
-                                new FileInputStream(temporario)
-                ) {
-
-                    Movie teste = Movie.decodeStream(
-                            entradaValidacao
-                    );
-
-                    if (teste == null) {
-
-                        throw new Exception(
-                                "O arquivo recebido não é um GIF válido."
-                        );
-                    }
-                }
-
-                if (arquivo.exists() && !arquivo.delete()) {
-
-                    throw new Exception(
-                            "Não foi possível substituir o arquivo antigo."
-                    );
-                }
-
-                if (!temporario.renameTo(arquivo)) {
-
-                    throw new Exception(
-                            "Erro ao salvar GIF."
-                    );
-                }
-
-                handler.post(() -> {
-
-                    if (!atividadeDisponivel()) return;
-
-                    carregando = false;
-
-                    botaoProximo.setEnabled(true);
-
-                    exibirGif(arquivo, nome);
-                });
-
-            } catch (Exception e) {
-
-                if (temporario.exists()) {
-                    temporario.delete();
-                }
-
-                Log.e(
-                        TAG,
-                        "Erro no download do GIF.",
-                        e
-                );
-
-                handler.post(() -> {
-
-                    if (!atividadeDisponivel()) return;
-
-                    carregando = false;
-
-                    botaoProximo.setEnabled(true);
-
-                    status.setText(
-                            "Erro no download: " +
-                                    e.getMessage()
-                    );
-                });
-
-            } finally {
-
-                if (conexao != null) {
-                    conexao.disconnect();
-                }
-            }
-        });
-    }
-
-    // =====================================================
-    // EXTRAIR ID DO GOOGLE DRIVE
-    // =====================================================
-
-    private String extrairId(String link) {
-
-        if (link == null || link.trim().isEmpty()) {
-            return null;
-        }
-
-        try {
-
-            String resultado = null;
-
-            if (link.contains("/file/d/")) {
-
-                String parte =
-                        link.split("/file/d/")[1];
-
-                resultado = parte.split("/")[0];
-
-            } else if (link.contains("id=")) {
-
-                String parte =
-                        link.split("id=")[1];
-
-                resultado = parte.split("&")[0];
-            }
-
-            if (resultado == null) {
-                return null;
-            }
-
-            resultado = resultado.trim();
-
-            if (resultado.isEmpty() ||
-                    !resultado.matches("[a-zA-Z0-9_-]+")) {
-
-                return null;
-            }
-
-            return resultado;
-
-        } catch (Exception e) {
+        if (posicao < 0 ||
+                posicao >= nomes.size() ||
+                posicao >= links.size()) {
 
             Log.e(
                     TAG,
-                    "Não foi possível extrair o ID do Drive.",
-                    e
+                    "Posição inválida para carregamento do GIF: " +
+                            posicao
             );
 
-            return null;
+            return;
         }
+
+        nomeGifSolicitado = nomes.get(posicao);
+
+        String link = links.get(posicao);
+
+        status.setText(
+                "Carregando: " + nomeGifSolicitado
+        );
+
+        gerenciadorCarregamentoGif.carregar(link);
     }
 
     // =====================================================
@@ -2188,48 +1108,48 @@ public class MainActivity extends AppCompatActivity {
             File arquivo,
             String nome) {
 
-        if (!atividadeDisponivel()) return;
+        if (!atividadeDisponivel()) {
+            return;
+        }
 
-        // Cada nova solicitação invalida as decodificações
-        // anteriores que ainda estejam em andamento.
+        if (arquivo == null ||
+                !arquivo.isFile() ||
+                arquivo.length() == 0) {
 
-        long geracaoAtual = ++geracaoExibicao;
+            status.setText(
+                    "Arquivo GIF inválido."
+            );
 
-        handler.removeCallbacks(atualizadorGif);
+            return;
+        }
 
-        handler.removeCallbacks(atualizarTextoPlanilha);
+        final long geracaoAtual = ++geracaoExibicao;
 
-        reproduzindo = false;
+        // -------------------------------------------------
+        // INTERROMPER GIF ANTERIOR
+        // -------------------------------------------------
 
-        // Se o usuário avançar enquanto segura um controle,
-        // envia a liberação antes de limpar os estados locais.
+        gerenciadorReproducao.reiniciar();
 
-        if (controleManualAtivo) {
+        gerenciadorTextoPlanilha.parar();
+
+        if (gerenciadorControle != null &&
+                gerenciadorControle.isControleManualAtivo()) {
+
             enviarComandoControle(false, 0f);
         }
 
         movie = null;
 
-        posicaoMs = 0;
-
-        inicioExibicaoGif = 0;
-
-        textoPlanilha.setVisibility(View.GONE);
-
-        controleManualAtivo = false;
-
         controleRemotoAtivo = false;
 
-        reiniciarContagemMovimentos();
+        // -------------------------------------------------
+        // REINICIAR CONTROLES E MOVIMENTO
+        // -------------------------------------------------
 
-        limparIdentificacaoDedos();
+        gerenciadorMovimento.reiniciarContagem();
 
-        /*
-         * Não reinicia usuarioBDesbloqueado.
-         *
-         * A liberação dos controles de B é permanente
-         * durante a sessão, inclusive entre GIFs.
-         */
+        gerenciadorControle.limpar();
 
         atualizarVisibilidadeControles();
 
@@ -2241,69 +1161,20 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
 
-            int centro = areaGif.getHeight() / 2;
-
-            moverBotao(
-                    controleEsquerdo,
-                    centro,
-                    true
-            );
-
-            moverBotao(
-                    controleDireito,
-                    centro,
-                    false
-            );
+            gerenciadorControle.moverControles(0.5f);
         });
 
-        executor.execute(() -> {
+        // -------------------------------------------------
+        // DECODIFICAR O GIF
+        // -------------------------------------------------
 
-            try {
+        gerenciadorDecodificacaoGif.decodificar(
+                arquivo,
+                new GerenciadorDecodificacaoGif.Listener() {
 
-                Movie novoMovie;
-
-                try (
-                        FileInputStream entrada =
-                                new FileInputStream(arquivo)
-                ) {
-
-                    novoMovie = Movie.decodeStream(entrada);
-                }
-
-                if (novoMovie == null) {
-
-                    throw new Exception(
-                            "Não foi possível decodificar o GIF."
-                    );
-                }
-
-                Movie resultado = novoMovie;
-
-                handler.post(() -> {
-
-                    if (!atividadeDisponivel() ||
-                            geracaoAtual != geracaoExibicao) {
-
-                        return;
-                    }
-
-                    movie = resultado;
-
-                    posicaoMs = 0;
-
-                    String texto = "";
-
-                    if (indiceAtual >= 0 &&
-                            indiceAtual < textosPlanilha.size()) {
-
-                        texto = textosPlanilha.get(indiceAtual);
-                    }
-
-                    textoPlanilha.setText(texto);
-
-                    textoPlanilha.setVisibility(View.GONE);
-
-                    areaGif.post(() -> {
+                    @Override
+                    public void onDecodificacaoConcluida(
+                            Movie resultado) {
 
                         if (!atividadeDisponivel() ||
                                 geracaoAtual != geracaoExibicao) {
@@ -2311,61 +1182,89 @@ public class MainActivity extends AppCompatActivity {
                             return;
                         }
 
-                        desenharQuadro();
+                        movie = resultado;
 
-                        iniciarAnimacao();
+                        gerenciadorReproducao.reiniciar();
 
-                        inicioExibicaoGif =
-                                SystemClock.uptimeMillis();
+                        // ---------------------------------
+                        // TEXTO ASSOCIADO AO GIF
+                        // ---------------------------------
 
-                        handler.removeCallbacks(
-                                atualizarTextoPlanilha
-                        );
+                        final String textoFinal;
 
-                        handler.post(
-                                atualizarTextoPlanilha
-                        );
-                    });
+                        int indiceAtual =
+                                gerenciadorNavegacaoGif.getIndiceAtual();
 
-                    status.setText(
-                            nome + " | " +
-                                    (indiceAtual + 1) +
-                                    "/" + nomes.size()
-                    );
-                });
+                        if (indiceAtual >= 0 &&
+                                indiceAtual < textosPlanilha.size()) {
 
-            } catch (Exception e) {
+                            textoFinal =
+                                    textosPlanilha.get(indiceAtual);
 
-                Log.e(
-                        TAG,
-                        "Erro ao abrir GIF.",
-                        e
-                );
+                        } else {
 
-                handler.post(() -> {
+                            textoFinal = "";
+                        }
 
-                    if (!atividadeDisponivel() ||
-                            geracaoAtual != geracaoExibicao) {
+                        final int indiceExibido =
+                                indiceAtual + 1;
 
-                        return;
+                        areaGif.post(() -> {
+
+                            if (!atividadeDisponivel() ||
+                                    geracaoAtual != geracaoExibicao) {
+
+                                return;
+                            }
+
+                            desenharQuadro();
+
+                            iniciarAnimacao();
+
+                            gerenciadorTextoPlanilha.iniciar(
+                                    textoFinal
+                            );
+
+                            status.setText(
+                                    nome + " | " +
+                                            indiceExibido +
+                                            "/" + nomes.size()
+                            );
+                        });
                     }
 
-                    // Remove o arquivo inválido do cache.
-                    // Assim, uma nova tentativa poderá baixá-lo novamente.
+                    @Override
+                    public void onErro(Exception erro) {
 
-                    if (arquivo.exists()) {
-                        arquivo.delete();
+                        if (!atividadeDisponivel() ||
+                                geracaoAtual != geracaoExibicao) {
+
+                            return;
+                        }
+
+                        gerenciadorReproducao.reiniciar();
+
+                        gerenciadorTextoPlanilha.parar();
+
+                        movie = null;
+
+                        if (arquivo.exists()) {
+                            arquivo.delete();
+                        }
+
+                        status.setText(
+                                "Erro ao abrir GIF: " +
+                                        erro.getMessage()
+                        );
+
+                        Log.e(
+                                TAG,
+                                "Erro ao decodificar GIF.",
+                                erro
+                        );
                     }
-
-                    textoPlanilha.setVisibility(View.GONE);
-
-                    status.setText(
-                            "Erro ao abrir GIF: " +
-                                    e.getMessage()
-                    );
-                });
-            }
-        });
+                }
+        );
     }
 
     // =====================================================
@@ -2377,45 +1276,82 @@ public class MainActivity extends AppCompatActivity {
 
         atividadeEncerrada = true;
 
-        // Invalida qualquer decodificação ainda pendente.
-
         geracaoExibicao++;
+
+        // -------------------------------------------------
+        // ENCERRAR GERENCIADOR DE REPRODUÇÃO
+        // -------------------------------------------------
+
+        if (gerenciadorReproducao != null) {
+
+            gerenciadorReproducao.encerrar();
+        }
+
+        // -------------------------------------------------
+        // ENCERRAR GERENCIADOR DO TEXTO
+        // -------------------------------------------------
+
+        if (gerenciadorTextoPlanilha != null) {
+
+            gerenciadorTextoPlanilha.encerrar();
+        }
+
+        // -------------------------------------------------
+        // REMOVER CALLBACKS PENDENTES
+        // -------------------------------------------------
 
         handler.removeCallbacksAndMessages(null);
 
-        reproduzindo = false;
+        // -------------------------------------------------
+        // LIMPAR ESTADO
+        // -------------------------------------------------
 
         movie = null;
 
-        controleManualAtivo = false;
-
         controleRemotoAtivo = false;
 
-        reiniciarContagemMovimentos();
+        carregando = false;
 
-        limparIdentificacaoDedos();
+        nomeGifSolicitado = "";
+
+        gerenciadorMovimento.reiniciarContagem();
+
+        if (gerenciadorControle != null) {
+
+            gerenciadorControle.limpar();
+        }
+
+        // -------------------------------------------------
+        // REMOVER CALLBACK DA COMUNICAÇÃO
+        // -------------------------------------------------
 
         /*
-         * NÃO fechar o WebSocket aqui.
+         * O GerenciadorComunicacaoServidor remove somente
+         * o callback registrado pela MainActivity.
          *
-         * A conexão pertence à ConexaoActivity e deve
-         * continuar ativa enquanto a sessão estiver aberta.
+         * A conexão WebSocket continua pertencendo
+         * à ConexaoActivity.
          */
 
-        if (servicoConexao != null) {
-            servicoConexao.definirCallback(null);
+        if (gerenciadorComunicacaoServidor != null) {
+
+            gerenciadorComunicacaoServidor.removerCallback();
         }
 
-        if (quadroBitmap != null) {
+        // -------------------------------------------------
+        // LIBERAR RENDERIZADOR
+        // -------------------------------------------------
 
-            if (!quadroBitmap.isRecycled()) {
-                quadroBitmap.recycle();
-            }
+        if (renderizadorGif != null) {
 
-            quadroBitmap = null;
+            renderizadorGif.liberar();
 
-            quadroCanvas = null;
+            renderizadorGif = null;
         }
+
+        // -------------------------------------------------
+        // ENCERRAR EXECUTOR
+        // -------------------------------------------------
 
         executor.shutdownNow();
 
