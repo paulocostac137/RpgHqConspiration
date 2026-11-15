@@ -1,6 +1,6 @@
 EXPORTAÇÃO DO PROJETO RPG HQ CONSPIRATION
 Arquivos reunidos em um único documento.
-Total de arquivos: 35
+Total de arquivos: 36
 
 ============================================================
 
@@ -7728,5 +7728,260 @@ public final class CoordenadorPlanilhaGif
 
 ============================================================
 FIM DO ARQUIVO: app/src/main/java/com/example/rpghqconspiration/CoordenadorPlanilhaGif.java
+
+============================================================
+
+CAMINHO ORIGINAL:
+app/src/main/java/com/example/rpghqconspiration/CoordenadorCicloVida.java
+INÍCIO DO CONTEÚDO DO ARQUIVO
+
+============================================================
+package com.example.rpghqconspiration;
+
+import android.os.Handler;
+import android.util.Log;
+
+import java.util.concurrent.ExecutorService;
+
+/**
+ * Coordena o encerramento dos recursos utilizados
+ * durante a execução da aplicação.
+ *
+ * Responsabilidades:
+ * - Encerrar os coordenadores.
+ * - Encerrar os gerenciadores de reprodução e texto.
+ * - Cancelar callbacks pendentes.
+ * - Limpar os estados dos controles.
+ * - Remover callbacks da comunicação.
+ * - Liberar o renderizador.
+ * - Encerrar o executor compartilhado.
+ *
+ * Não manipula Views.
+ * Não controla a navegação.
+ * Não realiza operações de interface.
+ * Não encerra diretamente a conexão WebSocket,
+ * pois ela pertence à ConexaoActivity.
+ */
+public final class CoordenadorCicloVida {
+
+    private static final String TAG =
+            "CoordenadorCicloVida";
+
+    // =====================================================
+    // EXECUÇÃO
+    // =====================================================
+
+    private final Handler handler;
+
+    private final ExecutorService executor;
+
+    // =====================================================
+    // COORDENADORES
+    // =====================================================
+
+    private final CoordenadorInteracao coordenadorInteracao;
+
+    private final CoordenadorFluxoGif coordenadorFluxoGif;
+
+    private final CoordenadorPlanilhaGif coordenadorPlanilhaGif;
+
+    private final CoordenadorExibicaoGif coordenadorExibicaoGif;
+
+    // =====================================================
+    // GERENCIADORES
+    // =====================================================
+
+    private final GerenciadorReproducaoGif gerenciadorReproducao;
+
+    private final GerenciadorTextoPlanilha gerenciadorTextoPlanilha;
+
+    private final GerenciadorMovimento gerenciadorMovimento;
+
+    private final GerenciadorControleMultitoque gerenciadorControle;
+
+    private final GerenciadorComunicacaoServidor
+            gerenciadorComunicacaoServidor;
+
+    // =====================================================
+    // RENDERIZAÇÃO
+    // =====================================================
+
+    private final GifFrameRenderer renderizadorGif;
+
+    // =====================================================
+    // ESTADO
+    // =====================================================
+
+    private boolean encerrado = false;
+
+    // =====================================================
+    // CONSTRUTOR
+    // =====================================================
+
+    public CoordenadorCicloVida(
+            Handler handler,
+            ExecutorService executor,
+            CoordenadorInteracao coordenadorInteracao,
+            CoordenadorFluxoGif coordenadorFluxoGif,
+            CoordenadorPlanilhaGif coordenadorPlanilhaGif,
+            CoordenadorExibicaoGif coordenadorExibicaoGif,
+            GerenciadorReproducaoGif gerenciadorReproducao,
+            GerenciadorTextoPlanilha gerenciadorTextoPlanilha,
+            GerenciadorMovimento gerenciadorMovimento,
+            GerenciadorControleMultitoque gerenciadorControle,
+            GerenciadorComunicacaoServidor gerenciadorComunicacaoServidor,
+            GifFrameRenderer renderizadorGif
+    ) {
+
+        this.handler = handler;
+        this.executor = executor;
+
+        this.coordenadorInteracao = coordenadorInteracao;
+        this.coordenadorFluxoGif = coordenadorFluxoGif;
+        this.coordenadorPlanilhaGif = coordenadorPlanilhaGif;
+        this.coordenadorExibicaoGif = coordenadorExibicaoGif;
+
+        this.gerenciadorReproducao = gerenciadorReproducao;
+        this.gerenciadorTextoPlanilha = gerenciadorTextoPlanilha;
+        this.gerenciadorMovimento = gerenciadorMovimento;
+        this.gerenciadorControle = gerenciadorControle;
+
+        this.gerenciadorComunicacaoServidor =
+                gerenciadorComunicacaoServidor;
+
+        this.renderizadorGif = renderizadorGif;
+    }
+
+    // =====================================================
+    // ENCERRAMENTO
+    // =====================================================
+
+    public void encerrar() {
+
+        if (encerrado) {
+            return;
+        }
+
+        encerrado = true;
+
+        Log.d(
+                TAG,
+                "Iniciando encerramento dos recursos."
+        );
+
+        // -------------------------------------------------
+        // ENCERRAR COORDENADORES
+        // -------------------------------------------------
+
+        if (coordenadorPlanilhaGif != null) {
+
+            coordenadorPlanilhaGif.encerrar();
+        }
+
+        if (coordenadorFluxoGif != null) {
+
+            coordenadorFluxoGif.encerrar();
+        }
+
+        if (coordenadorExibicaoGif != null) {
+
+            coordenadorExibicaoGif.encerrar();
+        }
+
+        if (coordenadorInteracao != null) {
+
+            coordenadorInteracao.encerrar();
+        }
+
+        // -------------------------------------------------
+        // ENCERRAR REPRODUÇÃO
+        // -------------------------------------------------
+
+        if (gerenciadorReproducao != null) {
+
+            gerenciadorReproducao.encerrar();
+        }
+
+        // -------------------------------------------------
+        // ENCERRAR TEXTO
+        // -------------------------------------------------
+
+        if (gerenciadorTextoPlanilha != null) {
+
+            gerenciadorTextoPlanilha.encerrar();
+        }
+
+        // -------------------------------------------------
+        // CANCELAR CALLBACKS PENDENTES
+        // -------------------------------------------------
+
+        if (handler != null) {
+
+            handler.removeCallbacksAndMessages(null);
+        }
+
+        // -------------------------------------------------
+        // LIMPAR MOVIMENTO
+        // -------------------------------------------------
+
+        if (gerenciadorMovimento != null) {
+
+            gerenciadorMovimento.reiniciarContagem();
+        }
+
+        // -------------------------------------------------
+        // LIMPAR CONTROLES
+        // -------------------------------------------------
+
+        if (gerenciadorControle != null) {
+
+            gerenciadorControle.limpar();
+        }
+
+        // -------------------------------------------------
+        // REMOVER CALLBACKS DA COMUNICAÇÃO
+        // -------------------------------------------------
+
+        if (gerenciadorComunicacaoServidor != null) {
+
+            gerenciadorComunicacaoServidor.removerCallback();
+        }
+
+        // -------------------------------------------------
+        // LIBERAR RENDERIZADOR
+        // -------------------------------------------------
+
+        if (renderizadorGif != null) {
+
+            renderizadorGif.liberar();
+        }
+
+        // -------------------------------------------------
+        // ENCERRAR EXECUTOR
+        // -------------------------------------------------
+
+        if (executor != null) {
+
+            executor.shutdownNow();
+        }
+
+        Log.d(
+                TAG,
+                "Encerramento dos recursos concluído."
+        );
+    }
+
+    // =====================================================
+    // CONSULTA
+    // =====================================================
+
+    public boolean estaEncerrado() {
+
+        return encerrado;
+    }
+}
+
+============================================================
+FIM DO ARQUIVO: app/src/main/java/com/example/rpghqconspiration/CoordenadorCicloVida.java
 
 ============================================================
