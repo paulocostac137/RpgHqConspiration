@@ -71,7 +71,11 @@ public class ExportadorProjeto {
 
             "app/src/main/java/com/example/rpghqconspiration/GerenciadorComunicacaoServidor.java",
 
-            "app/src/main/java/com/example/rpghqconspiration/GerenciadorDecodificacaoGif.java"
+            "app/src/main/java/com/example/rpghqconspiration/GerenciadorDecodificacaoGif.java",
+
+            "app/src/main/java/com/example/rpghqconspiration/CoordenadorExibicaoGif.java",
+
+            "app/src/main/java/com/example/rpghqconspiration/GerenciadorTextoPlanilha.java"
 
     );
 
