@@ -75,7 +75,13 @@ public class ExportadorProjeto {
 
             "app/src/main/java/com/example/rpghqconspiration/CoordenadorExibicaoGif.java",
 
-            "app/src/main/java/com/example/rpghqconspiration/GerenciadorTextoPlanilha.java"
+            "app/src/main/java/com/example/rpghqconspiration/GerenciadorTextoPlanilha.java",
+
+            "app/src/main/java/com/example/rpghqconspiration/CoordenadorInteracao.java",
+
+            "app/src/main/java/com/example/rpghqconspiration/CoordenadorFluxoGif.java",
+
+            "app/src/main/java/com/example/rpghqconspiration/CoordenadorPlanilhaGif.java"
 
     );
 
