@@ -1,12 +1,20 @@
 package com.example.rpghqconspiration;
 
 import android.content.Intent;
+import android.graphics.Color;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
 import android.util.Log;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
+import android.view.inputmethod.InputMethodManager;
 
 import android.widget.Button;
 import android.widget.EditText;
@@ -27,49 +35,74 @@ public class ConexaoActivity extends AppCompatActivity {
 
     private EditText campoCodigoPar;
     private Button botaoConectar;
+    private Button botaoUsarSemConexao;
+    private View controlesConexao;
     private TextView statusConexao;
+    private TextView statusInicial;
+    private TextView tituloModo;
 
-    private boolean abriuTelaPrincipal = false;
-    private boolean aguardandoParceiro = false;
+    private ConexaoFlow conexaoFlow;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private int etapaAnimada;
+    private int quantidadeReticencias;
+    private int etapasConcluidas;
+    private long inicioEtapaAtual;
+    private boolean mensagemSalaPendenteAgendada;
+    private JSONObject mensagemSalaPendente;
+    private final Runnable concluirEtapaTres = () -> {
+        if (etapaAnimada != 3 || isFinishing() || isDestroyed()) {
+            return;
+        }
+
+        etapasConcluidas = 3;
+        atualizarListaEtapas();
+    };
+    private final Runnable concluirEtapaUm = () -> {
+        if (etapaAnimada != 1 || isFinishing() || isDestroyed()) {
+            return;
+        }
+
+        etapasConcluidas = 1;
+        iniciarEtapa(2);
+        if (mensagemSalaPendente != null) {
+            agendarConclusaoEtapaDois();
+        }
+    };
+    private final Runnable concluirEtapaDois = () -> {
+        if (etapaAnimada != 2 || mensagemSalaPendente == null
+                || isFinishing() || isDestroyed()) {
+            mensagemSalaPendenteAgendada = false;
+            return;
+        }
+
+        etapasConcluidas = 2;
+        atualizarListaEtapas();
+        JSONObject mensagem = mensagemSalaPendente;
+        mensagemSalaPendente = null;
+        mensagemSalaPendenteAgendada = false;
+        if (conexaoFlow != null) {
+            conexaoFlow.processarMensagem(mensagem);
+        }
+    };
+    private final Runnable animarStatus = new Runnable() {
+        @Override
+        public void run() {
+            if (etapaAnimada == 0 || isFinishing() || isDestroyed()) {
+                return;
+            }
+
+            quantidadeReticencias = (quantidadeReticencias + 1) % 4;
+            atualizarListaEtapas();
+            handler.postDelayed(this, 500);
+        }
+    };
 
     // =====================================================
     // MODO IMERSIVO
     // =====================================================
 
     private void ativarModoImersivo() {
-
-        Window window = getWindow();
-
-        if (android.os.Build.VERSION.SDK_INT >=
-                android.os.Build.VERSION_CODES.R) {
-
-            WindowInsetsController controller =
-                    window.getInsetsController();
-
-            if (controller != null) {
-
-                controller.hide(
-                        WindowInsets.Type.statusBars() |
-                                WindowInsets.Type.navigationBars()
-                );
-
-                controller.setSystemBarsBehavior(
-                        WindowInsetsController
-                                .BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                );
-            }
-
-        } else {
-
-            window.getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_FULLSCREEN |
-                            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
-                            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY |
-                            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
-                            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
-                            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            );
-        }
+        WindowUiController.ativarModoImersivo(getWindow());
     }
 
     @Override
@@ -97,9 +130,43 @@ public class ConexaoActivity extends AppCompatActivity {
 
         campoCodigoPar = findViewById(R.id.campoCodigoPar);
         botaoConectar = findViewById(R.id.botaoConectar);
+        botaoUsarSemConexao = findViewById(R.id.botaoUsarSemConexao);
+        controlesConexao = findViewById(R.id.controlesConexao);
         statusConexao = findViewById(R.id.statusConexao);
+        statusInicial = findViewById(R.id.statusInicial);
+        tituloModo = findViewById(R.id.tituloModo);
+
+        conexaoFlow = new ConexaoFlow(new ConexaoFlow.Callback() {
+            @Override
+            public void onStatusUpdated(String mensagem) {
+                mostrarStatusDuranteConexao();
+                if (mensagem.startsWith("Etapa 3 de 3:")) {
+                    iniciarEtapa(3);
+                } else {
+                    pararAnimacaoStatus();
+                    statusConexao.setText(mensagem);
+                }
+            }
+
+            @Override
+            public void onLiberarTelaConexao() {
+                pararAnimacaoStatus();
+                controlesConexao.setVisibility(View.VISIBLE);
+                statusInicial.setText(statusConexao.getText());
+                statusConexao.setVisibility(View.GONE);
+                statusInicial.setVisibility(View.VISIBLE);
+                botaoConectar.setEnabled(true);
+                campoCodigoPar.setEnabled(true);
+            }
+
+            @Override
+            public void onAbrirTelaPrincipal() {
+                abrirTelaPrincipal();
+            }
+        });
 
         botaoConectar.setOnClickListener(v -> iniciarConexao());
+        botaoUsarSemConexao.setOnClickListener(v -> abrirModoIndividual());
 
         /*
          * Não cria outra conexão se já existe uma instância.
@@ -115,7 +182,7 @@ public class ConexaoActivity extends AppCompatActivity {
 
             if (conexao.estaConectado()) {
 
-                statusConexao.setText(
+                statusInicial.setText(
                         "Conectado. Aguardando confirmação da sala..."
                 );
             }
@@ -130,6 +197,11 @@ public class ConexaoActivity extends AppCompatActivity {
 
         if (conexao != null && conexao.estaConectado()) {
 
+            tituloModo.setText("Iniciando modo online");
+            statusInicial.setText(
+                    "Você já está conectado ao servidor."
+            );
+            statusInicial.setVisibility(View.VISIBLE);
             statusConexao.setText(
                     "Você já está conectado ao servidor."
             );
@@ -150,15 +222,28 @@ public class ConexaoActivity extends AppCompatActivity {
             return;
         }
 
-        abriuTelaPrincipal = false;
-        aguardandoParceiro = false;
+        tituloModo.setText("Iniciando modo online");
 
+        if (conexaoFlow != null) {
+            conexaoFlow.resetar();
+        }
+
+        InputMethodManager teclado = (InputMethodManager)
+                getSystemService(INPUT_METHOD_SERVICE);
+        if (teclado != null) {
+            teclado.hideSoftInputFromWindow(
+                    campoCodigoPar.getWindowToken(),
+                    0
+            );
+        }
+        campoCodigoPar.clearFocus();
         botaoConectar.setEnabled(false);
         campoCodigoPar.setEnabled(false);
+        // Mantém o espaço reservado para os botões para evitar que o formulário se mova.
+        controlesConexao.setVisibility(View.INVISIBLE);
+        mostrarStatusDuranteConexao();
 
-        statusConexao.setText(
-                "Conectando ao servidor..."
-        );
+        iniciarProgresso();
 
         if (conexao == null) {
 
@@ -185,9 +270,13 @@ public class ConexaoActivity extends AppCompatActivity {
 
                 Log.d(TAG, "Conexão WebSocket estabelecida.");
 
-                statusConexao.setText(
-                        "Servidor conectado. Entrando na sala..."
+                mostrarStatusDuranteConexao();
+                handler.removeCallbacks(concluirEtapaUm);
+                long tempoRestante = Math.max(
+                        0L,
+                        2000L - (SystemClock.uptimeMillis() - inicioEtapaAtual)
                 );
+                handler.postDelayed(concluirEtapaUm, tempoRestante);
             }
 
             @Override
@@ -195,7 +284,7 @@ public class ConexaoActivity extends AppCompatActivity {
 
                 Log.d(TAG, "Conexão encerrada: " + motivo);
 
-                if (!abriuTelaPrincipal) {
+                if (conexaoFlow == null || !conexaoFlow.isAbriuTelaPrincipal()) {
 
                     statusConexao.setText(
                             "Conexão encerrada. Tente novamente."
@@ -216,7 +305,7 @@ public class ConexaoActivity extends AppCompatActivity {
 
                 Log.e(TAG, erro);
 
-                if (!abriuTelaPrincipal) {
+                if (conexaoFlow == null || !conexaoFlow.isAbriuTelaPrincipal()) {
 
                     statusConexao.setText(
                             "Erro: " + erro
@@ -233,74 +322,18 @@ public class ConexaoActivity extends AppCompatActivity {
     // =====================================================
 
     private void processarMensagem(JSONObject mensagem) {
-
-        String tipo = mensagem.optString("type", "");
-
-        Log.d(TAG, "Evento recebido do servidor: " + mensagem);
-
-        switch (tipo) {
-
-            case "joined": {
-
-                int usuarios = mensagem.optInt("users", 0);
-
-                if (usuarios >= 2) {
-
-                    abrirTelaPrincipal();
-
-                } else {
-
-                    aguardandoParceiro = true;
-
-                    statusConexao.setText(
-                            "Conectado! Aguardando o segundo usuário..."
-                    );
+        if (conexaoFlow != null) {
+            String tipo = mensagem == null
+                    ? ""
+                    : mensagem.optString("type", "");
+            if ("joined".equals(tipo) || "peer_connected".equals(tipo)) {
+                mensagemSalaPendente = mensagem;
+                if (etapaAnimada == 2) {
+                    agendarConclusaoEtapaDois();
                 }
-
-                break;
+                return;
             }
-
-            case "peer_connected": {
-
-                statusConexao.setText(
-                        "Parceiro conectado! Abrindo aplicativo..."
-                );
-
-                abrirTelaPrincipal();
-
-                break;
-            }
-
-            case "peer_disconnected": {
-
-                statusConexao.setText(
-                        "Seu parceiro desconectou."
-                );
-
-                break;
-            }
-
-            case "error": {
-
-                String erro = mensagem.optString(
-                        "message",
-                        "O servidor informou um erro."
-                );
-
-                statusConexao.setText(erro);
-
-                liberarTelaConexao();
-
-                break;
-            }
-
-            default: {
-
-                Log.d(TAG,
-                        "Evento não tratado: " + tipo);
-
-                break;
-            }
+            conexaoFlow.processarMensagem(mensagem);
         }
     }
 
@@ -310,7 +343,7 @@ public class ConexaoActivity extends AppCompatActivity {
 
     private void abrirTelaPrincipal() {
 
-        if (abriuTelaPrincipal) {
+        if (conexaoFlow != null && conexaoFlow.isAbriuTelaPrincipal()) {
             return;
         }
 
@@ -325,7 +358,11 @@ public class ConexaoActivity extends AppCompatActivity {
             return;
         }
 
-        abriuTelaPrincipal = true;
+        pararAnimacaoStatus();
+
+        if (conexaoFlow != null) {
+            conexaoFlow.setAbriuTelaPrincipal(true);
+        }
 
         Intent intent = new Intent(
                 ConexaoActivity.this,
@@ -340,16 +377,139 @@ public class ConexaoActivity extends AppCompatActivity {
         startActivity(intent);
     }
 
+    private void abrirModoIndividual() {
+        pararAnimacaoStatus();
+        Intent intent = new Intent(
+                ConexaoActivity.this,
+                MainActivity.class
+        );
+        intent.putExtra("modo_individual", true);
+        startActivity(intent);
+    }
+
+    private void iniciarProgresso() {
+        pararAnimacaoStatus();
+        etapasConcluidas = 0;
+        mensagemSalaPendente = null;
+        mensagemSalaPendenteAgendada = false;
+        iniciarEtapa(1);
+    }
+
+    private void iniciarEtapa(int etapa) {
+        mostrarStatusDuranteConexao();
+        etapaAnimada = etapa;
+        inicioEtapaAtual = SystemClock.uptimeMillis();
+        quantidadeReticencias = 0;
+        handler.removeCallbacks(animarStatus);
+        handler.removeCallbacks(concluirEtapaTres);
+        animarStatus.run();
+        if (etapa == 3) {
+            handler.postDelayed(concluirEtapaTres, 1000L);
+        }
+    }
+
+    private void agendarConclusaoEtapaDois() {
+        if (mensagemSalaPendenteAgendada || etapaAnimada != 2) {
+            return;
+        }
+
+        mensagemSalaPendenteAgendada = true;
+        long tempoRestante = Math.max(
+                0L,
+                2000L - (SystemClock.uptimeMillis() - inicioEtapaAtual)
+        );
+        handler.postDelayed(concluirEtapaDois, tempoRestante);
+    }
+
+    private void atualizarListaEtapas() {
+        SpannableStringBuilder texto = new SpannableStringBuilder();
+        adicionarEtapa(
+                texto,
+                etapasConcluidas >= 1
+                        ? "1. Conectado ao Servidor"
+                        : "1. Conectando ao servidor",
+                etapaAnimada == 1 ? reticencias() : "",
+                etapasConcluidas >= 1 ? Color.GREEN : Color.DKGRAY,
+                Color.WHITE
+        );
+        texto.append('\n');
+        adicionarEtapa(
+                texto,
+                etapasConcluidas >= 2
+                        ? "2. Dentro da Sala"
+                        : "2. Entrando na sala",
+                etapaAnimada == 2 ? reticencias() : "",
+                etapasConcluidas >= 2 ? Color.GREEN : Color.DKGRAY,
+                Color.WHITE
+        );
+        texto.append('\n');
+        adicionarEtapa(
+                texto,
+                "3. Aguardando outro participante",
+                etapaAnimada == 3 ? reticencias() : "",
+                etapasConcluidas >= 3 ? Color.GREEN : Color.DKGRAY,
+                etapasConcluidas >= 3 ? Color.GREEN : Color.DKGRAY
+        );
+        statusConexao.setText(texto);
+    }
+
+    private void adicionarEtapa(
+            SpannableStringBuilder texto,
+            String mensagem,
+            String reticencias,
+            int cor,
+            int corReticencias
+    ) {
+        int inicio = texto.length();
+        texto.append(mensagem);
+        texto.setSpan(
+                new ForegroundColorSpan(cor),
+                inicio,
+                texto.length(),
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        );
+        int inicioReticencias = texto.length();
+        texto.append(reticencias);
+        if (!reticencias.isEmpty()) {
+            texto.setSpan(
+                    new ForegroundColorSpan(corReticencias),
+                    inicioReticencias,
+                    texto.length(),
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            );
+        }
+    }
+
+    private String reticencias() {
+        StringBuilder pontos = new StringBuilder();
+        for (int i = 0; i < quantidadeReticencias; i++) {
+            pontos.append('.');
+        }
+        return pontos.toString();
+    }
+
+    private void mostrarStatusDuranteConexao() {
+        statusInicial.setVisibility(View.GONE);
+        statusConexao.setVisibility(View.VISIBLE);
+    }
+
+    private void pararAnimacaoStatus() {
+        etapaAnimada = 0;
+        handler.removeCallbacks(animarStatus);
+        handler.removeCallbacks(concluirEtapaUm);
+        handler.removeCallbacks(concluirEtapaDois);
+        handler.removeCallbacks(concluirEtapaTres);
+        mensagemSalaPendenteAgendada = false;
+    }
+
     // =====================================================
     // LIBERAR TELA
     // =====================================================
 
     private void liberarTelaConexao() {
-
-        botaoConectar.setEnabled(true);
-        campoCodigoPar.setEnabled(true);
-
-        aguardandoParceiro = false;
+        if (conexaoFlow != null) {
+            conexaoFlow.liberarTelaConexao();
+        }
     }
 
     // =====================================================
@@ -363,10 +523,9 @@ public class ConexaoActivity extends AppCompatActivity {
 
         ativarModoImersivo();
 
-        if (!abriuTelaPrincipal) {
+        if (conexaoFlow == null || !conexaoFlow.isAbriuTelaPrincipal()) {
 
             if (conexao != null) {
-
                 conexao.definirCallback(criarCallback());
             }
         }
@@ -379,6 +538,7 @@ public class ConexaoActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
 
+        pararAnimacaoStatus();
         super.onDestroy();
 
         /*
