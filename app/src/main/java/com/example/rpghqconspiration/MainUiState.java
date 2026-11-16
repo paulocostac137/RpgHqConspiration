@@ -4,7 +4,6 @@ import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
-import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
@@ -12,16 +11,13 @@ public final class MainUiState {
 
     private final TextView status;
     private final TextView textoPlanilha;
-    private final Button botaoProximo;
     private final FrameLayout areaGif;
 
     public MainUiState(TextView status,
                        TextView textoPlanilha,
-                       Button botaoProximo,
                        FrameLayout areaGif) {
         this.status = status;
         this.textoPlanilha = textoPlanilha;
-        this.botaoProximo = botaoProximo;
         this.areaGif = areaGif;
     }
 
@@ -62,12 +58,6 @@ public final class MainUiState {
     public void definirStatus(String mensagem) {
         if (status != null && mensagem != null) {
             status.setText(mensagem);
-        }
-    }
-
-    public void definirBotaoProximo(boolean habilitado) {
-        if (botaoProximo != null) {
-            botaoProximo.setEnabled(habilitado);
         }
     }
 

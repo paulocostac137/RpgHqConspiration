@@ -10,14 +10,12 @@ import android.graphics.drawable.GradientDrawable;
 
 import android.util.Log;
 
-import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 
-import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -65,8 +63,6 @@ public class MainActivity extends AppCompatActivity {
 
     private TextView status;
     private TextView textoPlanilha;
-
-    private Button botaoProximo;
 
     private TextView controleEsquerdo;
     private TextView controleDireito;
@@ -306,8 +302,6 @@ public class MainActivity extends AppCompatActivity {
 
         status = findViewById(R.id.status);
 
-        botaoProximo = findViewById(R.id.botaoProximo);
-
         controleEsquerdo =
                 findViewById(R.id.controleEsquerdo);
 
@@ -315,6 +309,9 @@ public class MainActivity extends AppCompatActivity {
                 findViewById(R.id.controleDireito);
 
         areaGif = findViewById(R.id.areaGif);
+        areaGif.addOnLayoutChangeListener((view, left, top, right, bottom,
+                                           oldLeft, oldTop, oldRight, oldBottom) ->
+                ajustarAfastamentoDosControles());
 
         configurarFluxoLinear();
 
@@ -412,8 +409,8 @@ public class MainActivity extends AppCompatActivity {
                                                     (altura - 2f * metadeBotao)
                             );
 
-                            moverBotao(controleEsquerdo, centroY, true);
-                            moverBotao(controleDireito, centroY, false);
+                            moverBotao(controleEsquerdo, centroY);
+                            moverBotao(controleDireito, centroY);
                             desenharQuadro();
                         });
                     }
@@ -466,7 +463,6 @@ public class MainActivity extends AppCompatActivity {
         mainUiState = new MainUiState(
                 status,
                 textoPlanilha,
-                botaoProximo,
                 areaGif
         );
 
@@ -490,11 +486,6 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void onStatusChanged(String mensagem) {
                         status.setText(mensagem);
-                    }
-
-                    @Override
-                    public void onBotaoProximoEnabled(boolean enabled) {
-                        botaoProximo.setEnabled(enabled);
                     }
 
                     @Override
@@ -529,20 +520,12 @@ public class MainActivity extends AppCompatActivity {
 
                             int centro = areaGif.getHeight() / 2;
 
-                            moverBotao(controleEsquerdo, centro, true);
-                            moverBotao(controleDireito, centro, false);
+                            moverBotao(controleEsquerdo, centro);
+                            moverBotao(controleDireito, centro);
                         });
                     }
                 }
         );
-
-        botaoProximo.setOnClickListener(v -> {
-            if (gifTiming != null) {
-                gifTiming.pararTrocaAutomatica();
-            }
-
-            processarProximoItemNaCadeia();
-        });
 
         gifControls = new GifControls(areaGif, controleEsquerdo, controleDireito);
         gifControls.configurar();
@@ -563,7 +546,6 @@ public class MainActivity extends AppCompatActivity {
 
     private void iniciarFluxoLinear() {
         status.setText("Consultando Google Planilhas...");
-        botaoProximo.setEnabled(false);
         carregarPlanilha();
     }
 
@@ -602,6 +584,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         gifControls.processarEventoMultitoque(view, evento);
+        gifControls.atualizarPosicoesDedo();
 
         if (gifControls.isManualAtivo() &&
                 gifPlayer != null &&
@@ -612,7 +595,6 @@ public class MainActivity extends AppCompatActivity {
                 pausarAnimacao();
             }
 
-            gifControls.atualizarPosicoesDedo();
             return;
         }
 
@@ -642,28 +624,27 @@ public class MainActivity extends AppCompatActivity {
     // MOVIMENTAÇÃO DOS BOTÕES
     // =====================================================
 
+    private void ajustarAfastamentoDosControles() {
+        float afastamento = areaGif.getWidth() * 0.07f;
+        float direcaoInicio = areaGif.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL
+                ? -1f
+                : 1f;
+
+        controleEsquerdo.setTranslationX(direcaoInicio * afastamento);
+        controleDireito.setTranslationX(-direcaoInicio * afastamento);
+    }
+
     private void moverBotao(
             TextView botao,
-            int centroY,
-            boolean esquerdo) {
+            int centroY) {
 
         if (botao == null ||
-                botao.getLayoutParams() == null) {
+                botao.getHeight() <= 0) {
             return;
         }
 
-        FrameLayout.LayoutParams parametros =
-                (FrameLayout.LayoutParams) botao.getLayoutParams();
-
-        parametros.gravity = Gravity.TOP |
-                (esquerdo ? Gravity.START : Gravity.END);
-
-        parametros.topMargin = Math.max(
-                0,
-                centroY - botao.getHeight() / 2
-        );
-
-        botao.setLayoutParams(parametros);
+        float centroInicial = botao.getTop() + botao.getHeight() / 2f;
+        botao.setTranslationY(centroY - centroInicial);
     }
 
     // =====================================================
@@ -714,8 +695,6 @@ public class MainActivity extends AppCompatActivity {
                 "Consultando Google Planilhas..."
         );
 
-        botaoProximo.setEnabled(false);
-
         spreadsheetSource.carregarPlanilha(
                 handler,
                 executor,
@@ -733,8 +712,6 @@ public class MainActivity extends AppCompatActivity {
                                     "Nenhum item encontrado."
                             );
 
-                            botaoProximo.setEnabled(false);
-
                         } else {
 
                             status.setText(
@@ -742,7 +719,6 @@ public class MainActivity extends AppCompatActivity {
                                             " itens disponíveis."
                             );
 
-                            botaoProximo.setEnabled(true);
                             processarProximoItemNaCadeia();
                         }
                     }
@@ -755,7 +731,6 @@ public class MainActivity extends AppCompatActivity {
                         Log.e(TAG, "Erro na planilha.", erro);
 
                         status.setText(mensagem);
-                        botaoProximo.setEnabled(false);
                     }
                 }
         );

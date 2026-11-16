@@ -12,7 +12,6 @@ public final class GifMediaFlow {
 
     public interface Callback {
         void onStatusChanged(String mensagem);
-        void onBotaoProximoEnabled(boolean enabled);
         void onTextoPlanilhaChanged(String texto);
         void onRequestDesenharQuadro();
         void onRequestIniciarAnimacao();
@@ -90,7 +89,6 @@ public final class GifMediaFlow {
         }
 
         gifSessionState.setCarregando(true);
-        callback.onBotaoProximoEnabled(false);
         callback.onStatusChanged("Baixando: " + nome);
 
         DriveGifRepository.baixarSeNecessario(
@@ -102,14 +100,12 @@ public final class GifMediaFlow {
                     @Override
                     public void onSuccess(File arquivoBaixado) {
                         gifSessionState.setCarregando(false);
-                        callback.onBotaoProximoEnabled(true);
                         exibirGif(arquivoBaixado, nome);
                     }
 
                     @Override
                     public void onError(String mensagem, Exception erro) {
                         gifSessionState.setCarregando(false);
-                        callback.onBotaoProximoEnabled(true);
                         callback.onStatusChanged(mensagem);
                         if (gifTiming != null) {
                             gifTiming.iniciarTrocaAutomatica();
