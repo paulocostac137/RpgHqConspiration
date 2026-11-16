@@ -37,19 +37,26 @@
     <!-- ÁREA CENTRAL DOS GIFS E CONTROLES LATERAIS -->
 
     <LinearLayout
+        android:id="@+id/linhaControles"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:orientation="horizontal"
         android:gravity="center_vertical"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:background="#000000">
 
         <!-- CONTROLE LATERAL ESQUERDO -->
 
         <FrameLayout
+            android:id="@+id/containerControleEsquerdo"
             android:layout_width="64dp"
             android:layout_height="match_parent"
-            android:gravity="center">
+            android:gravity="center"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:elevation="12dp">
 
             <TextView
                 android:id="@+id/controleEsquerdo"
@@ -73,6 +80,7 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
+            android:elevation="0dp"
             android:background="#000000"
             android:gravity="center">
 
@@ -107,9 +115,13 @@
         <!-- CONTROLE LATERAL DIREITO -->
 
         <FrameLayout
+            android:id="@+id/containerControleDireito"
             android:layout_width="64dp"
             android:layout_height="match_parent"
-            android:gravity="center">
+            android:gravity="center"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:elevation="12dp">
 
             <TextView
                 android:id="@+id/controleDireito"

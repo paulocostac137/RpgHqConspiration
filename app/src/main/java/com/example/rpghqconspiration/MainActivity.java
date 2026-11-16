@@ -10,6 +10,7 @@ import android.graphics.Paint;
 import android.util.Log;
 
 import android.view.View;
+import android.view.ViewGroup;
 
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -497,6 +498,31 @@ public class MainActivity extends AppCompatActivity {
     // ONCREATE
     // =====================================================
 
+    private void configurarAfastamentoControles() {
+
+        View linhaControles = findViewById(R.id.linhaControles);
+        ((ViewGroup) linhaControles)
+                .setMotionEventSplittingEnabled(false);
+        linhaControles.addOnLayoutChangeListener(
+                (view, left, top, right, bottom,
+                 oldLeft, oldTop, oldRight, oldBottom) -> {
+                    float deslocamento = areaGif.getWidth() * 0.07f;
+                    float direcaoInicio =
+                            view.getLayoutDirection() ==
+                                    View.LAYOUT_DIRECTION_RTL
+                                    ? -1f
+                                    : 1f;
+
+                    controleEsquerdo.setTranslationX(
+                            direcaoInicio * deslocamento
+                    );
+                    controleDireito.setTranslationX(
+                            -direcaoInicio * deslocamento
+                    );
+                }
+        );
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
 
@@ -521,6 +547,7 @@ public class MainActivity extends AppCompatActivity {
                 findViewById(R.id.controleDireito);
 
         areaGif = findViewById(R.id.areaGif);
+        configurarAfastamentoControles();
 
         textoPlanilha =
                 findViewById(R.id.textoPlanilha);

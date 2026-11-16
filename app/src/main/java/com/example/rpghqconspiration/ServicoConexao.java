@@ -17,6 +17,7 @@ import org.java_websocket.handshake.ServerHandshake;
 public class ServicoConexao {
 
     private static final String TAG = "ServicoConexao";
+    private static final long ATRASO_ENTRADA_SALA_MS = 2000L;
 
     private static final String URL_SERVIDOR =
             "wss://rpghqserver-1.onrender.com";
@@ -99,8 +100,11 @@ public class ServicoConexao {
 
                     Log.d(TAG, "WebSocket conectado.");
 
-                    enviarEntradaNaSala();
                     avisarConectado();
+                    handlerPrincipal.postDelayed(
+                            ServicoConexao.this::enviarEntradaNaSala,
+                            ATRASO_ENTRADA_SALA_MS
+                    );
                 }
 
                 @Override
@@ -173,6 +177,7 @@ public class ServicoConexao {
                 }
             };
 
+            Log.d(TAG, "Iniciando conexão WebSocket com o servidor.");
             cliente.connect();
 
         } catch (Exception e) {

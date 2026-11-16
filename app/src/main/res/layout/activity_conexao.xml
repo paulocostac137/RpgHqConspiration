@@ -1,13 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<LinearLayout
+<FrameLayout
+    android:id="@+id/layoutConexao"
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center"
-    android:padding="32dp"
     android:background="#121212">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="32dp">
 
     <TextView
         android:layout_width="wrap_content"
@@ -48,6 +53,7 @@
         android:layout_marginTop="20dp"/>
 
     <TextView
+        android:id="@+id/textoOu"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="OU"
@@ -72,4 +78,30 @@
         android:gravity="center"
         android:layout_marginTop="20dp"/>
 
-</LinearLayout>
+    </LinearLayout>
+
+    <ScrollView
+        android:id="@+id/statusConexaoAtivo"
+        android:layout_width="match_parent"
+        android:layout_height="140dp"
+        android:layout_gravity="top"
+        android:layout_marginStart="32dp"
+        android:layout_marginEnd="32dp"
+        android:background="#121212"
+        android:visibility="gone"
+        android:clickable="false"
+        android:focusable="false"
+        android:fillViewport="true"
+        android:elevation="16dp">
+
+        <TextView
+            android:id="@+id/textoStatusConexaoAtivo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="8dp"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:gravity="top|center_horizontal"/>
+    </ScrollView>
+
+</FrameLayout>

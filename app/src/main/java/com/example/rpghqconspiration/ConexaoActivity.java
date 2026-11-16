@@ -2,13 +2,17 @@ package com.example.rpghqconspiration;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
+import android.widget.FrameLayout;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -18,15 +22,25 @@ import org.json.JSONObject;
 public class ConexaoActivity extends AppCompatActivity {
 
     private static final String TAG = "ConexaoActivity";
+    private static final long ATRASO_ETAPA_MS = 2000L;
 
     public static ServicoConexao conexao;
+
+    private final Handler handlerPrincipal =
+            new Handler(Looper.getMainLooper());
 
     private EditText campoCodigoPar;
     private Button botaoConectar;
     private Button botaoUsarSemConexao;
+    private TextView textoOu;
     private TextView statusConexao;
+    private TextView textoStatusConexaoAtivo;
+    private ScrollView statusConexaoAtivo;
+    private FrameLayout layoutConexao;
 
     private boolean abriuTelaPrincipal = false;
+    private boolean aberturaAgendada = false;
+    private boolean statusAbaixoDoCampo = false;
 
     private void ativarModoImersivo() {
 
@@ -78,7 +92,21 @@ public class ConexaoActivity extends AppCompatActivity {
         campoCodigoPar = findViewById(R.id.campoCodigoPar);
         botaoConectar = findViewById(R.id.botaoConectar);
         botaoUsarSemConexao = findViewById(R.id.botaoUsarSemConexao);
+        textoOu = findViewById(R.id.textoOu);
         statusConexao = findViewById(R.id.statusConexao);
+        statusConexaoAtivo = findViewById(R.id.statusConexaoAtivo);
+        textoStatusConexaoAtivo =
+                findViewById(R.id.textoStatusConexaoAtivo);
+        layoutConexao = findViewById(R.id.layoutConexao);
+
+        layoutConexao.addOnLayoutChangeListener(
+                (view, left, top, right, bottom,
+                 oldLeft, oldTop, oldRight, oldBottom) -> {
+                    if (statusAbaixoDoCampo) {
+                        posicionarStatusAbaixoDoCampo();
+                    }
+                }
+        );
 
         botaoConectar.setOnClickListener(v -> iniciarConexao());
         botaoUsarSemConexao.setOnClickListener(v -> abrirModoIndividual());
@@ -89,7 +117,7 @@ public class ConexaoActivity extends AppCompatActivity {
             conexao.definirCallback(criarCallback());
 
             if (conexao.estaConectado()) {
-                statusConexao.setText(
+                adicionarMensagemConexao(
                         "Conectado. Aguardando confirmação da sala..."
                 );
             }
@@ -120,7 +148,10 @@ public class ConexaoActivity extends AppCompatActivity {
     private void iniciarConexao() {
 
         if (conexao != null && conexao.estaConectado()) {
-            statusConexao.setText(
+            statusAbaixoDoCampo = true;
+            mostrarSomenteStatusConexao();
+            statusConexaoAtivo.setVisibility(View.VISIBLE);
+            adicionarMensagemConexao(
                     "Você já está conectado ao servidor."
             );
             return;
@@ -137,12 +168,18 @@ public class ConexaoActivity extends AppCompatActivity {
         }
 
         abriuTelaPrincipal = false;
+        aberturaAgendada = false;
 
         botaoConectar.setEnabled(false);
         botaoUsarSemConexao.setEnabled(false);
         campoCodigoPar.setEnabled(false);
+        mostrarSomenteStatusConexao();
 
-        statusConexao.setText("Conectando ao servidor...");
+        statusAbaixoDoCampo = true;
+        statusConexao.setVisibility(View.INVISIBLE);
+        statusConexaoAtivo.setVisibility(View.VISIBLE);
+        adicionarMensagemConexao("Conectando ao servidor...");
+        posicionarStatusAbaixoDoCampo();
 
         if (conexao == null) {
             conexao = new ServicoConexao(criarCallback());
@@ -150,7 +187,12 @@ public class ConexaoActivity extends AppCompatActivity {
             conexao.definirCallback(criarCallback());
         }
 
-        conexao.conectar(codigo);
+        handlerPrincipal.postDelayed(() -> {
+            if (!isFinishing() && !isDestroyed() &&
+                    !abriuTelaPrincipal && statusAbaixoDoCampo) {
+                conexao.conectar(codigo);
+            }
+        }, ATRASO_ETAPA_MS);
     }
 
     private ServicoConexao.Callback criarCallback() {
@@ -164,7 +206,7 @@ public class ConexaoActivity extends AppCompatActivity {
 
                     Log.d(TAG, "Conexão WebSocket estabelecida.");
 
-                    statusConexao.setText(
+                    adicionarMensagemConexao(
                             "Servidor conectado. Entrando na sala..."
                     );
                 });
@@ -176,7 +218,7 @@ public class ConexaoActivity extends AppCompatActivity {
                     if (isFinishing() || isDestroyed()) return;
 
                     if (!abriuTelaPrincipal) {
-                        statusConexao.setText(
+                        adicionarMensagemConexao(
                                 "Conexão encerrada. Tente novamente."
                         );
                         liberarTelaConexao();
@@ -200,7 +242,7 @@ public class ConexaoActivity extends AppCompatActivity {
                     Log.e(TAG, erro);
 
                     if (!abriuTelaPrincipal) {
-                        statusConexao.setText("Erro: " + erro);
+                        adicionarMensagemConexao("Erro: " + erro);
                         liberarTelaConexao();
                     }
                 });
@@ -220,9 +262,11 @@ public class ConexaoActivity extends AppCompatActivity {
                 int usuarios = mensagem.optInt("users", 0);
 
                 if (usuarios >= 2) {
-                    abrirTelaPrincipal();
+                    agendarAberturaTelaPrincipal(
+                            "Parceiro encontrado! Abrindo aplicativo..."
+                    );
                 } else {
-                    statusConexao.setText(
+                    adicionarMensagemConexao(
                             "Conectado! Aguardando o segundo usuário..."
                     );
                 }
@@ -230,14 +274,13 @@ public class ConexaoActivity extends AppCompatActivity {
             }
 
             case "peer_connected":
-                statusConexao.setText(
+                agendarAberturaTelaPrincipal(
                         "Parceiro conectado! Abrindo aplicativo..."
                 );
-                abrirTelaPrincipal();
                 break;
 
             case "peer_disconnected":
-                statusConexao.setText("Seu parceiro desconectou.");
+                adicionarMensagemConexao("Seu parceiro desconectou.");
                 break;
 
             case "error": {
@@ -245,7 +288,7 @@ public class ConexaoActivity extends AppCompatActivity {
                         "message",
                         "O servidor informou um erro."
                 );
-                statusConexao.setText(erro);
+                adicionarMensagemConexao(erro);
                 liberarTelaConexao();
                 break;
             }
@@ -261,7 +304,7 @@ public class ConexaoActivity extends AppCompatActivity {
         if (abriuTelaPrincipal) return;
 
         if (conexao == null || !conexao.estaConectado()) {
-            statusConexao.setText(
+            adicionarMensagemConexao(
                     "A conexão com o servidor foi perdida."
             );
             liberarTelaConexao();
@@ -280,11 +323,78 @@ public class ConexaoActivity extends AppCompatActivity {
         startActivity(intent);
     }
 
+    private void agendarAberturaTelaPrincipal(String mensagem) {
+
+        adicionarMensagemConexao(mensagem);
+
+        if (aberturaAgendada) {
+            return;
+        }
+
+        aberturaAgendada = true;
+        handlerPrincipal.postDelayed(() -> {
+            if (!isFinishing() && !isDestroyed()) {
+                abrirTelaPrincipal();
+            }
+        }, ATRASO_ETAPA_MS);
+    }
+
     private void liberarTelaConexao() {
 
         botaoConectar.setEnabled(true);
         botaoUsarSemConexao.setEnabled(true);
         campoCodigoPar.setEnabled(true);
+        botaoConectar.setVisibility(View.VISIBLE);
+        textoOu.setVisibility(View.VISIBLE);
+        botaoUsarSemConexao.setVisibility(View.VISIBLE);
+    }
+
+    private void mostrarSomenteStatusConexao() {
+
+        botaoConectar.setVisibility(View.INVISIBLE);
+        textoOu.setVisibility(View.INVISIBLE);
+        botaoUsarSemConexao.setVisibility(View.INVISIBLE);
+    }
+
+    private void posicionarStatusAbaixoDoCampo() {
+
+        statusConexaoAtivo.post(() -> {
+            if (isFinishing() || isDestroyed() ||
+                    !statusAbaixoDoCampo) {
+                return;
+            }
+
+            int[] posicaoCampo = new int[2];
+            int[] posicaoLayout = new int[2];
+            campoCodigoPar.getLocationInWindow(posicaoCampo);
+            layoutConexao.getLocationInWindow(posicaoLayout);
+
+            float margem = 12f *
+                    getResources().getDisplayMetrics().density;
+            FrameLayout.LayoutParams parametros =
+                    (FrameLayout.LayoutParams)
+                            statusConexaoAtivo.getLayoutParams();
+            parametros.topMargin = (int) (
+                    posicaoCampo[1] - posicaoLayout[1] +
+                            campoCodigoPar.getHeight() + margem
+            );
+            statusConexaoAtivo.setLayoutParams(parametros);
+            statusConexaoAtivo.bringToFront();
+        });
+    }
+
+    private void adicionarMensagemConexao(String mensagem) {
+
+        if (textoStatusConexaoAtivo.length() > 0) {
+            textoStatusConexaoAtivo.append("\n");
+        }
+
+        textoStatusConexaoAtivo.append(mensagem);
+        statusConexaoAtivo.setVisibility(View.VISIBLE);
+        statusConexaoAtivo.post(
+                () -> statusConexaoAtivo.fullScroll(View.FOCUS_DOWN)
+        );
+        posicionarStatusAbaixoDoCampo();
     }
 
     @Override
