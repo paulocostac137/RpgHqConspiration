@@ -109,8 +109,8 @@ public final class SpreadsheetLoader implements SpreadsheetSource {
 
                     String nome = colunas.get(0).trim();
                     String link = colunas.get(1).trim();
-                    String texto = colunas.size() > 4
-                            ? colunas.get(4).trim()
+                    String texto = colunas.size() > 2
+                            ? colunas.get(2).trim()
                             : "";
 
                     if (!nome.isEmpty() && !link.isEmpty()) {

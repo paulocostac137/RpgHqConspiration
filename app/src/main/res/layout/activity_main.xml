@@ -2,12 +2,15 @@
 
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:gravity="center"
     android:padding="8dp"
     android:background="#171717">
+
+    <!-- TÍTULO -->
 
     <TextView
         android:layout_width="match_parent"
@@ -19,73 +22,110 @@
         android:gravity="center"
         android:padding="8dp"/>
 
+    <!-- STATUS -->
+
     <TextView
         android:id="@+id/status"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Carregando..."
+        android:text="Carregando GIFs..."
         android:textColor="#FFFFFF"
         android:textSize="14sp"
         android:gravity="center"
         android:padding="6dp"/>
 
-    <FrameLayout
-        android:id="@+id/areaGif"
+    <!-- ÁREA CENTRAL DOS GIFS E CONTROLES LATERAIS -->
+
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
         android:background="#000000">
 
-        <ImageView
-            android:id="@+id/imagemGif"
-            android:layout_width="match_parent"
+        <!-- CONTROLE LATERAL ESQUERDO -->
+
+        <FrameLayout
+            android:layout_width="64dp"
             android:layout_height="match_parent"
-            android:scaleType="fitCenter"
-            android:contentDescription="GIF principal"/>
+            android:gravity="center">
 
-        <TextView
-            android:id="@+id/textoPlanilha"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_gravity="top"
-            android:gravity="center"
-            android:padding="16dp"
-            android:textColor="#FFFFFF"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:maxLines="5"
-            android:ellipsize="end"
-            android:visibility="gone"
-            android:elevation="10dp"/>
+            <TextView
+                android:id="@+id/controleEsquerdo"
+                android:layout_width="48dp"
+                android:layout_height="100dp"
+                android:layout_gravity="center"
+                android:background="#CC222222"
+                android:gravity="center"
+                android:text="↕"
+                android:textColor="#FFFFFF"
+                android:textSize="30sp"
+                android:textStyle="bold"
+                android:elevation="8dp"/>
 
-        <TextView
-            android:id="@+id/controleEsquerdo"
-            android:layout_width="48dp"
-            android:layout_height="100dp"
-            android:layout_gravity="start|center_vertical"
-            android:layout_marginStart="8dp"
-            android:background="#CC222222"
-            android:gravity="center"
-            android:text="↕"
-            android:textColor="#FFFFFF"
-            android:textSize="30sp"
-            android:textStyle="bold"
-            android:elevation="8dp"/>
+        </FrameLayout>
 
-        <TextView
-            android:id="@+id/controleDireito"
-            android:layout_width="48dp"
-            android:layout_height="100dp"
-            android:layout_gravity="end|center_vertical"
-            android:layout_marginEnd="8dp"
-            android:background="#CC222222"
-            android:gravity="center"
-            android:text="↕"
-            android:textColor="#FFFFFF"
-            android:textSize="30sp"
-            android:textStyle="bold"
-            android:elevation="8dp"/>
+        <!-- ÁREA DA IMAGEM CENTRAL -->
 
-    </FrameLayout>
+        <FrameLayout
+            android:id="@+id/areaGif"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="#000000"
+            android:gravity="center">
+
+            <!-- GIF PRINCIPAL CENTRALIZADO -->
+
+            <com.example.rpghqconspiration.GifSincronizadoView
+                android:id="@+id/imagemGif"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="GIF principal"
+                android:scaleType="fitCenter"/>
+
+            <!-- TEXTO SOBRE O GIF -->
+
+            <TextView
+                android:id="@+id/textoPlanilha"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|center_horizontal"
+                android:gravity="center"
+                android:padding="16dp"
+                android:textColor="#FFFFFF"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:maxLines="5"
+                android:ellipsize="end"
+                android:visibility="gone"
+                android:elevation="10dp"/>
+
+        </FrameLayout>
+
+        <!-- CONTROLE LATERAL DIREITO -->
+
+        <FrameLayout
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/controleDireito"
+                android:layout_width="48dp"
+                android:layout_height="100dp"
+                android:layout_gravity="center"
+                android:background="#CC222222"
+                android:gravity="center"
+                android:text="↕"
+                android:textColor="#FFFFFF"
+                android:textSize="30sp"
+                android:textStyle="bold"
+                android:elevation="8dp"/>
+
+        </FrameLayout>
+
+    </LinearLayout>
 
 </LinearLayout>

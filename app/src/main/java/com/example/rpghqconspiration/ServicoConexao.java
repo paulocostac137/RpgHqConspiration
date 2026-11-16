@@ -11,24 +11,20 @@ import java.net.URI;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.java_websocket.client.WebSocketClient;
-import org.java_websocket.handshake.ServerHandshake;
 import org.java_websocket.enums.ReadyState;
+import org.java_websocket.handshake.ServerHandshake;
 
 public class ServicoConexao {
 
     private static final String TAG = "ServicoConexao";
 
     private static final String URL_SERVIDOR =
-            "wss://rpghqserver.onrender.com";
+            "wss://rpghqserver-1.onrender.com";
 
     public interface Callback {
-
         void onConectado();
-
         void onDesconectado(String motivo);
-
         void onMensagem(JSONObject mensagem);
-
         void onErro(String erro);
     }
 
@@ -36,15 +32,17 @@ public class ServicoConexao {
             new Handler(Looper.getMainLooper());
 
     private volatile Callback callback;
-
     private volatile WebSocketClient cliente;
 
     private volatile boolean conectado = false;
+    private volatile String codigoPar;
+    private volatile String papelUsuario = "";
+
+    private volatile boolean controleConcedido = false;
+    private volatile boolean solicitacaoPendente = false;
 
     private final AtomicBoolean entradaEnviada =
             new AtomicBoolean(false);
-
-    private String codigoPar;
 
     public ServicoConexao(Callback callback) {
         this.callback = callback;
@@ -54,9 +52,9 @@ public class ServicoConexao {
         this.callback = callback;
     }
 
-    // =========================================
+    // =====================================================
     // CONEXÃO
-    // =========================================
+    // =====================================================
 
     public synchronized void conectar(String codigo) {
 
@@ -65,35 +63,34 @@ public class ServicoConexao {
             return;
         }
 
-        if (conectado) {
+        if (estaConectado()) {
             Log.d(TAG, "Já existe uma conexão ativa.");
             avisarConectado();
             return;
         }
 
         if (cliente != null) {
-
             ReadyState estado = cliente.getReadyState();
 
             if (estado == ReadyState.OPEN
                     || estado == ReadyState.NOT_YET_CONNECTED) {
-
                 Log.d(TAG, "Conexão já está em andamento.");
                 return;
             }
         }
 
         codigoPar = codigo.trim();
+        papelUsuario = "";
 
         conectado = false;
+        controleConcedido = false;
+        solicitacaoPendente = false;
 
         entradaEnviada.set(false);
 
         try {
 
-            cliente = new WebSocketClient(
-                    new URI(URL_SERVIDOR)
-            ) {
+            cliente = new WebSocketClient(new URI(URL_SERVIDOR)) {
 
                 @Override
                 public void onOpen(ServerHandshake handshake) {
@@ -103,47 +100,53 @@ public class ServicoConexao {
                     Log.d(TAG, "WebSocket conectado.");
 
                     enviarEntradaNaSala();
-
                     avisarConectado();
                 }
 
                 @Override
                 public void onMessage(String mensagemRecebida) {
 
-                    Log.d(TAG,
-                            "Mensagem recebida: " + mensagemRecebida);
+                    Log.d(
+                            TAG,
+                            "Mensagem recebida: " + mensagemRecebida
+                    );
 
                     try {
 
                         JSONObject mensagem =
                                 new JSONObject(mensagemRecebida);
 
+                        processarEstadoDaConexao(mensagem);
                         avisarMensagem(mensagem);
 
                     } catch (JSONException e) {
 
-                        Log.e(TAG,
+                        Log.e(
+                                TAG,
                                 "Mensagem JSON inválida.",
-                                e);
-
-                        avisarErro(
-                                "Mensagem recebida inválida."
+                                e
                         );
+
+                        avisarErro("Mensagem recebida inválida.");
                     }
                 }
 
                 @Override
                 public void onClose(
-                        int codigo,
+                        int codigoFechamento,
                         String motivo,
                         boolean remoto) {
 
                     conectado = false;
+                    controleConcedido = false;
+                    solicitacaoPendente = false;
 
                     entradaEnviada.set(false);
 
-                    Log.d(TAG,
-                            "WebSocket encerrado: " + motivo);
+                    Log.d(
+                            TAG,
+                            "WebSocket encerrado: " + motivo
+                    );
 
                     avisarDesconectado(motivo);
                 }
@@ -152,10 +155,10 @@ public class ServicoConexao {
                 public void onError(Exception erro) {
 
                     conectado = false;
+                    controleConcedido = false;
+                    solicitacaoPendente = false;
 
-                    Log.e(TAG,
-                            "Erro no WebSocket.",
-                            erro);
+                    Log.e(TAG, "Erro no WebSocket.", erro);
 
                     String mensagem = erro.getMessage();
 
@@ -175,10 +178,14 @@ public class ServicoConexao {
         } catch (Exception e) {
 
             conectado = false;
+            controleConcedido = false;
+            solicitacaoPendente = false;
 
-            Log.e(TAG,
+            Log.e(
+                    TAG,
                     "Não foi possível iniciar a conexão.",
-                    e);
+                    e
+            );
 
             avisarErro(
                     "Não foi possível iniciar a conexão: "
@@ -187,9 +194,104 @@ public class ServicoConexao {
         }
     }
 
-    // =========================================
+    // =====================================================
+    // PROCESSAMENTO DAS MENSAGENS DO SERVIDOR
+    // =====================================================
+
+    private void processarEstadoDaConexao(JSONObject mensagem) {
+
+        String tipo = mensagem.optString("type", "");
+
+        switch (tipo) {
+
+            case "joined":
+
+                papelUsuario =
+                        mensagem.optString("role", "");
+
+                Log.d(
+                        TAG,
+                        "Papel atribuído pelo servidor: "
+                                + papelUsuario
+                );
+
+                break;
+
+            case "control_granted":
+
+                controleConcedido = true;
+                solicitacaoPendente = false;
+
+                Log.d(
+                        TAG,
+                        "Controle autorizado pelo servidor."
+                );
+
+                break;
+
+            case "control_busy":
+
+                controleConcedido = false;
+                solicitacaoPendente = false;
+
+                Log.d(
+                        TAG,
+                        "Controle ocupado pelo outro usuário."
+                );
+
+                break;
+
+            case "control_released":
+
+                controleConcedido = false;
+                solicitacaoPendente = false;
+
+                Log.d(
+                        TAG,
+                        "Controle liberado pelo servidor."
+                );
+
+                break;
+
+            case "peer_disconnected":
+
+                controleConcedido = false;
+                solicitacaoPendente = false;
+
+                Log.d(
+                        TAG,
+                        "O outro usuário desconectou."
+                );
+
+                break;
+
+            case "control":
+
+                if (!mensagem.optBoolean("active", false)) {
+
+                    controleConcedido = false;
+                    solicitacaoPendente = false;
+                }
+
+                break;
+
+            case "error":
+
+                solicitacaoPendente = false;
+
+                Log.e(
+                        TAG,
+                        "Erro informado pelo servidor: "
+                                + mensagem.optString("message", "")
+                );
+
+                break;
+        }
+    }
+
+    // =====================================================
     // ENTRADA NA SALA
-    // =========================================
+    // =====================================================
 
     private void enviarEntradaNaSala() {
 
@@ -205,41 +307,52 @@ public class ServicoConexao {
             JSONObject mensagem = new JSONObject();
 
             mensagem.put("type", "join");
-
-            // O servidor Python espera o campo "pair".
             mensagem.put("pair", codigoPar);
 
             enviarJson(mensagem);
 
-            Log.d(TAG,
-                    "Entrada na sala enviada: " + codigoPar);
+            Log.d(
+                    TAG,
+                    "Entrada na sala enviada: " + codigoPar
+            );
 
         } catch (JSONException e) {
 
             entradaEnviada.set(false);
 
-            Log.e(TAG,
+            Log.e(
+                    TAG,
                     "Erro ao preparar entrada na sala.",
-                    e);
+                    e
+            );
 
             avisarErro("Erro ao entrar na sala.");
         }
     }
 
-    // =========================================
-    // ENVIAR CONTROLES
-    // =========================================
+    // =====================================================
+    // ENVIAR CONTROLE
+    // =====================================================
 
-    public void enviarControle(
-            boolean ativo,
-            float progresso) {
+    public void enviarControle(boolean ativo, float progresso) {
 
         if (!estaConectado()) {
 
-            Log.w(TAG,
-                    "Controle não enviado: conexão indisponível.");
+            Log.w(
+                    TAG,
+                    "Controle não enviado: conexão indisponível."
+            );
 
             return;
+        }
+
+        if (ativo && !controleConcedido) {
+            solicitacaoPendente = true;
+        }
+
+        if (!ativo) {
+            controleConcedido = false;
+            solicitacaoPendente = false;
         }
 
         float progressoLimitado = Math.max(
@@ -252,21 +365,23 @@ public class ServicoConexao {
             JSONObject mensagem = new JSONObject();
 
             mensagem.put("type", "control");
-
             mensagem.put("active", ativo);
-
             mensagem.put("progress", progressoLimitado);
 
             enviarJson(mensagem);
 
-            Log.d(TAG,
-                    "Controle enviado: " + mensagem);
+            Log.d(
+                    TAG,
+                    "Controle enviado: " + mensagem
+            );
 
         } catch (JSONException e) {
 
-            Log.e(TAG,
+            Log.e(
+                    TAG,
                     "Erro ao preparar comando de controle.",
-                    e);
+                    e
+            );
 
             avisarErro(
                     "Não foi possível preparar o comando."
@@ -274,19 +389,22 @@ public class ServicoConexao {
         }
     }
 
-    // =========================================
+    // =====================================================
     // ENVIO JSON
-    // =========================================
+    // =====================================================
 
     private synchronized void enviarJson(JSONObject mensagem) {
 
         WebSocketClient conexaoAtual = cliente;
 
         if (conexaoAtual == null
-                || conexaoAtual.getReadyState() != ReadyState.OPEN) {
+                || conexaoAtual.getReadyState()
+                != ReadyState.OPEN) {
 
-            Log.w(TAG,
-                    "Mensagem não enviada: WebSocket fechado.");
+            Log.w(
+                    TAG,
+                    "Mensagem não enviada: WebSocket fechado."
+            );
 
             return;
         }
@@ -295,14 +413,18 @@ public class ServicoConexao {
 
             conexaoAtual.send(mensagem.toString());
 
-            Log.d(TAG,
-                    "Mensagem enviada: " + mensagem);
+            Log.d(
+                    TAG,
+                    "Mensagem enviada: " + mensagem
+            );
 
         } catch (Exception e) {
 
-            Log.e(TAG,
+            Log.e(
+                    TAG,
                     "Erro ao enviar mensagem.",
-                    e);
+                    e
+            );
 
             avisarErro(
                     "Falha ao enviar dados ao parceiro."
@@ -310,9 +432,9 @@ public class ServicoConexao {
         }
     }
 
-    // =========================================
-    // VERIFICAR CONEXÃO
-    // =========================================
+    // =====================================================
+    // CONSULTAS DE ESTADO
+    // =====================================================
 
     public boolean estaConectado() {
 
@@ -320,25 +442,39 @@ public class ServicoConexao {
 
         return conectado
                 && conexaoAtual != null
-                && conexaoAtual.getReadyState() == ReadyState.OPEN;
+                && conexaoAtual.getReadyState()
+                == ReadyState.OPEN;
     }
 
     public String getCodigoPar() {
         return codigoPar;
     }
 
-    // =========================================
+    public String getPapelUsuario() {
+        return papelUsuario;
+    }
+
+    public boolean possuiControle() {
+        return controleConcedido;
+    }
+
+    public boolean possuiSolicitacaoPendente() {
+        return solicitacaoPendente;
+    }
+
+    // =====================================================
     // DESCONECTAR
-    // =========================================
+    // =====================================================
 
     public synchronized void desconectar() {
 
         conectado = false;
+        controleConcedido = false;
+        solicitacaoPendente = false;
 
         entradaEnviada.set(false);
 
         WebSocketClient conexaoAtual = cliente;
-
         cliente = null;
 
         if (conexaoAtual != null) {
@@ -351,16 +487,18 @@ public class ServicoConexao {
 
             } catch (Exception e) {
 
-                Log.e(TAG,
+                Log.e(
+                        TAG,
                         "Erro ao fechar WebSocket.",
-                        e);
+                        e
+                );
             }
         }
     }
 
-    // =========================================
+    // =====================================================
     // CALLBACKS
-    // =========================================
+    // =====================================================
 
     private void avisarConectado() {
 

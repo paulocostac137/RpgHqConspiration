@@ -3,26 +3,19 @@ package com.example.rpghqconspiration;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.SystemClock;
 
-import android.graphics.Color;
-import android.graphics.drawable.GradientDrawable;
+import android.graphics.Movie;
+import android.graphics.Paint;
 
 import android.util.Log;
 
-import android.view.MotionEvent;
 import android.view.View;
-import android.view.Window;
-import android.view.WindowInsets;
-import android.view.WindowInsetsController;
 
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
-
-import com.bumptech.glide.Glide;
 
 import org.json.JSONObject;
 
@@ -36,24 +29,12 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "RPGHQ_SYNC";
 
-    private MainUiState mainUiState;
-
-    // =====================================================
-    // PLANILHA
-    // =====================================================
-
-    private static final String PLANILHA_ID =
-            "1pJ7XtHx0DLSCjsGj0zlJycm-nzqa7a8flnLfoG7k2ks";
-
-    private static final String GID = "0";
-
     // =====================================================
     // TEMPOS
     // =====================================================
 
-    private static final long INTERVALO_GIF_MS = 7000;
-    private static final long TEMPO_TEXTO_MS = 5000;
-    private static final long INTERVALO_ATUALIZACAO_MS = 50;
+    private static final long INTERVALO_ANIMACAO_MS = 30;
+    private static final long INTERVALO_TROCA_GIF_MS = 7000;
 
     // =====================================================
     // COMPONENTES
@@ -73,9 +54,9 @@ public class MainActivity extends AppCompatActivity {
     // DADOS DA PLANILHA
     // =====================================================
 
-    private final GifCatalog gifCatalog = new GifCatalog();
-    private SpreadsheetSource spreadsheetSource;
-    private GifDownloadSource gifDownloadSource;
+    private final ArrayList<String> nomes = new ArrayList<>();
+    private final ArrayList<String> links = new ArrayList<>();
+    private final ArrayList<String> textosPlanilha = new ArrayList<>();
 
     // =====================================================
     // EXECUÇÃO
@@ -87,68 +68,245 @@ public class MainActivity extends AppCompatActivity {
     private final Handler handler =
             new Handler(Looper.getMainLooper());
 
-    /*
-     * IMPORTANTE:
-     *
-     * Não existe mais um WebSocket próprio nesta Activity.
-     * A conexão será reutilizada da ConexaoActivity.
-     */
-
     private ServicoConexao servicoConexao;
+
+    // =====================================================
+    // REPOSITÓRIOS E COMUNICAÇÃO
+    // =====================================================
+
+    private final PlanilhaRepository planilhaRepository =
+            new PlanilhaRepository();
+
+    private GifRepository gifRepository;
+
+    private GerenciadorComunicacaoServidor
+            gerenciadorComunicacaoServidor;
+
+    // =====================================================
+    // GERENCIADOR DE CARREGAMENTO DA PLANILHA
+    // =====================================================
+
+    private GerenciadorCarregamentoPlanilha
+            gerenciadorCarregamentoPlanilha;
+
+    // =====================================================
+    // GERENCIADOR DE CARREGAMENTO DOS GIFS
+    // =====================================================
+
+    private GerenciadorCarregamentoGif
+            gerenciadorCarregamentoGif;
+
+    // =====================================================
+    // GERENCIADOR DE DECODIFICAÇÃO DOS GIFS
+    // =====================================================
+
+    private GerenciadorDecodificacaoGif
+            gerenciadorDecodificacaoGif;
+
+    // Nome do GIF solicitado ao gerenciador.
+    private String nomeGifSolicitado = "";
+
+    // =====================================================
+    // GERENCIADOR DE ESTADO DOS CONTROLES
+    // =====================================================
+
+    private GerenciadorEstadoControles gerenciadorEstadoControles;
+
+    // =====================================================
+    // GERENCIADOR DE MENSAGENS
+    // =====================================================
+
+    private final GerenciadorMensagens gerenciadorMensagens =
+            new GerenciadorMensagens(
+                    new GerenciadorMensagens.Listener() {
+
+                        @Override
+                        public void onJoined(int usuarios) {
+
+                            atualizarVisibilidadeControles();
+
+                            status.setText(
+                                    usuarios == 1
+                                            ? "Conectado. Aguardando parceiro..."
+                                            : "Conectado! Dois usuários na sala."
+                            );
+                        }
+
+                        @Override
+                        public void onPeerConnected() {
+
+                            status.setText(
+                                    "PARCEIRO CONECTADO!"
+                            );
+
+                            Log.d(
+                                    TAG,
+                                    "O parceiro entrou na sala."
+                            );
+                        }
+
+                        @Override
+                        public void onPeerDisconnected() {
+
+                            controleRemotoAtivo = false;
+
+                            finalizarMovimentoSeLiberado();
+
+                            status.setText(
+                                    "Parceiro desconectado."
+                            );
+                        }
+
+                        @Override
+                        public void onError(String mensagem) {
+
+                            status.setText(
+                                    "Erro do servidor: " + mensagem
+                            );
+                        }
+
+                        @Override
+                        public void onControl(JSONObject dados) {
+
+                            processarControleRemoto(dados);
+                        }
+
+                        @Override
+                        public void onMensagemDesconhecida(String tipo) {
+
+                            Log.d(
+                                    TAG,
+                                    "Mensagem não reconhecida: " + tipo
+                            );
+                        }
+                    });
+
+    // =====================================================
+    // ESTADO DA ATIVIDADE
+    // =====================================================
 
     private boolean atividadeEncerrada = false;
 
-    // Indica se o aplicativo está funcionando em modo individual, sem conexão com o servidor.
     private boolean modoIndividual = false;
 
-    private File pastaGifs;
+    private boolean controleRemotoAtivo = false;
 
-    private final GifSessionState gifSessionState = new GifSessionState();
-    private SharedConnectionSession sharedConnectionSession;
+    private boolean carregando = false;
 
     // =====================================================
-    // ANIMAÇÃO
+    // GERENCIADOR DE NAVEGAÇÃO DOS GIFS
     // =====================================================
 
-    private GifPlayer gifPlayer;
+    private final GerenciadorNavegacaoGif gerenciadorNavegacaoGif =
+            new GerenciadorNavegacaoGif();
+
+    private long geracaoExibicao = 0;
+
+    // =====================================================
+    // GERENCIADOR DE MOVIMENTAÇÃO
+    // =====================================================
+
+    private final GerenciadorMovimento gerenciadorMovimento =
+            new GerenciadorMovimento(
+                    new GerenciadorMovimento.Listener() {
+
+                        @Override
+                        public boolean possuiGif() {
+
+                            return movie != null;
+                        }
+
+                        @Override
+                        public void avancarParaProximoGif() {
+
+                            proximoGif();
+                        }
+
+                        @Override
+                        public void retomarAnimacao() {
+
+                            iniciarAnimacao();
+                        }
+                    }
+            );
+
+    // =====================================================
+    // GERENCIADOR MULTITOQUE
+    // =====================================================
+
+    private GerenciadorControleMultitoque gerenciadorControle;
+
+    // =====================================================
+    // GERENCIADOR DE CONTROLE REMOTO
+    // =====================================================
+
+    private GerenciadorControleRemoto gerenciadorControleRemoto;
+
+    // =====================================================
+    // GERENCIADOR DE REPRODUÇÃO
+    // =====================================================
+
+    private GerenciadorReproducaoGif gerenciadorReproducao;
 
     private GifTiming gifTiming;
 
-    private GifRemoteSession gifRemoteSession;
-
     // =====================================================
-    // CONTROLES MULTITOQUE
+    // GERENCIADOR DO TEXTO DA PLANILHA
     // =====================================================
 
-    private GifControls gifControls;
+    private GerenciadorTextoPlanilha gerenciadorTextoPlanilha;
 
     // =====================================================
-    // TROCA AUTOMÁTICA
+    // ANIMAÇÃO E RENDERIZAÇÃO
     // =====================================================
 
-    private GifMediaFlow gifMediaFlow;
+    private Movie movie;
 
-    private void iniciarTrocaAutomatica() {
-        if (gifTiming != null) {
-            gifTiming.iniciarTrocaAutomatica();
+    private GifFrameRenderer renderizadorGif;
+
+    private final Paint pincel = new Paint(
+            Paint.ANTI_ALIAS_FLAG |
+                    Paint.FILTER_BITMAP_FLAG
+    );
+
+    // =====================================================
+    // VERIFICAÇÃO DO CICLO DE VIDA
+    // =====================================================
+
+    private boolean atividadeDisponivel() {
+
+        return !atividadeEncerrada &&
+                !isFinishing() &&
+                !isDestroyed();
+    }
+
+    // =====================================================
+    // VISIBILIDADE DOS CONTROLES
+    // =====================================================
+
+    private void atualizarVisibilidadeControles() {
+
+        if (gerenciadorEstadoControles == null) {
+            return;
         }
+
+        gerenciadorEstadoControles.atualizar(
+                servicoConexao
+        );
     }
 
     // =====================================================
     // MODO IMERSIVO
     // =====================================================
 
-    private void ativarModoImersivo() {
-        WindowUiController.ativarModoImersivo(getWindow());
-    }
-
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
 
         super.onWindowFocusChanged(hasFocus);
 
-        if (hasFocus) {
-            ativarModoImersivo();
+        if (hasFocus && atividadeDisponivel()) {
+
+            ModoImersivo.ativar(getWindow());
         }
     }
 
@@ -158,74 +316,54 @@ public class MainActivity extends AppCompatActivity {
 
     private void conectarServidor() {
 
-        sharedConnectionSession = new SharedConnectionSession(
-                new SharedConnectionSession.Callback() {
-                    @Override
-                    public void onConectado() {
-                        if (atividadeEncerrada) return;
-
-                        Log.d(TAG, "Conexão compartilhada ativa.");
-                        status.setText("Conectado ao servidor.");
-                    }
-
-                    @Override
-                    public void onDesconectado(String motivo) {
-                        if (atividadeEncerrada) return;
-
-                        Log.w(TAG, "Servidor desconectado: " + motivo);
-                        gifSessionState.setRemotoAtivo(false);
-
-                        if (gifPlayer != null &&
-                                gifPlayer.getMovie() != null &&
-                                !gifSessionState.isManualAtivo()) {
-                            iniciarAnimacao();
-                        }
-
-                        status.setText("Servidor desconectado.");
-                    }
-
-                    @Override
-                    public void onMensagem(JSONObject mensagem) {
-                        if (atividadeEncerrada) return;
-                        processarMensagemServidor(mensagem);
-                    }
-
-                    @Override
-                    public void onErro(String erro) {
-                        if (atividadeEncerrada) return;
-
-                        Log.e(TAG, "Erro de conexão: " + erro);
-                        status.setText("Erro de conexão: " + erro);
-                    }
-                }
-        );
-
-        servicoConexao = sharedConnectionSession.bindAndGet();
+        servicoConexao = ConexaoActivity.conexao;
 
         if (servicoConexao == null) {
-            status.setText("ERRO: conexão com o servidor não encontrada.");
-            Log.e(TAG, "ServicoConexao não foi inicializado.");
+
+            status.setText(
+                    "ERRO: conexão com o servidor não encontrada."
+            );
+
+            Log.e(
+                    TAG,
+                    "ServicoConexao não foi inicializado."
+            );
+
+            atualizarVisibilidadeControles();
+
             return;
         }
 
         if (!servicoConexao.estaConectado()) {
-            status.setText("ERRO: conexão com o servidor foi perdida.");
-            Log.e(TAG, "A conexão compartilhada não está ativa.");
+
+            status.setText(
+                    "ERRO: conexão com o servidor foi perdida."
+            );
+
+            Log.e(
+                    TAG,
+                    "A conexão compartilhada não está ativa."
+            );
+
+            atualizarVisibilidadeControles();
+
             return;
         }
 
-        Log.d(TAG, "MainActivity reutilizando a conexão existente.");
-        status.setText("Conectado. Aguardando comandos...");
-    }
+        gerenciadorComunicacaoServidor.registrarCallbacks(
+                servicoConexao
+        );
 
-    // =====================================================
-    // MENSAGENS RECEBIDAS
-    // =====================================================
+        Log.d(
+                TAG,
+                "MainActivity reutilizando a conexão existente."
+        );
 
-    private void processarMensagemServidor(JSONObject dados) {
-        if (gifRemoteSession != null) {
-            gifRemoteSession.processarMensagemServidor(dados);
-        }
+        status.setText(
+                "Conectado. Aguardando comandos..."
+        );
+
+        atualizarVisibilidadeControles();
     }
 
     // =====================================================
@@ -233,9 +371,77 @@ public class MainActivity extends AppCompatActivity {
     // =====================================================
 
     private void processarControleRemoto(JSONObject dados) {
-        if (gifRemoteSession != null) {
-            gifRemoteSession.processarControleRemoto(dados);
+
+        if (!atividadeDisponivel() ||
+                gerenciadorControleRemoto == null) {
+
+            return;
         }
+
+        gerenciadorControleRemoto.processar(dados);
+    }
+
+    // =====================================================
+    // APLICAR CONTROLE REMOTO
+    // =====================================================
+
+    private void aplicarControleRemoto(float progressoRecebido) {
+
+        if (!atividadeDisponivel() ||
+                movie == null ||
+                gerenciadorReproducao == null ||
+                gerenciadorControle == null) {
+
+            return;
+        }
+
+        controleRemotoAtivo = true;
+
+        pausarAnimacao();
+
+        gerenciadorMovimento.registrarProgresso(
+                progressoRecebido,
+                gerenciadorControle.isControleManualAtivo(),
+                controleRemotoAtivo
+        );
+
+        int duracao = obterDuracaoGif();
+
+        gerenciadorReproducao.definirPosicao(
+                (long) (progressoRecebido * duracao)
+        );
+
+        areaGif.post(() -> {
+
+            if (!atividadeDisponivel() ||
+                    movie == null ||
+                    gerenciadorControle == null) {
+
+                return;
+            }
+
+            gerenciadorControle.moverControles(
+                    progressoRecebido
+            );
+
+            desenharQuadro();
+        });
+    }
+
+    // =====================================================
+    // LIBERAÇÃO DO CONTROLE REMOTO
+    // =====================================================
+
+    private void liberarControleRemoto() {
+
+        controleRemotoAtivo = false;
+
+        Log.d(
+                TAG,
+                "Parceiro liberou os controles."
+        );
+
+        finalizarMovimentoSeLiberado();
     }
 
     // =====================================================
@@ -246,44 +452,46 @@ public class MainActivity extends AppCompatActivity {
             boolean ativo,
             float progresso) {
 
-        if (servicoConexao == null) {
-            Log.w(TAG,
-                    "Comando não enviado: serviço inexistente.");
+        if (gerenciadorControleRemoto == null) {
             return;
         }
 
-        if (!servicoConexao.estaConectado()) {
-            Log.w(TAG,
-                    "Comando não enviado: conexão indisponível.");
-            return;
-        }
-
-        servicoConexao.enviarControle(
+        gerenciadorControleRemoto.enviar(
+                servicoConexao,
+                modoIndividual,
                 ativo,
                 progresso
         );
-
-        Log.d(TAG,
-                "Controle enviado. Ativo: " +
-                        ativo +
-                        " Progresso: " +
-                        progresso);
     }
-    // =====================================================
-    // ATUALIZAÇÃO AUTOMÁTICA DO GIF
-    // =====================================================
-
 
     // =====================================================
-    // TEXTO DA PLANILHA
+    // DURAÇÃO DO GIF
     // =====================================================
 
-    private void configurarTextoPlanilha() {
-        if (mainUiState != null) {
-            mainUiState.configurarTextoPlanilha();
+    private int obterDuracaoGif() {
+
+        if (gerenciadorReproducao == null) {
+            return 1000;
         }
+
+        return gerenciadorReproducao.obterDuracao(movie);
     }
 
+    // =====================================================
+    // DECISÃO APÓS SOLTAR TODOS OS CONTROLES
+    // =====================================================
+
+    private void finalizarMovimentoSeLiberado() {
+
+        if (gerenciadorControle == null) {
+            return;
+        }
+
+        gerenciadorMovimento.finalizarMovimentoSeLiberado(
+                gerenciadorControle.isControleManualAtivo(),
+                controleRemotoAtivo
+        );
+    }
 
     // =====================================================
     // ONCREATE
@@ -296,7 +504,11 @@ public class MainActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_main);
 
-        ativarModoImersivo();
+        ModoImersivo.ativar(getWindow());
+
+        // -------------------------------------------------
+        // COMPONENTES VISUAIS
+        // -------------------------------------------------
 
         imagemGif = findViewById(R.id.imagemGif);
 
@@ -309,23 +521,358 @@ public class MainActivity extends AppCompatActivity {
                 findViewById(R.id.controleDireito);
 
         areaGif = findViewById(R.id.areaGif);
-        areaGif.addOnLayoutChangeListener((view, left, top, right, bottom,
-                                           oldLeft, oldTop, oldRight, oldBottom) ->
-                ajustarAfastamentoDosControles());
 
-        configurarFluxoLinear();
+        textoPlanilha =
+                findViewById(R.id.textoPlanilha);
 
-        /*
-         * Identifica o modo de funcionamento.
-         *
-         * Individual: não utiliza conexão com servidor.
-         * Multiplayer: reutiliza a conexão já estabelecida.
-         */
+        // -------------------------------------------------
+        // GERENCIADOR DE COMUNICAÇÃO COM O SERVIDOR
+        // -------------------------------------------------
+
+        gerenciadorComunicacaoServidor =
+                new GerenciadorComunicacaoServidor(
+                        gerenciadorMensagens,
+                        new GerenciadorComunicacaoServidor.Listener() {
+
+                            @Override
+                            public boolean atividadeDisponivel() {
+
+                                return MainActivity.this.atividadeDisponivel();
+                            }
+
+                            @Override
+                            public void onConectado() {
+
+                                Log.d(
+                                        TAG,
+                                        "Conexão compartilhada ativa."
+                                );
+
+                                status.setText(
+                                        "Conectado ao servidor."
+                                );
+
+                                atualizarVisibilidadeControles();
+                            }
+
+                            @Override
+                            public void onDesconectado(String motivo) {
+
+                                Log.w(
+                                        TAG,
+                                        "Servidor desconectado: " + motivo
+                                );
+
+                                controleRemotoAtivo = false;
+
+                                finalizarMovimentoSeLiberado();
+
+                                status.setText(
+                                        "Servidor desconectado."
+                                );
+                            }
+
+                            @Override
+                            public void onErroConexao(String erro) {
+
+                                Log.e(
+                                        TAG,
+                                        "Erro de conexão: " + erro
+                                );
+
+                                status.setText(
+                                        "Erro de conexão: " + erro
+                                );
+                            }
+                        }
+                );
+
+        // -------------------------------------------------
+        // MODO DE EXECUÇÃO
+        // -------------------------------------------------
 
         modoIndividual = getIntent().getBooleanExtra(
                 "modo_individual",
                 false
         );
+
+        // -------------------------------------------------
+        // GERENCIADOR DE ESTADO DOS CONTROLES
+        // -------------------------------------------------
+
+        gerenciadorEstadoControles =
+                new GerenciadorEstadoControles(
+                        controleEsquerdo,
+                        controleDireito
+                );
+
+        gerenciadorEstadoControles.definirModoIndividual(
+                modoIndividual
+        );
+
+        // -------------------------------------------------
+        // RENDERIZADOR
+        // -------------------------------------------------
+
+        renderizadorGif = new GifFrameRenderer(imagemGif);
+
+        // -------------------------------------------------
+        // GERENCIADOR DE DECODIFICAÇÃO DOS GIFS
+        // -------------------------------------------------
+
+        gerenciadorDecodificacaoGif =
+                new GerenciadorDecodificacaoGif(
+                        executor,
+                        handler
+                );
+
+        // -------------------------------------------------
+        // REPOSITÓRIO DE GIFS
+        // -------------------------------------------------
+
+        gifRepository = new GifRepository(
+                new File(
+                        getFilesDir(),
+                        "gifs"
+                )
+        );
+
+        // -------------------------------------------------
+        // GERENCIADOR DE CARREGAMENTO DOS GIFS
+        // -------------------------------------------------
+
+        gerenciadorCarregamentoGif =
+                new GerenciadorCarregamentoGif(
+                        gifRepository,
+                        executor,
+                        handler,
+                        new GerenciadorCarregamentoGif.Listener() {
+
+                            @Override
+                            public void onCarregamentoIniciado() {
+
+                                if (!atividadeDisponivel()) {
+                                    return;
+                                }
+
+                                carregando = true;
+
+                                status.setText(
+                                        "Carregando: " +
+                                                nomeGifSolicitado
+                                );
+                            }
+
+                            @Override
+                            public void onCarregamentoConcluido(
+                                    File arquivo) {
+
+                                if (!atividadeDisponivel()) {
+                                    return;
+                                }
+
+                                carregando = false;
+
+                                exibirGif(
+                                        arquivo,
+                                        nomeGifSolicitado
+                                );
+                            }
+
+                            @Override
+                            public void onErro(Exception erro) {
+
+                                if (!atividadeDisponivel()) {
+                                    return;
+                                }
+
+                                carregando = false;
+
+                                Log.e(
+                                        TAG,
+                                        "Erro ao carregar GIF.",
+                                        erro
+                                );
+
+                                status.setText(
+                                        "Erro ao obter GIF: " +
+                                                erro.getMessage()
+                                );
+                            }
+                        }
+                );
+
+        // -------------------------------------------------
+        // GERENCIADOR DE REPRODUÇÃO
+        // -------------------------------------------------
+
+        gerenciadorReproducao =
+                new GerenciadorReproducaoGif(
+                        handler,
+                        INTERVALO_ANIMACAO_MS,
+                        new GerenciadorReproducaoGif.Listener() {
+
+                            @Override
+                            public boolean podeIniciar() {
+
+                                return atividadeDisponivel() &&
+                                        movie != null &&
+                                        (gerenciadorControle == null ||
+                                                !gerenciadorControle.isControleManualAtivo()) &&
+                                        !controleRemotoAtivo;
+                            }
+
+                            @Override
+                            public void atualizarQuadro() {
+
+                                desenharQuadro();
+                            }
+                        }
+                );
+
+        gifTiming = new GifTiming(
+                handler,
+                INTERVALO_TROCA_GIF_MS,
+                0,
+                INTERVALO_ANIMACAO_MS,
+                new GifTiming.Callback() {
+
+                    @Override
+                    public void onAutoAdvanceRequested() {
+
+                        if (!atividadeDisponivel() ||
+                                carregando ||
+                                nomes.isEmpty() ||
+                                controleRemotoAtivo ||
+                                (gerenciadorControle != null &&
+                                        gerenciadorControle.isControleManualAtivo())) {
+
+                            return;
+                        }
+
+                        gerenciadorMovimento.reiniciarContagem();
+                        proximoGif();
+                    }
+
+                    @Override
+                    public void onTextVisibilityChanged(boolean visible) {
+                    }
+                }
+        );
+
+        // -------------------------------------------------
+        // GERENCIADOR DO TEXTO DA PLANILHA
+        // -------------------------------------------------
+
+        gerenciadorTextoPlanilha =
+                new GerenciadorTextoPlanilha(
+                        textoPlanilha,
+                        areaGif,
+                        handler,
+                        new GerenciadorTextoPlanilha.Listener() {
+
+                            @Override
+                            public boolean atividadeDisponivel() {
+
+                                return MainActivity.this.atividadeDisponivel();
+                            }
+
+                            @Override
+                            public boolean possuiGif() {
+
+                                return movie != null;
+                            }
+                        }
+                );
+
+        gerenciadorTextoPlanilha.configurar();
+
+        // -------------------------------------------------
+        // GERENCIADOR MULTITOQUE
+        // -------------------------------------------------
+
+        gerenciadorControle =
+                new GerenciadorControleMultitoque(
+                        areaGif,
+                        controleEsquerdo,
+                        controleDireito,
+                        new GerenciadorControleMultitoque.Listener() {
+
+                            @Override
+                            public boolean possuiGif() {
+
+                                return movie != null;
+                            }
+
+                            @Override
+                            public void onControleManualIniciado() {
+
+                                pausarAnimacao();
+                            }
+
+                            @Override
+                            public void onProgressoManual(float progresso) {
+
+                                gerenciadorMovimento.registrarProgresso(
+                                        progresso,
+                                        true,
+                                        controleRemotoAtivo
+                                );
+
+                                int duracao = obterDuracaoGif();
+
+                                gerenciadorReproducao.definirPosicao(
+                                        (long) (progresso * duracao)
+                                );
+
+                                desenharQuadro();
+
+                                enviarComandoControle(
+                                        true,
+                                        progresso
+                                );
+                            }
+
+                            @Override
+                            public void onControleManualLiberado() {
+
+                                enviarComandoControle(
+                                        false,
+                                        0f
+                                );
+
+                                finalizarMovimentoSeLiberado();
+                            }
+                        }
+                );
+
+        // -------------------------------------------------
+        // GERENCIADOR DE CONTROLE REMOTO
+        // -------------------------------------------------
+
+        gerenciadorControleRemoto =
+                new GerenciadorControleRemoto(
+                        new GerenciadorControleRemoto.Listener() {
+
+                            @Override
+                            public void onControleRecebido(float progresso) {
+
+                                aplicarControleRemoto(progresso);
+                            }
+
+                            @Override
+                            public void onControleLiberado() {
+
+                                liberarControleRemoto();
+                            }
+                        }
+                );
+
+        configurarControles();
+
+        // -------------------------------------------------
+        // CONFIGURAÇÃO DA CONEXÃO
+        // -------------------------------------------------
 
         if (modoIndividual) {
 
@@ -345,214 +892,76 @@ public class MainActivity extends AppCompatActivity {
             conectarServidor();
         }
 
-        iniciarFluxoLinear();
-    }
+        atualizarVisibilidadeControles();
 
-    // =====================================================
-    // ORQUESTRAÇÃO LINEAR DOS MÓDULOS
-    // =====================================================
+        // -------------------------------------------------
+        // GERENCIADOR DE CARREGAMENTO DA PLANILHA
+        // -------------------------------------------------
 
-    private void configurarFluxoLinear() {
-        spreadsheetSource = new SpreadsheetLoader();
-        gifDownloadSource = new DriveGifRepository();
-        gifPlayer = new GifPlayer(handler, imagemGif, areaGif);
+        gerenciadorCarregamentoPlanilha =
+                new GerenciadorCarregamentoPlanilha(
+                        planilhaRepository,
+                        executor,
+                        handler,
+                        new GerenciadorCarregamentoPlanilha.Listener() {
 
-        gifRemoteSession = new GifRemoteSession(
-                new GifRemoteSession.Callback() {
-                    @Override
-                    public void onStatusUpdated(String mensagem) {
-                        status.setText(mensagem);
-                    }
+                            @Override
+                            public void onCarregamentoConcluido(
+                                    GerenciadorCarregamentoPlanilha.Resultado resultado) {
 
-                    @Override
-                    public void onPauseAnimation() {
-                        pausarAnimacao();
-                    }
+                                if (!atividadeDisponivel()) {
+                                    return;
+                                }
 
-                    @Override
-                    public void onResumeAnimationIfAllowed() {
-                        if (gifPlayer != null &&
-                                gifPlayer.getMovie() != null &&
-                                !gifSessionState.isManualAtivo()) {
-                            iniciarAnimacao();
-                        }
-                    }
+                                nomes.clear();
+                                links.clear();
+                                textosPlanilha.clear();
 
-                    @Override
-                    public void onRequestRenderFrame() {
-                        desenharQuadro();
-                    }
+                                nomes.addAll(resultado.getNomes());
+                                links.addAll(resultado.getLinks());
+                                textosPlanilha.addAll(resultado.getTextos());
 
-                    @Override
-                    public void onApplyRemoteProgress(float progressoFinal) {
-                        areaGif.post(() -> {
-                            if (atividadeEncerrada ||
-                                    gifPlayer == null ||
-                                    gifPlayer.getMovie() == null ||
-                                    areaGif == null ||
-                                    controleEsquerdo == null ||
-                                    controleDireito == null) {
-                                return;
+                                gerenciadorNavegacaoGif.reiniciar();
+
+                                if (resultado.estaVazio()) {
+
+                                    status.setText(
+                                            "Nenhum GIF encontrado."
+                                    );
+
+                                } else {
+
+                                    status.setText(
+                                            resultado.getQuantidade() +
+                                                    " GIFs disponíveis."
+                                    );
+
+                                    proximoGif();
+                                }
                             }
 
-                            int altura = areaGif.getHeight();
-                            int alturaBotao = controleEsquerdo.getHeight();
+                            @Override
+                            public void onErro(Exception erro) {
 
-                            if (altura <= 0 || alturaBotao <= 0) {
-                                return;
+                                if (!atividadeDisponivel()) {
+                                    return;
+                                }
+
+                                status.setText(
+                                        "Erro ao consultar planilha: " +
+                                                erro.getMessage()
+                                );
+
+                                Log.e(
+                                        TAG,
+                                        "Falha no carregamento da planilha.",
+                                        erro
+                                );
                             }
-
-                            float metadeBotao = alturaBotao / 2f;
-                            int centroY = (int) (
-                                    metadeBotao +
-                                            progressoFinal *
-                                                    (altura - 2f * metadeBotao)
-                            );
-
-                            moverBotao(controleEsquerdo, centroY);
-                            moverBotao(controleDireito, centroY);
-                            desenharQuadro();
-                        });
-                    }
-
-                    @Override
-                    public void onEnviarComandoControle(boolean ativo, float progresso) {
-                        enviarComandoControle(ativo, progresso);
-                    }
-                },
-                gifSessionState,
-                gifPlayer
-        );
-
-        gifTiming = new GifTiming(
-                handler,
-                INTERVALO_GIF_MS,
-                TEMPO_TEXTO_MS,
-                INTERVALO_ATUALIZACAO_MS,
-                new GifTiming.Callback() {
-                    @Override
-                    public void onAutoAdvanceRequested() {
-                        if (atividadeEncerrada ||
-                                isFinishing() ||
-                                isDestroyed()) {
-                            return;
                         }
+                );
 
-                        if (gifSessionState.isManualAtivo() || gifSessionState.isRemotoAtivo()) {
-                            return;
-                        }
-
-                        if (gifMediaFlow != null && !gifCatalog.isEmpty() && !gifSessionState.isCarregando()) {
-                            gifMediaFlow.proximo();
-                        }
-                    }
-
-                    @Override
-                    public void onTextVisibilityChanged(boolean visible) {
-                        if (textoPlanilha != null) {
-                            textoPlanilha.setVisibility(
-                                    visible ? View.VISIBLE : View.GONE
-                            );
-                        }
-                    }
-                }
-        );
-
-        textoPlanilha = findViewById(R.id.textoPlanilha);
-
-        mainUiState = new MainUiState(
-                status,
-                textoPlanilha,
-                areaGif
-        );
-
-        configurarTextoPlanilha();
-
-        pastaGifs = new File(getFilesDir(), "gifs");
-
-        if (!pastaGifs.exists()) {
-            pastaGifs.mkdirs();
-        }
-
-        gifMediaFlow = new GifMediaFlow(
-                handler,
-                executor,
-                pastaGifs,
-                gifCatalog,
-                gifPlayer,
-                gifTiming,
-                gifSessionState,
-                new GifMediaFlow.Callback() {
-                    @Override
-                    public void onStatusChanged(String mensagem) {
-                        status.setText(mensagem);
-                    }
-
-                    @Override
-                    public void onTextoPlanilhaChanged(String texto) {
-                        textoPlanilha.setText(texto);
-                    }
-
-                    @Override
-                    public void onRequestDesenharQuadro() {
-                        desenharQuadro();
-                    }
-
-                    @Override
-                    public void onRequestIniciarAnimacao() {
-                        iniciarAnimacao();
-                    }
-
-                    @Override
-                    public void onRequestPausarAnimacao() {
-                        pausarAnimacao();
-                    }
-
-                    @Override
-                    public void onRequestResetarControles() {
-                        limparIdentificacaoDedos();
-                    }
-
-                    @Override
-                    public void onRequestCentralizarControles() {
-                        areaGif.post(() -> {
-                            if (atividadeEncerrada) return;
-
-                            int centro = areaGif.getHeight() / 2;
-
-                            moverBotao(controleEsquerdo, centro);
-                            moverBotao(controleDireito, centro);
-                        });
-                    }
-                }
-        );
-
-        gifControls = new GifControls(areaGif, controleEsquerdo, controleDireito);
-        gifControls.configurar();
-        gifControls.setOnManualProgressChanged(progresso -> {
-            if (gifPlayer != null && gifPlayer.getMovie() != null) {
-                int duracao = gifPlayer.getMovie().duration();
-                if (duracao <= 0) {
-                    duracao = 1000;
-                }
-                gifPlayer.setPosicaoMs((long) (progresso * duracao));
-                desenharQuadro();
-                enviarComandoControle(true, progresso);
-            }
-        });
-
-        configurarControles();
-    }
-
-    private void iniciarFluxoLinear() {
-        status.setText("Consultando Google Planilhas...");
-        carregarPlanilha();
-    }
-
-    private void processarProximoItemNaCadeia() {
-        if (gifMediaFlow != null) {
-            gifMediaFlow.proximo();
-        }
+        gerenciadorCarregamentoPlanilha.carregar();
     }
 
     // =====================================================
@@ -561,90 +970,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void configurarControles() {
 
-        View.OnTouchListener listenerMultitoque =
-                (view, evento) -> {
-                    processarEventoMultitoque(view, evento);
-                    return true;
-                };
-
-        controleEsquerdo.setOnTouchListener(listenerMultitoque);
-        controleDireito.setOnTouchListener(listenerMultitoque);
-    }
-
-    // =====================================================
-    // PROCESSAMENTO MULTITOQUE
-    // =====================================================
-
-    private void processarEventoMultitoque(
-            View view,
-            MotionEvent evento) {
-
-        if (gifControls == null) {
-            return;
-        }
-
-        gifControls.processarEventoMultitoque(view, evento);
-        gifControls.atualizarPosicoesDedo();
-
-        if (gifControls.isManualAtivo() &&
-                gifPlayer != null &&
-                gifPlayer.getMovie() != null) {
-
-            if (!gifSessionState.isManualAtivo()) {
-                gifSessionState.setManualAtivo(true);
-                pausarAnimacao();
-            }
-
-            return;
-        }
-
-        if (gifSessionState.isManualAtivo() && !gifControls.isManualAtivo()) {
-            gifSessionState.setManualAtivo(false);
-            enviarComandoControle(false, 0f);
-            if (gifPlayer != null && gifPlayer.getMovie() != null && !gifSessionState.isRemotoAtivo()) {
-                iniciarAnimacao();
-            }
-        }
-    }
-
-    // =====================================================
-    // IDENTIFICAÇÃO DOS DEDOS
-    // =====================================================
-
-    private void limparIdentificacaoDedos() {
-
-        if (gifControls != null) {
-            gifControls.resetar();
-        }
-
-        gifSessionState.setManualAtivo(false);
-    }
-
-    // =====================================================
-    // MOVIMENTAÇÃO DOS BOTÕES
-    // =====================================================
-
-    private void ajustarAfastamentoDosControles() {
-        float afastamento = areaGif.getWidth() * 0.07f;
-        float direcaoInicio = areaGif.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL
-                ? -1f
-                : 1f;
-
-        controleEsquerdo.setTranslationX(direcaoInicio * afastamento);
-        controleDireito.setTranslationX(-direcaoInicio * afastamento);
-    }
-
-    private void moverBotao(
-            TextView botao,
-            int centroY) {
-
-        if (botao == null ||
-                botao.getHeight() <= 0) {
-            return;
-        }
-
-        float centroInicial = botao.getTop() + botao.getHeight() / 2f;
-        botao.setTranslationY(centroY - centroInicial);
+        gerenciadorControle.configurar();
     }
 
     // =====================================================
@@ -653,9 +979,11 @@ public class MainActivity extends AppCompatActivity {
 
     private void pausarAnimacao() {
 
-        if (gifPlayer != null) {
-            gifPlayer.pausar();
+        if (gerenciadorReproducao == null) {
+            return;
         }
+
+        gerenciadorReproducao.pausar(movie);
     }
 
     // =====================================================
@@ -664,14 +992,11 @@ public class MainActivity extends AppCompatActivity {
 
     private void iniciarAnimacao() {
 
-        if (gifPlayer == null ||
-                gifSessionState.isManualAtivo() ||
-                gifSessionState.isRemotoAtivo()) {
-
+        if (gerenciadorReproducao == null) {
             return;
         }
 
-        gifPlayer.iniciarAnimacao();
+        gerenciadorReproducao.iniciar(movie);
     }
 
     // =====================================================
@@ -680,62 +1005,252 @@ public class MainActivity extends AppCompatActivity {
 
     private void desenharQuadro() {
 
-        if (gifPlayer != null) {
-            gifPlayer.desenharQuadro();
+        if (!atividadeDisponivel() ||
+                movie == null ||
+                renderizadorGif == null ||
+                gerenciadorReproducao == null) {
+
+            return;
         }
+
+        renderizadorGif.desenhar(
+                movie,
+                gerenciadorReproducao.getPosicaoMs(),
+                pincel
+        );
     }
 
     // =====================================================
-    // CONSULTA À PLANILHA
+    // NAVEGAÇÃO PARA O PRÓXIMO GIF
     // =====================================================
 
-    private void carregarPlanilha() {
+    private void proximoGif() {
+
+        if (!atividadeDisponivel() || carregando) {
+            return;
+        }
+
+        if (nomes.isEmpty()) {
+
+            status.setText(
+                    "Nenhum GIF disponível."
+            );
+
+            return;
+        }
+
+        int indiceSelecionado =
+                gerenciadorNavegacaoGif.proximo(nomes.size());
+
+        if (indiceSelecionado < 0) {
+            return;
+        }
+
+        baixarEExibir(indiceSelecionado);
+    }
+
+    // =====================================================
+    // SOLICITAÇÃO DE CARREGAMENTO DO GIF
+    // =====================================================
+
+    private void baixarEExibir(int posicao) {
+
+        if (!atividadeDisponivel() || carregando) {
+            return;
+        }
+
+        if (posicao < 0 ||
+                posicao >= nomes.size() ||
+                posicao >= links.size()) {
+
+            Log.e(
+                    TAG,
+                    "Posição inválida para carregamento do GIF: " +
+                            posicao
+            );
+
+            return;
+        }
+
+        nomeGifSolicitado = nomes.get(posicao);
+
+        String link = links.get(posicao);
 
         status.setText(
-                "Consultando Google Planilhas..."
+                "Carregando: " + nomeGifSolicitado
         );
 
-        spreadsheetSource.carregarPlanilha(
-                handler,
-                executor,
-                new SpreadsheetSource.Callback() {
+        gerenciadorCarregamentoGif.carregar(link);
+    }
+
+    // =====================================================
+    // EXIBIÇÃO DO GIF PRINCIPAL
+    // =====================================================
+
+    private void exibirGif(
+            File arquivo,
+            String nome) {
+
+        if (!atividadeDisponivel()) {
+            return;
+        }
+
+        if (arquivo == null ||
+                !arquivo.isFile() ||
+                arquivo.length() == 0) {
+
+            status.setText(
+                    "Arquivo GIF inválido."
+            );
+
+            return;
+        }
+
+        final long geracaoAtual = ++geracaoExibicao;
+
+        // -------------------------------------------------
+        // INTERROMPER GIF ANTERIOR
+        // -------------------------------------------------
+
+        gerenciadorReproducao.reiniciar();
+
+        gerenciadorTextoPlanilha.parar();
+
+        if (gerenciadorControle != null &&
+                gerenciadorControle.isControleManualAtivo()) {
+
+            enviarComandoControle(false, 0f);
+        }
+
+        movie = null;
+
+        controleRemotoAtivo = false;
+
+        // -------------------------------------------------
+        // REINICIAR CONTROLES E MOVIMENTO
+        // -------------------------------------------------
+
+        gerenciadorMovimento.reiniciarContagem();
+
+        gerenciadorControle.limpar();
+
+        atualizarVisibilidadeControles();
+
+        areaGif.post(() -> {
+
+            if (!atividadeDisponivel() ||
+                    geracaoAtual != geracaoExibicao) {
+
+                return;
+            }
+
+            gerenciadorControle.moverControles(0.5f);
+        });
+
+        // -------------------------------------------------
+        // DECODIFICAR O GIF
+        // -------------------------------------------------
+
+        gerenciadorDecodificacaoGif.decodificar(
+                arquivo,
+                new GerenciadorDecodificacaoGif.Listener() {
+
                     @Override
-                    public void onSuccess(ArrayList<GifItem> itensCarregados) {
+                    public void onDecodificacaoConcluida(
+                            Movie resultado) {
 
-                        if (atividadeEncerrada) return;
+                        if (!atividadeDisponivel() ||
+                                geracaoAtual != geracaoExibicao) {
 
-                        gifCatalog.setItems(itensCarregados);
+                            return;
+                        }
 
-                        if (gifCatalog.isEmpty()) {
+                        movie = resultado;
 
-                            status.setText(
-                                    "Nenhum item encontrado."
-                            );
+                        gerenciadorReproducao.reiniciar();
+
+                        // ---------------------------------
+                        // TEXTO ASSOCIADO AO GIF
+                        // ---------------------------------
+
+                        final String textoFinal;
+
+                        int indiceAtual =
+                                gerenciadorNavegacaoGif.getIndiceAtual();
+
+                        if (indiceAtual >= 0 &&
+                                indiceAtual < textosPlanilha.size()) {
+
+                            textoFinal =
+                                    textosPlanilha.get(indiceAtual);
 
                         } else {
 
-                            status.setText(
-                                    gifCatalog.tamanho() +
-                                            " itens disponíveis."
+                            textoFinal = "";
+                        }
+
+                        final int indiceExibido =
+                                indiceAtual + 1;
+
+                        areaGif.post(() -> {
+
+                            if (!atividadeDisponivel() ||
+                                    geracaoAtual != geracaoExibicao) {
+
+                                return;
+                            }
+
+                            desenharQuadro();
+
+                            iniciarAnimacao();
+
+                            gifTiming.iniciarTrocaAutomatica();
+
+                            gerenciadorTextoPlanilha.iniciar(
+                                    textoFinal
                             );
 
-                            processarProximoItemNaCadeia();
-                        }
+                            status.setText(
+                                    nome + " | " +
+                                            indiceExibido +
+                                            "/" + nomes.size()
+                            );
+                        });
                     }
 
                     @Override
-                    public void onError(String mensagem, Exception erro) {
+                    public void onErro(Exception erro) {
 
-                        if (atividadeEncerrada) return;
+                        if (!atividadeDisponivel() ||
+                                geracaoAtual != geracaoExibicao) {
 
-                        Log.e(TAG, "Erro na planilha.", erro);
+                            return;
+                        }
 
-                        status.setText(mensagem);
+                        gerenciadorReproducao.reiniciar();
+
+                        gerenciadorTextoPlanilha.parar();
+
+                        movie = null;
+
+                        if (arquivo.exists()) {
+                            arquivo.delete();
+                        }
+
+                        status.setText(
+                                "Erro ao abrir GIF: " +
+                                        erro.getMessage()
+                        );
+
+                        Log.e(
+                                TAG,
+                                "Erro ao decodificar GIF.",
+                                erro
+                        );
                     }
                 }
         );
     }
-
 
     // =====================================================
     // ENCERRAMENTO
@@ -746,37 +1261,87 @@ public class MainActivity extends AppCompatActivity {
 
         atividadeEncerrada = true;
 
-        handler.removeCallbacksAndMessages(null);
+        geracaoExibicao++;
 
         if (gifTiming != null) {
+
             gifTiming.limpar();
         }
 
-        if (gifPlayer != null) {
-            gifPlayer.limpar();
+        // -------------------------------------------------
+        // ENCERRAR GERENCIADOR DE REPRODUÇÃO
+        // -------------------------------------------------
+
+        if (gerenciadorReproducao != null) {
+
+            gerenciadorReproducao.encerrar();
         }
 
-        gifSessionState.resetarControles();
+        // -------------------------------------------------
+        // ENCERRAR GERENCIADOR DO TEXTO
+        // -------------------------------------------------
 
-        limparIdentificacaoDedos();
+        if (gerenciadorTextoPlanilha != null) {
+
+            gerenciadorTextoPlanilha.encerrar();
+        }
+
+        // -------------------------------------------------
+        // REMOVER CALLBACKS PENDENTES
+        // -------------------------------------------------
+
+        handler.removeCallbacksAndMessages(null);
+
+        // -------------------------------------------------
+        // LIMPAR ESTADO
+        // -------------------------------------------------
+
+        movie = null;
+
+        controleRemotoAtivo = false;
+
+        carregando = false;
+
+        nomeGifSolicitado = "";
+
+        gerenciadorMovimento.reiniciarContagem();
+
+        if (gerenciadorControle != null) {
+
+            gerenciadorControle.limpar();
+        }
+
+        // -------------------------------------------------
+        // REMOVER CALLBACK DA COMUNICAÇÃO
+        // -------------------------------------------------
 
         /*
-         * NÃO fechar o WebSocket aqui.
+         * O GerenciadorComunicacaoServidor remove somente
+         * o callback registrado pela MainActivity.
          *
-         * A conexão pertence à ConexaoActivity e deve
-         * continuar ativa enquanto a sessão estiver aberta.
-         *
-         * Apenas removemos o callback desta Activity para
-         * evitar que o serviço tente atualizar uma tela destruída.
+         * A conexão WebSocket continua pertencendo
+         * à ConexaoActivity.
          */
 
-        if (servicoConexao != null) {
-            servicoConexao.definirCallback(null);
+        if (gerenciadorComunicacaoServidor != null) {
+
+            gerenciadorComunicacaoServidor.removerCallback();
         }
 
-        if (imagemGif != null) {
-            Glide.with(this).clear(imagemGif);
+        // -------------------------------------------------
+        // LIBERAR RENDERIZADOR
+        // -------------------------------------------------
+
+        if (renderizadorGif != null) {
+
+            renderizadorGif.liberar();
+
+            renderizadorGif = null;
         }
+
+        // -------------------------------------------------
+        // ENCERRAR EXECUTOR
+        // -------------------------------------------------
 
         executor.shutdownNow();
 

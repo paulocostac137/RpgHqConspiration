@@ -1,8 +1,10 @@
 package com.example.rpghqconspiration;
 
+import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.widget.TextView;
 
 public final class GifControls {
@@ -42,18 +44,18 @@ public final class GifControls {
             case MotionEvent.ACTION_DOWN:
             case MotionEvent.ACTION_POINTER_DOWN:
                 atribuirPonteiro(view, evento, indice);
-                manualAtivo = esquerdoPressionado && direitoPressionado;
+                manualAtivo = esquerdoPressionado || direitoPressionado;
                 break;
 
             case MotionEvent.ACTION_MOVE:
                 atualizarPosicoesDedos(evento);
-                manualAtivo = esquerdoPressionado && direitoPressionado;
+                manualAtivo = esquerdoPressionado || direitoPressionado;
                 break;
 
             case MotionEvent.ACTION_POINTER_UP:
                 atualizarPosicoesDedos(evento);
                 liberarPonteiro(evento.getPointerId(indice));
-                manualAtivo = esquerdoPressionado && direitoPressionado;
+                manualAtivo = esquerdoPressionado || direitoPressionado;
                 break;
 
             case MotionEvent.ACTION_UP:
@@ -80,6 +82,10 @@ public final class GifControls {
         return posicaoDedoEsquerdo;
     }
 
+    public float getPosicaoDedoDireito() {
+        return posicaoDedoDireito;
+    }
+
     public void resetar() {
         idDedoEsquerdo = -1;
         idDedoDireito = -1;
@@ -100,6 +106,10 @@ public final class GifControls {
     }
 
     public void atualizarPosicoesDedo() {
+        if (!manualAtivo) {
+            return;
+        }
+
         int altura = areaGif.getHeight();
         if (altura <= 0) {
             return;
@@ -108,65 +118,71 @@ public final class GifControls {
         int[] localizacao = new int[2];
         areaGif.getLocationOnScreen(localizacao);
 
-        float progressoEsquerdo = 0f;
-        float progressoDireito = 0f;
+        float posicaoMedia;
 
-        if (esquerdoPressionado) {
-            float alturaBotao = controleEsquerdo.getHeight();
-            if (alturaBotao <= 0 || altura <= alturaBotao) {
-                return;
-            }
-
-            float posicaoLocal = limitarPosicao(
-                    posicaoDedoEsquerdo - localizacao[1],
-                    alturaBotao / 2f,
-                    altura - alturaBotao / 2f
-            );
-            moverBotao(controleEsquerdo, (int) posicaoLocal);
-            progressoEsquerdo = (posicaoLocal - alturaBotao / 2f) /
-                    (altura - alturaBotao);
+        if (esquerdoPressionado && direitoPressionado) {
+            posicaoMedia = (posicaoDedoEsquerdo + posicaoDedoDireito) / 2f;
+        } else if (esquerdoPressionado) {
+            posicaoMedia = posicaoDedoEsquerdo;
+        } else {
+            posicaoMedia = posicaoDedoDireito;
         }
 
-        if (direitoPressionado) {
-            float alturaBotao = controleDireito.getHeight();
-            if (alturaBotao <= 0 || altura <= alturaBotao) {
-                return;
-            }
+        float posicaoLocal = posicaoMedia - localizacao[1];
+        float metadeBotao = controleEsquerdo.getHeight() / 2f;
+        float limiteInferior = metadeBotao;
+        float limiteSuperior = altura - metadeBotao;
 
-            float posicaoLocal = limitarPosicao(
-                    posicaoDedoDireito - localizacao[1],
-                    alturaBotao / 2f,
-                    altura - alturaBotao / 2f
-            );
-            moverBotao(controleDireito, (int) posicaoLocal);
-            progressoDireito = (posicaoLocal - alturaBotao / 2f) /
-                    (altura - alturaBotao);
+        if (limiteSuperior <= limiteInferior) {
+            return;
         }
 
-        if (manualAtivo && onManualProgressChanged != null) {
-            float progresso = (progressoEsquerdo + progressoDireito) / 2f;
+        posicaoLocal = Math.max(limiteInferior,
+                Math.min(limiteSuperior, posicaoLocal));
+
+        float progresso = (posicaoLocal - metadeBotao) /
+                (altura - 2f * metadeBotao);
+
+        progresso = Math.max(0f, Math.min(1f, progresso));
+
+        int centroY = (int) posicaoLocal;
+
+        if (esquerdoPressionado && direitoPressionado) {
+            moverBotao(controleEsquerdo, centroY, true);
+            moverBotao(controleDireito, centroY, false);
+        } else if (esquerdoPressionado) {
+            moverBotao(controleEsquerdo, centroY, true);
+        } else {
+            moverBotao(controleDireito, centroY, false);
+        }
+
+        if (onManualProgressChanged != null) {
             onManualProgressChanged.onProgressChanged(progresso);
         }
     }
 
     public void moverParaCentro() {
         int centro = areaGif.getHeight() / 2;
-        moverBotao(controleEsquerdo, centro);
-        moverBotao(controleDireito, centro);
-    }
-
-    private float limitarPosicao(float posicao, float minimo, float maximo) {
-        return Math.max(minimo, Math.min(maximo, posicao));
+        moverBotao(controleEsquerdo, centro, true);
+        moverBotao(controleDireito, centro, false);
     }
 
     private void moverBotao(TextView botao,
-                            int centroY) {
-        if (botao == null || botao.getHeight() <= 0) {
+                            int centroY,
+                            boolean esquerdo) {
+        if (botao == null || botao.getLayoutParams() == null) {
             return;
         }
 
-        float centroInicial = botao.getTop() + botao.getHeight() / 2f;
-        botao.setTranslationY(centroY - centroInicial);
+        FrameLayout.LayoutParams parametros =
+                (FrameLayout.LayoutParams) botao.getLayoutParams();
+
+        parametros.gravity = Gravity.TOP |
+                (esquerdo ? Gravity.START : Gravity.END);
+        parametros.topMargin = Math.max(0,
+                centroY - botao.getHeight() / 2);
+
+        botao.setLayoutParams(parametros);
     }
 
     private int identificarControle(float x, float y) {
@@ -253,7 +269,7 @@ public final class GifControls {
             direitoPressionado = false;
         }
 
-        manualAtivo = esquerdoPressionado && direitoPressionado;
+        manualAtivo = esquerdoPressionado || direitoPressionado;
     }
 
     private void liberarTodosOsDedos() {
