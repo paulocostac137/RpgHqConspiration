@@ -35,12 +35,13 @@ public final class GerenciadorTextoPlanilha {
 
     private boolean ativo = false;
     private boolean encerrado = false;
+    private boolean temporizadorExterno = false;
 
     private final Runnable atualizar = new Runnable() {
         @Override
         public void run() {
 
-            if (encerrado || !ativo) {
+            if (encerrado || !ativo || temporizadorExterno) {
                 return;
             }
 
@@ -172,12 +173,34 @@ public final class GerenciadorTextoPlanilha {
         handler.post(atualizar);
     }
 
+    public void iniciarComVisibilidadeExterna(String conteudo) {
+        if (encerrado ||
+                !listener.atividadeDisponivel() ||
+                !listener.possuiGif()) {
+            return;
+        }
+
+        parar();
+        temporizadorExterno = true;
+        texto.setText(conteudo == null ? "" : conteudo);
+        texto.setVisibility(View.GONE);
+        ativo = true;
+    }
+
+    public void definirVisivel(boolean visivel) {
+        if (encerrado || !ativo || !temporizadorExterno) {
+            return;
+        }
+        texto.setVisibility(visivel ? View.VISIBLE : View.GONE);
+    }
+
     /**
      * Interrompe a apresentação e oculta o texto.
      */
     public void parar() {
 
         ativo = false;
+        temporizadorExterno = false;
 
         inicioExibicao = 0;
 

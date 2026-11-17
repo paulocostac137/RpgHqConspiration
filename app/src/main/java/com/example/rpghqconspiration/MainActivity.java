@@ -154,6 +154,9 @@ public class MainActivity extends AppCompatActivity {
                             controleRemotoAtivo = false;
 
                             finalizarMovimentoSeLiberado();
+                            if (gifTiming != null) {
+                                gifTiming.retomarTrocaAutomatica();
+                            }
 
                             status.setText(
                                     "Parceiro desconectado."
@@ -594,6 +597,10 @@ public class MainActivity extends AppCompatActivity {
 
         controleRemotoAtivo = true;
 
+        if (gifTiming != null) {
+            gifTiming.definirProgressoExibicao(progressoRecebido);
+        }
+
         pausarAnimacao();
 
         gerenciadorMovimento.registrarProgresso(
@@ -639,6 +646,9 @@ public class MainActivity extends AppCompatActivity {
         );
 
         finalizarMovimentoSeLiberado();
+        if (gifTiming != null) {
+            gifTiming.retomarTrocaAutomatica();
+        }
     }
 
     // =====================================================
@@ -973,7 +983,7 @@ public class MainActivity extends AppCompatActivity {
         gifTiming = new GifTiming(
                 handler,
                 INTERVALO_TROCA_GIF_MS,
-                0,
+                INTERVALO_TROCA_GIF_MS - 2000,
                 INTERVALO_ANIMACAO_MS,
                 new GifTiming.Callback() {
 
@@ -998,6 +1008,9 @@ public class MainActivity extends AppCompatActivity {
 
                     @Override
                     public void onTextVisibilityChanged(boolean visible) {
+                        if (gerenciadorTextoPlanilha != null) {
+                            gerenciadorTextoPlanilha.definirVisivel(visible);
+                        }
                     }
                 }
         );
@@ -1050,10 +1063,19 @@ public class MainActivity extends AppCompatActivity {
                             public void onControleManualIniciado() {
 
                                 pausarAnimacao();
+                                if (gifTiming != null) {
+                                    gifTiming.pausarTrocaAutomatica();
+                                }
                             }
 
                             @Override
                             public void onProgressoManual(float progresso) {
+
+                                if (gifTiming != null) {
+                                    gifTiming.definirProgressoExibicao(
+                                            progresso
+                                    );
+                                }
 
                                 gerenciadorMovimento.registrarProgresso(
                                         progresso,
@@ -1084,6 +1106,9 @@ public class MainActivity extends AppCompatActivity {
                                 );
 
                                 finalizarMovimentoSeLiberado();
+                                if (gifTiming != null) {
+                                    gifTiming.retomarTrocaAutomatica();
+                                }
                             }
 
                             @Override
@@ -1496,7 +1521,7 @@ public class MainActivity extends AppCompatActivity {
                                 );
                             }
 
-                            gerenciadorTextoPlanilha.iniciar(
+                            gerenciadorTextoPlanilha.iniciarComVisibilidadeExterna(
                                     textoFinal
                             );
 
