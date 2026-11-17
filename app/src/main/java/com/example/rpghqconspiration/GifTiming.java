@@ -34,13 +34,8 @@ public final class GifTiming {
             long decorrido = intervaloGifMs - restante;
             if (decorrido >= tempoTextoMs) {
                 textoJaExibido = true;
-                notificarVisibilidadeTexto(true);
-            } else if (restante == 0L && !trocaAutomaticaPausada) {
-                textoJaExibido = false;
-                notificarVisibilidadeTexto(false);
-            } else {
-                notificarVisibilidadeTexto(textoJaExibido);
             }
+            notificarVisibilidadeTexto(textoJaExibido);
 
             if (!trocaAutomaticaPausada && restante > 0L) {
                 handler.postDelayed(
@@ -54,9 +49,6 @@ public final class GifTiming {
     private final Runnable trocaAutomaticaRunnable = new Runnable() {
         @Override
         public void run() {
-            textoJaExibido = false;
-            notificarVisibilidadeTexto(false);
-
             if (callback != null) {
                 callback.onAutoAdvanceRequested();
             }
@@ -82,10 +74,10 @@ public final class GifTiming {
     }
 
     public void iniciarTrocaAutomatica() {
-        pararTrocaAutomatica();
+        handler.removeCallbacks(trocaAutomaticaRunnable);
+        handler.removeCallbacks(atualizacaoTextoRunnable);
         trocaAutomaticaAtiva = true;
         trocaAutomaticaPausada = false;
-        textoJaExibido = false;
         tempoRestantePausado = 0L;
         proximaTrocaEm =
                 SystemClock.uptimeMillis() + intervaloGifMs;
@@ -158,6 +150,7 @@ public final class GifTiming {
 
     public void resetarExibicao() {
         handler.removeCallbacks(atualizacaoTextoRunnable);
+        textoJaExibido = false;
         notificarVisibilidadeTexto(false);
     }
 

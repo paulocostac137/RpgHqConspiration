@@ -1415,6 +1415,8 @@ public class MainActivity extends AppCompatActivity {
 
         gerenciadorReproducao.reiniciar();
 
+        gifTiming.pararTrocaAutomatica();
+
         gerenciadorTextoPlanilha.parar();
 
         if (gerenciadorControle != null &&
