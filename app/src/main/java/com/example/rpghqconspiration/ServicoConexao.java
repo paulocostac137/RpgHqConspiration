@@ -38,6 +38,7 @@ public class ServicoConexao {
     private volatile boolean conectado = false;
     private volatile String codigoPar;
     private volatile String papelUsuario = "";
+    private volatile String papelControleAtual = "A";
 
     private volatile boolean controleConcedido = false;
     private volatile boolean solicitacaoPendente = false;
@@ -82,6 +83,7 @@ public class ServicoConexao {
 
         codigoPar = codigo.trim();
         papelUsuario = "";
+        papelControleAtual = "A";
 
         conectado = false;
         controleConcedido = false;
@@ -213,12 +215,27 @@ public class ServicoConexao {
 
                 papelUsuario =
                         mensagem.optString("role", "");
+                papelControleAtual =
+                        mensagem.optString("turn", "A");
 
                 Log.d(
                         TAG,
                         "Papel atribuído pelo servidor: "
                                 + papelUsuario
                 );
+
+                break;
+
+            case "control":
+                String turno = mensagem.optString("turn", "");
+                if ("A".equals(turno) || "B".equals(turno)) {
+                    papelControleAtual = turno;
+                }
+                if (!mensagem.optBoolean("active", false)) {
+
+                    controleConcedido = false;
+                    solicitacaoPendente = false;
+                }
 
                 break;
 
@@ -267,16 +284,6 @@ public class ServicoConexao {
                         TAG,
                         "O outro usuário desconectou."
                 );
-
-                break;
-
-            case "control":
-
-                if (!mensagem.optBoolean("active", false)) {
-
-                    controleConcedido = false;
-                    solicitacaoPendente = false;
-                }
 
                 break;
 
@@ -394,11 +401,60 @@ public class ServicoConexao {
         }
     }
 
+    public boolean enviarTrocaControle(String papel) {
+
+        if (!"A".equals(papel) && !"B".equals(papel)) {
+            avisarErro("Papel de controle inválido.");
+            return false;
+        }
+
+        if (!estaConectado()) {
+            avisarErro("Não foi possível trocar o controle: conexão indisponível.");
+            return false;
+        }
+
+        try {
+            JSONObject mensagem = new JSONObject();
+            mensagem.put("type", "control");
+            mensagem.put("active", false);
+            mensagem.put("progress", 0.0f);
+            mensagem.put("turn", papel);
+            if (!enviarJson(mensagem)) {
+                return false;
+            }
+            papelControleAtual = papel;
+            return true;
+        } catch (JSONException e) {
+            Log.e(TAG, "Erro ao preparar troca de controle.", e);
+            avisarErro("Não foi possível preparar a troca de controle.");
+            return false;
+        }
+    }
+
+    public void enviarEstadoSolicitacaoTroca(boolean pendente) {
+
+        if (!estaConectado()) {
+            return;
+        }
+
+        try {
+            JSONObject mensagem = new JSONObject();
+            mensagem.put("type", "control");
+            mensagem.put("active", false);
+            mensagem.put("progress", 0.0f);
+            mensagem.put("turn_pending", pendente);
+            enviarJson(mensagem);
+        } catch (JSONException e) {
+            Log.e(TAG, "Erro ao preparar solicitação de troca.", e);
+            avisarErro("Não foi possível preparar a solicitação de troca.");
+        }
+    }
+
     // =====================================================
     // ENVIO JSON
     // =====================================================
 
-    private synchronized void enviarJson(JSONObject mensagem) {
+    private synchronized boolean enviarJson(JSONObject mensagem) {
 
         WebSocketClient conexaoAtual = cliente;
 
@@ -411,7 +467,7 @@ public class ServicoConexao {
                     "Mensagem não enviada: WebSocket fechado."
             );
 
-            return;
+            return false;
         }
 
         try {
@@ -422,6 +478,7 @@ public class ServicoConexao {
                     TAG,
                     "Mensagem enviada: " + mensagem
             );
+            return true;
 
         } catch (Exception e) {
 
@@ -434,6 +491,7 @@ public class ServicoConexao {
             avisarErro(
                     "Falha ao enviar dados ao parceiro."
             );
+            return false;
         }
     }
 
@@ -457,6 +515,10 @@ public class ServicoConexao {
 
     public String getPapelUsuario() {
         return papelUsuario;
+    }
+
+    public String getPapelControleAtual() {
+        return papelControleAtual;
     }
 
     public boolean possuiControle() {

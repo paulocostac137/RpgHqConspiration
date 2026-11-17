@@ -18,6 +18,9 @@ public final class GifTiming {
 
     private long inicioExibicaoGif = 0L;
     private boolean trocaAutomaticaAtiva = false;
+    private boolean trocaAutomaticaPausada = false;
+    private long proximaTrocaEm = 0L;
+    private long tempoRestantePausado = 0L;
 
     private final Runnable trocaAutomaticaRunnable = new Runnable() {
         @Override
@@ -26,7 +29,9 @@ public final class GifTiming {
                 callback.onAutoAdvanceRequested();
             }
 
-            if (trocaAutomaticaAtiva) {
+            if (trocaAutomaticaAtiva && !trocaAutomaticaPausada) {
+                proximaTrocaEm =
+                        SystemClock.uptimeMillis() + intervaloGifMs;
                 handler.postDelayed(this, intervaloGifMs);
             }
         }
@@ -70,12 +75,45 @@ public final class GifTiming {
     public void iniciarTrocaAutomatica() {
         pararTrocaAutomatica();
         trocaAutomaticaAtiva = true;
+        trocaAutomaticaPausada = false;
+        proximaTrocaEm =
+                SystemClock.uptimeMillis() + intervaloGifMs;
         handler.postDelayed(trocaAutomaticaRunnable, intervaloGifMs);
     }
 
     public void pararTrocaAutomatica() {
         trocaAutomaticaAtiva = false;
+        trocaAutomaticaPausada = false;
+        tempoRestantePausado = 0L;
         handler.removeCallbacks(trocaAutomaticaRunnable);
+    }
+
+    public void pausarTrocaAutomatica() {
+        if (!trocaAutomaticaAtiva || trocaAutomaticaPausada) {
+            return;
+        }
+
+        tempoRestantePausado = Math.max(
+                0L,
+                proximaTrocaEm - SystemClock.uptimeMillis()
+        );
+        trocaAutomaticaPausada = true;
+        handler.removeCallbacks(trocaAutomaticaRunnable);
+    }
+
+    public void retomarTrocaAutomatica() {
+        if (!trocaAutomaticaAtiva || !trocaAutomaticaPausada) {
+            return;
+        }
+
+        trocaAutomaticaPausada = false;
+        proximaTrocaEm =
+                SystemClock.uptimeMillis() + tempoRestantePausado;
+        handler.postDelayed(
+                trocaAutomaticaRunnable,
+                tempoRestantePausado
+        );
+        tempoRestantePausado = 0L;
     }
 
     public void marcarInicioExibicao() {

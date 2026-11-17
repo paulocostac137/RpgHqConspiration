@@ -6,6 +6,7 @@ import android.os.Looper;
 
 import android.graphics.Movie;
 import android.graphics.Paint;
+import android.graphics.drawable.GradientDrawable;
 
 import android.util.Log;
 
@@ -36,6 +37,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final long INTERVALO_ANIMACAO_MS = 30;
     private static final long INTERVALO_TROCA_GIF_MS = 7000;
+    private static final long ANTECEDENCIA_LIBERACAO_CONTROLES_MS = 2000;
 
     // =====================================================
     // COMPONENTES
@@ -190,6 +192,11 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean modoIndividual = false;
 
+    private String papelUsuarioLocal = "A";
+    private String papelControleAtual = "A";
+    private boolean controlesPassivosVisiveis = false;
+    private Boolean estiloControlesPassivos = null;
+
     private boolean controleRemotoAtivo = false;
 
     private boolean carregando = false;
@@ -236,6 +243,16 @@ public class MainActivity extends AppCompatActivity {
     // =====================================================
 
     private GerenciadorControleMultitoque gerenciadorControle;
+
+    private final Runnable mostrarControlesPassivos = () -> {
+        if (!atividadeDisponivel() || ehDonoDoControle()) {
+            return;
+        }
+
+        controlesPassivosVisiveis = true;
+        atualizarPermissaoControles();
+        Log.d(TAG, "Controles passivos exibidos para solicitar a troca.");
+    };
 
     // =====================================================
     // GERENCIADOR DE CONTROLE REMOTO
@@ -287,13 +304,162 @@ public class MainActivity extends AppCompatActivity {
 
     private void atualizarVisibilidadeControles() {
 
-        if (gerenciadorEstadoControles == null) {
+        if (gerenciadorEstadoControles != null) {
+            gerenciadorEstadoControles.atualizar(
+                    servicoConexao
+            );
+        }
+
+        atualizarPermissaoControles();
+    }
+
+    private void atualizarPermissaoControles() {
+
+        if (controleEsquerdo == null || controleDireito == null) {
             return;
         }
 
-        gerenciadorEstadoControles.atualizar(
-                servicoConexao
+        boolean conexaoDisponivel = modoIndividual ||
+                (servicoConexao != null &&
+                        servicoConexao.estaConectado());
+        boolean ehDono = modoIndividual || ehDonoDoControle();
+        boolean habilitado = conexaoDisponivel &&
+                (ehDono || controlesPassivosVisiveis);
+
+        if (gerenciadorControle != null) {
+            gerenciadorControle.definirHabilitado(habilitado);
+            gerenciadorControle.definirModoSolicitacao(!ehDono);
+        }
+
+        aplicarEstiloControles(!ehDono);
+        boolean mostrar = conexaoDisponivel &&
+                (ehDono || controlesPassivosVisiveis);
+        int visibilidade = mostrar ? View.VISIBLE : View.GONE;
+        controleEsquerdo.setVisibility(visibilidade);
+        controleDireito.setVisibility(visibilidade);
+    }
+
+    private boolean papelEhUsuarioB(String papel) {
+        return papel != null && "B".equalsIgnoreCase(papel.trim());
+    }
+
+    private boolean ehDonoDoControle() {
+        return papelUsuarioLocal.equals(papelControleAtual);
+    }
+
+    private int dp(float valor) {
+        return Math.round(
+                valor * getResources().getDisplayMetrics().density
         );
+    }
+
+    private void aplicarEstiloControles(boolean passivos) {
+        if (estiloControlesPassivos != null &&
+                estiloControlesPassivos == passivos) {
+            return;
+        }
+
+        estiloControlesPassivos = passivos;
+        int largura = dp(passivos ? 56 : 48);
+        int altura = dp(passivos ? 56 : 100);
+        float raio = dp(passivos ? 28 : 8);
+
+        configurarEstiloControle(controleEsquerdo, largura, altura, raio,
+                passivos);
+        configurarEstiloControle(controleDireito, largura, altura, raio,
+                passivos);
+
+        if (!passivos && gerenciadorControle != null) {
+            gerenciadorControle.moverControles(.5f);
+        }
+    }
+
+    private void configurarEstiloControle(
+            TextView controle,
+            int largura,
+            int altura,
+            float raio,
+            boolean passivo) {
+        FrameLayout.LayoutParams parametros =
+                (FrameLayout.LayoutParams) controle.getLayoutParams();
+        parametros.width = largura;
+        parametros.height = altura;
+        parametros.gravity = passivo
+                ? android.view.Gravity.CENTER
+                : android.view.Gravity.TOP |
+                        android.view.Gravity.START;
+        parametros.topMargin = 0;
+        parametros.bottomMargin = 0;
+        parametros.leftMargin = 0;
+        parametros.rightMargin = 0;
+        controle.setLayoutParams(parametros);
+
+        GradientDrawable fundo = new GradientDrawable();
+        fundo.setColor(0xCC222222);
+        if (passivo) {
+            fundo.setShape(GradientDrawable.OVAL);
+        } else {
+            fundo.setCornerRadius(raio);
+        }
+        controle.setBackground(fundo);
+    }
+
+    private void aplicarTurnoControle(String papel) {
+        if (!"A".equals(papel) && !"B".equals(papel)) {
+            return;
+        }
+
+        if (papelControleAtual.equals(papel)) {
+            return;
+        }
+
+        handler.removeCallbacks(mostrarControlesPassivos);
+        papelControleAtual = papel;
+        controlesPassivosVisiveis = false;
+        controleRemotoAtivo = false;
+
+        if (gerenciadorControle != null &&
+                !gerenciadorControle.isAguardandoFimSolicitacao()) {
+            gerenciadorControle.limpar();
+        }
+
+        atualizarPermissaoControles();
+
+        if (gifTiming != null && movie != null) {
+            gifTiming.iniciarTrocaAutomatica();
+        }
+
+        if (movie != null) {
+            iniciarAnimacao();
+        }
+
+        if (!ehDonoDoControle() && movie != null) {
+            handler.postDelayed(
+                    mostrarControlesPassivos,
+                    INTERVALO_TROCA_GIF_MS -
+                            ANTECEDENCIA_LIBERACAO_CONTROLES_MS
+            );
+        }
+    }
+
+    private void solicitarTrocaDeControle() {
+        if (modoIndividual || ehDonoDoControle() ||
+                servicoConexao == null ||
+                !servicoConexao.estaConectado()) {
+            if (gifTiming != null) {
+                gifTiming.retomarTrocaAutomatica();
+            }
+            return;
+        }
+
+        String novoDono = papelUsuarioLocal;
+        if (!servicoConexao.enviarTrocaControle(novoDono)) {
+            if (gifTiming != null) {
+                gifTiming.retomarTrocaAutomatica();
+            }
+            return;
+        }
+        aplicarTurnoControle(novoDono);
     }
 
     // =====================================================
@@ -355,6 +521,19 @@ public class MainActivity extends AppCompatActivity {
                 servicoConexao
         );
 
+        String papelUsuario = servicoConexao.getPapelUsuario();
+        if ("A".equalsIgnoreCase(papelUsuario.trim()) ||
+                papelEhUsuarioB(papelUsuario)) {
+            papelUsuarioLocal = papelUsuario.trim().toUpperCase();
+            String turnoServidor =
+                    servicoConexao.getPapelControleAtual();
+            if ("A".equals(turnoServidor) ||
+                    "B".equals(turnoServidor)) {
+                papelControleAtual = turnoServidor;
+            }
+            atualizarPermissaoControles();
+        }
+
         Log.d(
                 TAG,
                 "MainActivity reutilizando a conexão existente."
@@ -376,6 +555,23 @@ public class MainActivity extends AppCompatActivity {
         if (!atividadeDisponivel() ||
                 gerenciadorControleRemoto == null) {
 
+            return;
+        }
+
+        if (dados.has("turn_pending")) {
+            if (gifTiming != null) {
+                if (dados.optBoolean("turn_pending")) {
+                    gifTiming.pausarTrocaAutomatica();
+                } else {
+                    gifTiming.retomarTrocaAutomatica();
+                }
+            }
+            return;
+        }
+
+        String novoDono = dados.optString("turn", "");
+        if (!novoDono.isEmpty()) {
+            aplicarTurnoControle(novoDono);
             return;
         }
 
@@ -593,6 +789,10 @@ public class MainActivity extends AppCompatActivity {
                                 controleRemotoAtivo = false;
 
                                 finalizarMovimentoSeLiberado();
+                                if (gifTiming != null) {
+                                    gifTiming.retomarTrocaAutomatica();
+                                }
+                                atualizarVisibilidadeControles();
 
                                 status.setText(
                                         "Servidor desconectado."
@@ -622,6 +822,19 @@ public class MainActivity extends AppCompatActivity {
                 "modo_individual",
                 false
         );
+        String papelInicial =
+                getIntent().getStringExtra("papel_usuario");
+        if ("A".equalsIgnoreCase(papelInicial == null
+                ? "" : papelInicial.trim())) {
+            papelUsuarioLocal = "A";
+        } else if (papelEhUsuarioB(papelInicial)) {
+            papelUsuarioLocal = "B";
+        }
+        String turnoInicial =
+                getIntent().getStringExtra("turno_controle");
+        if ("A".equals(turnoInicial) || "B".equals(turnoInicial)) {
+            papelControleAtual = turnoInicial;
+        }
 
         // -------------------------------------------------
         // GERENCIADOR DE ESTADO DOS CONTROLES
@@ -772,6 +985,8 @@ public class MainActivity extends AppCompatActivity {
                                 nomes.isEmpty() ||
                                 controleRemotoAtivo ||
                                 (gerenciadorControle != null &&
+                                        gerenciadorControle.isSolicitacaoTrocaEmAndamento()) ||
+                                (gerenciadorControle != null &&
                                         gerenciadorControle.isControleManualAtivo())) {
 
                             return;
@@ -870,6 +1085,33 @@ public class MainActivity extends AppCompatActivity {
 
                                 finalizarMovimentoSeLiberado();
                             }
+
+                            @Override
+                            public void onSolicitacaoTrocaIniciada() {
+                                if (gifTiming != null) {
+                                    gifTiming.pausarTrocaAutomatica();
+                                }
+                                if (servicoConexao != null) {
+                                    servicoConexao
+                                            .enviarEstadoSolicitacaoTroca(true);
+                                }
+                            }
+
+                            @Override
+                            public void onSolicitacaoTrocaCancelada() {
+                                if (gifTiming != null) {
+                                    gifTiming.retomarTrocaAutomatica();
+                                }
+                                if (servicoConexao != null) {
+                                    servicoConexao
+                                            .enviarEstadoSolicitacaoTroca(false);
+                                }
+                            }
+
+                            @Override
+                            public void onSolicitacaoTrocaConcluida() {
+                                solicitarTrocaDeControle();
+                            }
                         }
                 );
 
@@ -896,6 +1138,7 @@ public class MainActivity extends AppCompatActivity {
                 );
 
         configurarControles();
+        atualizarPermissaoControles();
 
         // -------------------------------------------------
         // CONFIGURAÇÃO DA CONEXÃO
@@ -1135,6 +1378,12 @@ public class MainActivity extends AppCompatActivity {
 
         final long geracaoAtual = ++geracaoExibicao;
 
+        handler.removeCallbacks(mostrarControlesPassivos);
+        if (!ehDonoDoControle()) {
+            controlesPassivosVisiveis = false;
+            atualizarPermissaoControles();
+        }
+
         // -------------------------------------------------
         // INTERROMPER GIF ANTERIOR
         // -------------------------------------------------
@@ -1232,6 +1481,20 @@ public class MainActivity extends AppCompatActivity {
                             iniciarAnimacao();
 
                             gifTiming.iniciarTrocaAutomatica();
+
+                            if (!ehDonoDoControle()) {
+                                handler.removeCallbacks(
+                                        mostrarControlesPassivos
+                                );
+                                handler.postDelayed(
+                                        mostrarControlesPassivos,
+                                        Math.max(
+                                                0,
+                                                INTERVALO_TROCA_GIF_MS -
+                                                        ANTECEDENCIA_LIBERACAO_CONTROLES_MS
+                                        )
+                                );
+                            }
 
                             gerenciadorTextoPlanilha.iniciar(
                                     textoFinal

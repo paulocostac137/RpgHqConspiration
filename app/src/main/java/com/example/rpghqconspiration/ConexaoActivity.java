@@ -320,6 +320,10 @@ public class ConexaoActivity extends AppCompatActivity {
 
         intent.putExtra("codigo_par", conexao.getCodigoPar());
         intent.putExtra("papel_usuario", conexao.getPapelUsuario());
+        intent.putExtra(
+                "turno_controle",
+                conexao.getPapelControleAtual()
+        );
         startActivity(intent);
     }
 
