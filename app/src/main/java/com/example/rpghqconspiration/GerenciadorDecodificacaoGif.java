@@ -86,8 +86,7 @@ public final class GerenciadorDecodificacaoGif {
                                     arquivo.getName()
                     );
 
-                    Movie movie =
-                            GifDecoder.carregar(arquivo);
+                    Movie movie = GifDecoder.carregar(arquivo);
 
                     if (movie == null) {
 
@@ -95,6 +94,8 @@ public final class GerenciadorDecodificacaoGif {
                                 "Não foi possível decodificar o GIF."
                         );
                     }
+
+                    final Movie resultado = movie;
 
                     Log.d(
                             TAG,
@@ -104,7 +105,7 @@ public final class GerenciadorDecodificacaoGif {
 
                     handler.post(() ->
                             listener.onDecodificacaoConcluida(
-                                    movie
+                                    resultado
                             )
                     );
 
@@ -133,6 +134,42 @@ public final class GerenciadorDecodificacaoGif {
             handler.post(() ->
                     listener.onErro(erro)
             );
+        }
+    }
+
+    /**
+     * Baixa o próximo GIF antecipadamente, sem interromper
+     * a reprodução atual.
+     */
+    public void precarregar(
+            String link,
+            GifRepository repository) {
+
+        if (link == null || link.trim().isEmpty() ||
+                repository == null) {
+            return;
+        }
+
+        try {
+            executor.execute(() -> {
+                try {
+                    File arquivo = repository.obter(link);
+
+                    Log.d(
+                            TAG,
+                            "Arquivo do próximo GIF preparado: " +
+                                    arquivo.getName()
+                    );
+                } catch (Exception erro) {
+                    Log.w(
+                            TAG,
+                            "Não foi possível preparar o próximo GIF.",
+                            erro
+                    );
+                }
+            });
+        } catch (RuntimeException erro) {
+            Log.w(TAG, "O executor não aceitou o pré-carregamento.", erro);
         }
     }
 }

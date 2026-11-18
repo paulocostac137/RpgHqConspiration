@@ -867,6 +867,7 @@ public class MainActivity extends AppCompatActivity {
         desenharQuadro();
         iniciarAnimacao();
         gifTiming.iniciarTrocaAutomatica();
+        precarregarProximoGif(indiceGifSincronizado);
 
         if (!ehDonoDoControle()) {
             handler.removeCallbacks(mostrarControlesPassivos);
@@ -1767,6 +1768,23 @@ public class MainActivity extends AppCompatActivity {
         gerenciadorCarregamentoGif.carregar(link);
     }
 
+    private void precarregarProximoGif(int indiceAtual) {
+        if (!atividadeDisponivel() ||
+                links.size() < 2 ||
+                gerenciadorDecodificacaoGif == null ||
+                gifRepository == null ||
+                indiceAtual < 0 ||
+                indiceAtual >= links.size()) {
+            return;
+        }
+
+        int proximoIndice = (indiceAtual + 1) % links.size();
+        gerenciadorDecodificacaoGif.precarregar(
+                links.get(proximoIndice),
+                gifRepository
+        );
+    }
+
     // =====================================================
     // EXIBIÇÃO DO GIF PRINCIPAL
     // =====================================================
@@ -1913,6 +1931,7 @@ public class MainActivity extends AppCompatActivity {
                             iniciarAnimacao();
 
                             gifTiming.iniciarTrocaAutomatica();
+                            precarregarProximoGif(indiceAtual);
 
                             if (!ehDonoDoControle()) {
                                 handler.removeCallbacks(

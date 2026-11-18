@@ -5,6 +5,8 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Movie;
 import android.graphics.Paint;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
 import android.widget.ImageView;
 
 /**
@@ -55,6 +57,12 @@ public class GifFrameRenderer {
             quadroCanvas = new Canvas(quadroBitmap);
 
             imagemGif.setImageBitmap(quadroBitmap);
+        } else {
+            Drawable drawableAtual = imagemGif.getDrawable();
+            if (!(drawableAtual instanceof BitmapDrawable) ||
+                    ((BitmapDrawable) drawableAtual).getBitmap() != quadroBitmap) {
+                imagemGif.setImageBitmap(quadroBitmap);
+            }
         }
 
         quadroCanvas.drawColor(Color.BLACK);
