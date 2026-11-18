@@ -8,6 +8,9 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.channels.FileChannel;
+import java.io.RandomAccessFile;
+import java.util.UUID;
 
 /**
  * Responsável por baixar e validar arquivos GIF
@@ -31,113 +34,157 @@ public final class GoogleDriveDownloader {
             String id,
             File pastaGifs) throws Exception {
 
-        if (id == null || id.trim().isEmpty()) {
-            throw new Exception("ID do arquivo inválido.");
-        }
-
-        if (pastaGifs == null) {
-            throw new Exception("Pasta de GIFs inválida.");
-        }
-
-        if (!pastaGifs.exists() && !pastaGifs.mkdirs()) {
-            throw new Exception("Não foi possível criar a pasta de GIFs.");
-        }
-
-        File arquivo = new File(
-                pastaGifs,
-                id + ".gif"
-        );
-
-        File temporario = new File(
-                pastaGifs,
-                id + ".part"
-        );
-
-        HttpURLConnection conexao = null;
-
-        try {
-
-            String endereco =
-                    "https://drive.usercontent.google.com/download?id=" +
-                            id +
-                            "&export=download&confirm=t";
-
-            conexao = (HttpURLConnection)
-                    new URL(endereco).openConnection();
-
-            conexao.setConnectTimeout(20000);
-            conexao.setReadTimeout(30000);
-            conexao.setInstanceFollowRedirects(true);
-
-            int codigoHttp = conexao.getResponseCode();
-
-            if (codigoHttp != HttpURLConnection.HTTP_OK) {
-                throw new Exception("Erro HTTP: " + codigoHttp);
+        synchronized (GoogleDriveDownloader.class) {
+            if (id == null || id.trim().isEmpty()) {
+                throw new Exception("ID do arquivo inválido.");
             }
 
-            try (
-                    InputStream entrada = conexao.getInputStream();
+            if (pastaGifs == null) {
+                throw new Exception("Pasta de GIFs inválida.");
+            }
 
-                    FileOutputStream saida =
-                            new FileOutputStream(temporario)
-            ) {
+            if (!pastaGifs.exists() && !pastaGifs.mkdirs()) {
+                throw new Exception("Não foi possível criar a pasta de GIFs.");
+            }
 
-                byte[] buffer = new byte[8192];
+            String idLimpo = id.trim();
+            File arquivo = new File(
+                    pastaGifs,
+                    idLimpo + ".gif"
+            );
 
-                int quantidade;
+            if (arquivo.isFile() && arquivo.length() > 0) {
+                validarGif(arquivo);
+                return arquivo;
+            }
 
-                while ((quantidade = entrada.read(buffer)) != -1) {
-                    saida.write(buffer, 0, quantidade);
+            File temporario = new File(
+                    pastaGifs,
+                    idLimpo + "." + UUID.randomUUID() + ".part"
+            );
+
+            HttpURLConnection conexao = null;
+
+            try {
+                String endereco =
+                        "https://drive.usercontent.google.com/download?id=" +
+                                idLimpo +
+                                "&export=download&confirm=t";
+
+                conexao = (HttpURLConnection)
+                        new URL(endereco).openConnection();
+
+                conexao.setConnectTimeout(20000);
+                conexao.setReadTimeout(30000);
+                conexao.setInstanceFollowRedirects(true);
+
+                int codigoHttp = conexao.getResponseCode();
+
+                if (codigoHttp != HttpURLConnection.HTTP_OK) {
+                    throw new Exception("Erro HTTP: " + codigoHttp);
                 }
 
-                saida.flush();
-            }
+                try (
+                        InputStream entrada = conexao.getInputStream();
+                        FileOutputStream saida =
+                                new FileOutputStream(temporario)
+                ) {
+                    byte[] buffer = new byte[8192];
+                    int quantidade;
 
-            if (temporario.length() == 0) {
-                throw new Exception("Arquivo vazio.");
-            }
+                    while ((quantidade = entrada.read(buffer)) != -1) {
+                        saida.write(buffer, 0, quantidade);
+                    }
 
-            try (
-                    FileInputStream entradaValidacao =
-                            new FileInputStream(temporario)
-            ) {
+                    saida.flush();
+                }
 
-                Movie teste = Movie.decodeStream(
-                        entradaValidacao
-                );
+                if (temporario.length() == 0) {
+                    throw new Exception("Arquivo vazio.");
+                }
 
-                if (teste == null) {
+                validarGif(temporario);
+
+                moverComSeguranca(temporario, arquivo);
+
+                if (!arquivo.isFile() || arquivo.length() <= 0) {
                     throw new Exception(
-                            "O arquivo recebido não é um GIF válido."
+                            "A movimentação do GIF não produziu um arquivo válido."
                     );
                 }
-            }
 
-            if (arquivo.exists() && !arquivo.delete()) {
+                validarGif(arquivo);
+                return arquivo;
+
+            } catch (Exception e) {
+                if (temporario.exists()) {
+                    temporario.delete();
+                }
+                throw e;
+
+            } finally {
+                if (conexao != null) {
+                    conexao.disconnect();
+                }
+            }
+        }
+    }
+
+    private static void validarGif(File arquivo) throws Exception {
+        if (arquivo == null ||
+                !arquivo.isFile() ||
+                arquivo.length() <= 0) {
+            throw new Exception("Arquivo GIF vazio ou inválido.");
+        }
+
+        try (
+                FileInputStream entrada =
+                        new FileInputStream(arquivo)
+        ) {
+            Movie teste = Movie.decodeStream(entrada);
+            if (teste == null) {
                 throw new Exception(
-                        "Não foi possível substituir o arquivo antigo."
+                        "O arquivo recebido não é um GIF válido."
                 );
             }
+        }
+    }
 
-            if (!temporario.renameTo(arquivo)) {
-                throw new Exception("Erro ao salvar GIF.");
-            }
+    private static void moverComSeguranca(
+            File origem,
+            File destino
+    ) throws Exception {
+        if (destino.exists() && !destino.delete()) {
+            throw new Exception(
+                    "Não foi possível substituir o arquivo GIF antigo."
+            );
+        }
 
-            return arquivo;
-
+        try (
+                FileChannel entrada =
+                        new RandomAccessFile(
+                                origem,
+                                "r"
+                        ).getChannel();
+                FileChannel saida =
+                        new RandomAccessFile(
+                                destino,
+                                "rw"
+                        ).getChannel()
+        ) {
+            entrada.transferTo(0, entrada.size(), saida);
+            saida.force(true);
         } catch (Exception e) {
-
-            if (temporario.exists()) {
-                temporario.delete();
+            if (destino.exists()) {
+                destino.delete();
             }
+            throw new Exception("Erro ao salvar GIF.", e);
+        }
 
-            throw e;
-
-        } finally {
-
-            if (conexao != null) {
-                conexao.disconnect();
-            }
+        if (!origem.delete()) {
+            throw new Exception(
+                    "GIF salvo, mas não foi possível remover o arquivo temporário."
+            );
         }
     }
 }

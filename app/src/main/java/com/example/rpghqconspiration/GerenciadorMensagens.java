@@ -31,6 +31,8 @@ public final class GerenciadorMensagens {
 
         void onControl(JSONObject dados);
 
+        void onSync(JSONObject dados);
+
         void onMensagemDesconhecida(String tipo);
     }
 
@@ -117,6 +119,13 @@ public final class GerenciadorMensagens {
             case "control": {
 
                 listener.onControl(dados);
+
+                break;
+            }
+
+            case "sync": {
+
+                listener.onSync(dados);
 
                 break;
             }

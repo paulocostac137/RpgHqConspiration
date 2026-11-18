@@ -407,14 +407,22 @@ public class ConexaoActivity extends AppCompatActivity {
         super.onResume();
         ativarModoImersivo();
 
-        if (!abriuTelaPrincipal && conexao != null) {
+        if (conexao != null) {
             conexao.definirCallback(criarCallback());
         }
     }
 
     @Override
     protected void onDestroy() {
+        handlerPrincipal.removeCallbacksAndMessages(null);
+
+        if (!isChangingConfigurations()) {
+            if (conexao != null) {
+                conexao.desconectar();
+                conexao = null;
+            }
+        }
+
         super.onDestroy();
-        // A conexão permanece compartilhada com MainActivity.
     }
 }

@@ -36,6 +36,7 @@ public class ServicoConexao {
     private volatile WebSocketClient cliente;
 
     private volatile boolean conectado = false;
+    private volatile int usuariosNaSala = 0;
     private volatile String codigoPar;
     private volatile String papelUsuario = "";
     private volatile String papelControleAtual = "A";
@@ -86,6 +87,7 @@ public class ServicoConexao {
         papelControleAtual = "A";
 
         conectado = false;
+        usuariosNaSala = 0;
         controleConcedido = false;
         solicitacaoPendente = false;
 
@@ -213,6 +215,7 @@ public class ServicoConexao {
 
             case "joined":
 
+                usuariosNaSala = mensagem.optInt("users", 0);
                 papelUsuario =
                         mensagem.optString("role", "");
                 papelControleAtual =
@@ -277,6 +280,7 @@ public class ServicoConexao {
 
             case "peer_disconnected":
 
+                usuariosNaSala = 1;
                 controleConcedido = false;
                 solicitacaoPendente = false;
 
@@ -285,6 +289,10 @@ public class ServicoConexao {
                         "O outro usuário desconectou."
                 );
 
+                break;
+
+            case "peer_connected":
+                usuariosNaSala = 2;
                 break;
 
             case "error":
@@ -529,6 +537,24 @@ public class ServicoConexao {
         return solicitacaoPendente;
     }
 
+    public boolean estaSalaCompleta() {
+        return usuariosNaSala >= 2;
+    }
+
+    public boolean enviarMensagemSincronizacao(JSONObject mensagem) {
+        if (mensagem == null
+                || !"sync".equals(mensagem.optString("type"))) {
+            avisarErro("Mensagem de sincronização inválida.");
+            return false;
+        }
+
+        if (!estaConectado()) {
+            return false;
+        }
+
+        return enviarJson(mensagem);
+    }
+
     // =====================================================
     // DESCONECTAR
     // =====================================================
@@ -536,6 +562,7 @@ public class ServicoConexao {
     public synchronized void desconectar() {
 
         conectado = false;
+        usuariosNaSala = 0;
         controleConcedido = false;
         solicitacaoPendente = false;
 

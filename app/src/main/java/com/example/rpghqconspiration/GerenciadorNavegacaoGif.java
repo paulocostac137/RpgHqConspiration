@@ -33,6 +33,15 @@ public final class GerenciadorNavegacaoGif {
         return indiceAtual;
     }
 
+    public boolean selecionar(int indice, int quantidade) {
+        if (quantidade <= 0 || indice < 0 || indice >= quantidade) {
+            return false;
+        }
+
+        indiceAtual = indice;
+        return true;
+    }
+
     /**
      * Reinicia a navegação.
      */

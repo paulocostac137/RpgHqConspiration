@@ -23,7 +23,6 @@ public class GifSincronizadoView extends AppCompatImageView {
 
     private int duracaoMs = 1000;
     private int posicaoMs = 0;
-    private boolean reproduzindo = false;
 
     public GifSincronizadoView(Context context) {
         super(context);
@@ -54,7 +53,6 @@ public class GifSincronizadoView extends AppCompatImageView {
     }
 
     public synchronized boolean carregarGif(File arquivo) {
-
         if (arquivo == null ||
                 !arquivo.exists() ||
                 arquivo.length() <= 0) {
@@ -63,65 +61,29 @@ public class GifSincronizadoView extends AppCompatImageView {
 
         try (FileInputStream entrada =
                      new FileInputStream(arquivo)) {
-
             Movie novoMovie = Movie.decodeStream(entrada);
-
             if (novoMovie == null) {
                 return false;
             }
 
             movie = novoMovie;
-
             int duracao = movie.duration();
-
             duracaoMs = duracao > 0 ? duracao : 1000;
-
             posicaoMs = 0;
-            reproduzindo = false;
-
             postInvalidate();
-
             return true;
-
         } catch (Exception e) {
-
             movie = null;
-
             return false;
         }
     }
 
     public synchronized void definirPosicao(int posicao) {
-
-        if (movie == null) return;
+        if (movie == null) {
+            return;
+        }
 
         posicaoMs = limitarPosicao(posicao);
-
-        postInvalidate();
-    }
-
-    public synchronized void iniciar() {
-
-        if (movie == null) return;
-
-        reproduzindo = true;
-
-        postInvalidate();
-    }
-
-    public synchronized void pausar() {
-
-        reproduzindo = false;
-
-        postInvalidate();
-    }
-
-    public synchronized void reiniciar() {
-
-        posicaoMs = 0;
-
-        reproduzindo = false;
-
         postInvalidate();
     }
 
@@ -133,16 +95,11 @@ public class GifSincronizadoView extends AppCompatImageView {
         return posicaoMs;
     }
 
-    public synchronized boolean estaReproduzindo() {
-        return reproduzindo;
-    }
-
     public synchronized boolean possuiGif() {
         return movie != null;
     }
 
     private int limitarPosicao(int posicao) {
-
         return Math.max(
                 0,
                 Math.min(posicao, duracaoMs - 1)
@@ -151,7 +108,6 @@ public class GifSincronizadoView extends AppCompatImageView {
 
     @Override
     protected synchronized void onDraw(Canvas canvas) {
-
         if (movie == null) {
             super.onDraw(canvas);
             return;
@@ -161,13 +117,15 @@ public class GifSincronizadoView extends AppCompatImageView {
 
         int largura = getWidth();
         int altura = getHeight();
-
-        if (largura <= 0 || altura <= 0) return;
+        if (largura <= 0 || altura <= 0) {
+            return;
+        }
 
         int larguraGif = movie.width();
         int alturaGif = movie.height();
-
-        if (larguraGif <= 0 || alturaGif <= 0) return;
+        if (larguraGif <= 0 || alturaGif <= 0) {
+            return;
+        }
 
         movie.setTime(limitarPosicao(posicaoMs));
 
@@ -182,9 +140,7 @@ public class GifSincronizadoView extends AppCompatImageView {
         canvas.save();
         canvas.translate(x, y);
         canvas.scale(escala, escala);
-
         movie.draw(canvas, 0, 0, paint);
-
         canvas.restore();
     }
 }

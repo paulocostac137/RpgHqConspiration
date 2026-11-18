@@ -4,18 +4,18 @@
     <selectionStates>
       <SelectionState runConfigName="app">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2026-11-17T14:08:37.487739500Z">
+        <DropdownSelection timestamp="2026-11-18T08:31:52.877152800Z">
           <Target type="DEFAULT_BOOT">
-            <template>
-              <DeviceId pluginId="FirebaseDirectAccess" type="TEMPLATE" identifier="model_id=TB330FU/35" />
-            </template>
+            <handle>
+              <DeviceId pluginId="PhysicalDevice" identifier="serial=R9XY604RFRX" />
+            </handle>
           </Target>
         </DropdownSelection>
         <DialogSelection>
           <targets>
             <Target type="DEFAULT_BOOT">
               <handle>
-                <DeviceId pluginId="LocalEmulator" identifier="path=C:\Users\paulo\.android\avd\Pixel_10a.avd" />
+                <DeviceId pluginId="PhysicalDevice" identifier="serial=R9XY604RFRX" />
               </handle>
             </Target>
           </targets>

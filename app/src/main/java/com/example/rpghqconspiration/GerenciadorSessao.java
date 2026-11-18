@@ -131,7 +131,8 @@ public final class GerenciadorSessao {
 
         if (servicoConexao != null) {
 
-            servicoConexao.definirCallback(null);
+            ServicoConexao servico = servicoConexao;
+            servico.definirCallback(null);
         }
 
         callbackRegistrado = null;

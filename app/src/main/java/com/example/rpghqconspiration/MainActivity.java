@@ -38,6 +38,8 @@ public class MainActivity extends AppCompatActivity {
     private static final long INTERVALO_ANIMACAO_MS = 30;
     private static final long INTERVALO_TROCA_GIF_MS = 7000;
     private static final long ANTECEDENCIA_LIBERACAO_CONTROLES_MS = 2000;
+    private static final int AMOSTRAS_RELOGIO_SERVIDOR = 3;
+    private static final long ATRASO_AMOSTRA_RELOGIO_MS = 100;
 
     // =====================================================
     // COMPONENTES
@@ -126,6 +128,12 @@ public class MainActivity extends AppCompatActivity {
                         @Override
                         public void onJoined(int usuarios) {
 
+                            salaComParceiro = usuarios >= 2;
+                            if (salaComParceiro) {
+                                iniciarSincronizacaoRelogio();
+                                solicitarSincronizacaoInicialSePronto();
+                            }
+
                             atualizarVisibilidadeControles();
 
                             status.setText(
@@ -138,9 +146,15 @@ public class MainActivity extends AppCompatActivity {
                         @Override
                         public void onPeerConnected() {
 
+                            salaComParceiro = true;
+                            sincronizacaoInicialSolicitada = false;
+                            iniciarSincronizacaoRelogio();
+
                             status.setText(
                                     "PARCEIRO CONECTADO!"
                             );
+
+                            solicitarSincronizacaoInicialSePronto();
 
                             Log.d(
                                     TAG,
@@ -151,12 +165,18 @@ public class MainActivity extends AppCompatActivity {
                         @Override
                         public void onPeerDisconnected() {
 
-                            controleRemotoAtivo = false;
-
-                            finalizarMovimentoSeLiberado();
+                            salaComParceiro = false;
+                            sincronizacaoInicialSolicitada = false;
+                            aguardandoInicioSincronizado = false;
+                            gifSincronizadoPronto = false;
+                            handler.removeCallbacks(iniciarGifSincronizado);
                             if (gifTiming != null) {
-                                gifTiming.retomarTrocaAutomatica();
+                                gifTiming.pararTrocaAutomatica();
                             }
+                            pausarAnimacao();
+
+                            controleRemotoAtivo = false;
+                            gerenciadorMovimento.reiniciarContagem();
 
                             status.setText(
                                     "Parceiro desconectado."
@@ -175,6 +195,12 @@ public class MainActivity extends AppCompatActivity {
                         public void onControl(JSONObject dados) {
 
                             processarControleRemoto(dados);
+                        }
+
+                        @Override
+                        public void onSync(JSONObject dados) {
+
+                            processarMensagemSincronizacao(dados);
                         }
 
                         @Override
@@ -203,6 +229,21 @@ public class MainActivity extends AppCompatActivity {
     private boolean controleRemotoAtivo = false;
 
     private boolean carregando = false;
+    private boolean planilhaCarregada = false;
+    private boolean salaComParceiro = false;
+    private boolean sincronizacaoInicialSolicitada = false;
+    private boolean aguardandoInicioSincronizado = false;
+    private boolean gifSincronizadoPronto = false;
+    private int revisaoSincronizacao = -1;
+    private int indiceGifSincronizado = -1;
+    private String idGifSincronizado = "";
+    private int amostrasRelogioSolicitadas = 0;
+    private long menorRoundTripMs = Long.MAX_VALUE;
+    private long diferencaRelogioServidorMs = 0L;
+    private long inicioGifServidorMs = 0L;
+
+    private final Runnable iniciarGifSincronizado = () ->
+            iniciarGifSincronizadoAgora();
 
     // =====================================================
     // GERENCIADOR DE NAVEGAÇÃO DOS GIFS
@@ -523,6 +564,8 @@ public class MainActivity extends AppCompatActivity {
         gerenciadorComunicacaoServidor.registrarCallbacks(
                 servicoConexao
         );
+        salaComParceiro = servicoConexao.estaSalaCompleta();
+        iniciarSincronizacaoRelogio();
 
         String papelUsuario = servicoConexao.getPapelUsuario();
         if ("A".equalsIgnoreCase(papelUsuario.trim()) ||
@@ -547,6 +590,304 @@ public class MainActivity extends AppCompatActivity {
         );
 
         atualizarVisibilidadeControles();
+    }
+
+    private void iniciarSincronizacaoRelogio() {
+        if (servicoConexao == null
+                || !servicoConexao.estaConectado()
+                || amostrasRelogioSolicitadas > 0) {
+            return;
+        }
+
+        solicitarAmostraRelogio();
+    }
+
+    private void solicitarAmostraRelogio() {
+        if (servicoConexao == null
+                || !servicoConexao.estaConectado()
+                || amostrasRelogioSolicitadas >= AMOSTRAS_RELOGIO_SERVIDOR) {
+            return;
+        }
+
+        long enviadoEm = System.currentTimeMillis();
+        try {
+            JSONObject mensagem = new JSONObject();
+            mensagem.put("type", "sync");
+            mensagem.put("action", "clock");
+            mensagem.put("client_time_ms", enviadoEm);
+
+            if (servicoConexao.enviarMensagemSincronizacao(mensagem)) {
+                amostrasRelogioSolicitadas++;
+            }
+        } catch (Exception erro) {
+            Log.e(TAG, "Não foi possível solicitar a hora do servidor.", erro);
+        }
+    }
+
+    private void processarMensagemSincronizacao(JSONObject dados) {
+        if (!atividadeDisponivel() || dados == null) {
+            return;
+        }
+
+        String acao = dados.optString("action", "");
+        if ("clock_reply".equals(acao)) {
+            atualizarDiferencaRelogioServidor(dados);
+            if (amostrasRelogioSolicitadas < AMOSTRAS_RELOGIO_SERVIDOR) {
+                handler.postDelayed(
+                        this::solicitarAmostraRelogio,
+                        ATRASO_AMOSTRA_RELOGIO_MS
+                );
+            }
+            return;
+        }
+
+        if ("prepare".equals(acao)) {
+            prepararGifSincronizado(dados);
+            return;
+        }
+
+        if ("start".equals(acao)) {
+            agendarInicioGifSincronizado(dados);
+            return;
+        }
+
+        if ("error".equals(acao)) {
+            aguardandoInicioSincronizado = false;
+            gifSincronizadoPronto = false;
+            status.setText(
+                    "Não foi possível sincronizar o GIF: " +
+                            dados.optString("message", "erro desconhecido")
+            );
+        }
+    }
+
+    private void atualizarDiferencaRelogioServidor(JSONObject dados) {
+        long enviadoEm = dados.optLong("client_time_ms", -1L);
+        long servidorEm = dados.optLong("server_time_ms", -1L);
+        long recebidoEm = System.currentTimeMillis();
+
+        if (enviadoEm < 0L || servidorEm < 0L || recebidoEm < enviadoEm) {
+            return;
+        }
+
+        long roundTrip = recebidoEm - enviadoEm;
+        if (roundTrip < menorRoundTripMs) {
+            menorRoundTripMs = roundTrip;
+            diferencaRelogioServidorMs =
+                    servidorEm - (enviadoEm + roundTrip / 2L);
+        }
+    }
+
+    private void solicitarSincronizacaoInicialSePronto() {
+        if (modoIndividual
+                || !salaComParceiro
+                || !planilhaCarregada
+                || sincronizacaoInicialSolicitada) {
+            return;
+        }
+
+        if (!"A".equals(papelUsuarioLocal)) {
+            status.setText("Planilha pronta. Aguardando o usuário A...");
+            return;
+        }
+
+        if (nomes.isEmpty() || links.isEmpty()) {
+            return;
+        }
+
+        sincronizacaoInicialSolicitada =
+                solicitarPreparacaoGifSincronizado(0);
+    }
+
+    private boolean solicitarPreparacaoGifSincronizado(int indice) {
+        if (servicoConexao == null
+                || !servicoConexao.estaSalaCompleta()
+                || indice < 0
+                || indice >= links.size()) {
+            return false;
+        }
+
+        String fileId = GoogleDriveUtils.extrairId(links.get(indice));
+        if (fileId == null) {
+            status.setText("Link do GIF inválido: " + nomes.get(indice));
+            return false;
+        }
+
+        try {
+            JSONObject mensagem = new JSONObject();
+            mensagem.put("type", "sync");
+            mensagem.put("action", "prepare");
+            mensagem.put("index", indice);
+            mensagem.put("file_id", fileId);
+
+            boolean enviado =
+                    servicoConexao.enviarMensagemSincronizacao(mensagem);
+            if (enviado) {
+                status.setText(
+                        "Preparando GIF para os dois usuários..."
+                );
+            }
+            return enviado;
+        } catch (Exception erro) {
+            Log.e(TAG, "Não foi possível preparar GIF sincronizado.", erro);
+            status.setText("Erro ao preparar sincronização do GIF.");
+            return false;
+        }
+    }
+
+    private int localizarGifPorId(String fileId) {
+        for (int i = 0; i < links.size(); i++) {
+            if (fileId.equals(GoogleDriveUtils.extrairId(links.get(i)))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private void prepararGifSincronizado(JSONObject dados) {
+        if (modoIndividual || !salaComParceiro) {
+            return;
+        }
+
+        int revisao = dados.optInt("revision", -1);
+        String fileId = dados.optString("file_id", "");
+        int indice = localizarGifPorId(fileId);
+        if (revisao <= revisaoSincronizacao || indice < 0) {
+            if (indice < 0) {
+                enviarFalhaPreparacaoSincronizada(
+                        revisao,
+                        "O GIF sincronizado não existe na planilha local."
+                );
+            }
+            return;
+        }
+
+        revisaoSincronizacao = revisao;
+        indiceGifSincronizado = indice;
+        idGifSincronizado = fileId;
+        aguardandoInicioSincronizado = true;
+        gifSincronizadoPronto = false;
+        carregando = false;
+
+        handler.removeCallbacks(iniciarGifSincronizado);
+        gerenciadorReproducao.reiniciar();
+        gifTiming.pararTrocaAutomatica();
+        gerenciadorTextoPlanilha.parar();
+        movie = null;
+        imagemGif.setImageDrawable(null);
+
+        gerenciadorNavegacaoGif.selecionar(indice, nomes.size());
+        baixarEExibir(indice);
+    }
+
+    private void enviarProntoParaSincronizacao() {
+        if (servicoConexao == null
+                || !aguardandoInicioSincronizado
+                || gifSincronizadoPronto
+                || revisaoSincronizacao < 0) {
+            return;
+        }
+
+        try {
+            JSONObject mensagem = new JSONObject();
+            mensagem.put("type", "sync");
+            mensagem.put("action", "ready");
+            mensagem.put("revision", revisaoSincronizacao);
+            mensagem.put("index", indiceGifSincronizado);
+            mensagem.put("file_id", idGifSincronizado);
+
+            if (servicoConexao.enviarMensagemSincronizacao(mensagem)) {
+                gifSincronizadoPronto = true;
+                status.setText("GIF pronto. Aguardando o parceiro...");
+            }
+        } catch (Exception erro) {
+            Log.e(TAG, "Não foi possível confirmar GIF pronto.", erro);
+        }
+    }
+
+    private void enviarFalhaPreparacaoSincronizada(
+            int revisao,
+            String mensagemErro
+    ) {
+        if (servicoConexao == null || revisao < 0) {
+            return;
+        }
+
+        try {
+            JSONObject mensagem = new JSONObject();
+            mensagem.put("type", "sync");
+            mensagem.put("action", "failed");
+            mensagem.put("revision", revisao);
+            mensagem.put("index", indiceGifSincronizado);
+            mensagem.put("file_id", idGifSincronizado);
+            mensagem.put("message", mensagemErro);
+            servicoConexao.enviarMensagemSincronizacao(mensagem);
+        } catch (Exception erro) {
+            Log.e(TAG, "Não foi possível informar falha de sincronização.", erro);
+        }
+    }
+
+    private void agendarInicioGifSincronizado(JSONObject dados) {
+        int revisao = dados.optInt("revision", -1);
+        int indice = dados.optInt("index", -1);
+        if (!gifSincronizadoPronto
+                || revisao != revisaoSincronizacao
+                || indice != indiceGifSincronizado
+                || !idGifSincronizado.equals(
+                        dados.optString("file_id", "")
+                )) {
+            return;
+        }
+
+        inicioGifServidorMs =
+                dados.optLong("start_at_server_ms", 0L);
+        long inicioLocalMs =
+                inicioGifServidorMs - diferencaRelogioServidorMs;
+        long atraso = Math.max(
+                0L,
+                inicioLocalMs - System.currentTimeMillis()
+        );
+
+        handler.removeCallbacks(iniciarGifSincronizado);
+        handler.postDelayed(iniciarGifSincronizado, atraso);
+    }
+
+    private void iniciarGifSincronizadoAgora() {
+        if (!atividadeDisponivel()
+                || !aguardandoInicioSincronizado
+                || !gifSincronizadoPronto
+                || movie == null) {
+            return;
+        }
+
+        aguardandoInicioSincronizado = false;
+        gifSincronizadoPronto = false;
+        gerenciadorReproducao.reiniciar();
+        gerenciadorReproducao.definirPosicao(0L);
+        desenharQuadro();
+        iniciarAnimacao();
+        gifTiming.iniciarTrocaAutomatica();
+
+        if (!ehDonoDoControle()) {
+            handler.removeCallbacks(mostrarControlesPassivos);
+            handler.postDelayed(
+                    mostrarControlesPassivos,
+                    Math.max(
+                            0,
+                            INTERVALO_TROCA_GIF_MS -
+                                    ANTECEDENCIA_LIBERACAO_CONTROLES_MS
+                    )
+            );
+        }
+
+        String texto = indiceGifSincronizado < textosPlanilha.size()
+                ? textosPlanilha.get(indiceGifSincronizado)
+                : "";
+        gerenciadorTextoPlanilha.iniciarComVisibilidadeExterna(texto);
+        status.setText(
+                nomes.get(indiceGifSincronizado) + " | " +
+                        (indiceGifSincronizado + 1) + "/" + nomes.size()
+        );
     }
 
     // =====================================================
@@ -796,12 +1137,17 @@ public class MainActivity extends AppCompatActivity {
                                         "Servidor desconectado: " + motivo
                                 );
 
+                                salaComParceiro = false;
+                                aguardandoInicioSincronizado = false;
+                                gifSincronizadoPronto = false;
+                                handler.removeCallbacks(iniciarGifSincronizado);
                                 controleRemotoAtivo = false;
 
-                                finalizarMovimentoSeLiberado();
                                 if (gifTiming != null) {
-                                    gifTiming.retomarTrocaAutomatica();
+                                    gifTiming.pararTrocaAutomatica();
                                 }
+                                pausarAnimacao();
+                                gerenciadorMovimento.reiniciarContagem();
                                 atualizarVisibilidadeControles();
 
                                 status.setText(
@@ -938,6 +1284,13 @@ public class MainActivity extends AppCompatActivity {
 
                                 carregando = false;
 
+                                if (aguardandoInicioSincronizado) {
+                                    enviarFalhaPreparacaoSincronizada(
+                                            revisaoSincronizacao,
+                                            "Não foi possível baixar o GIF."
+                                    );
+                                }
+
                                 Log.e(
                                         TAG,
                                         "Erro ao carregar GIF.",
@@ -993,6 +1346,8 @@ public class MainActivity extends AppCompatActivity {
                         if (!atividadeDisponivel() ||
                                 carregando ||
                                 nomes.isEmpty() ||
+                                (salaComParceiro &&
+                                        !"A".equals(papelUsuarioLocal)) ||
                                 controleRemotoAtivo ||
                                 (gerenciadorControle != null &&
                                         gerenciadorControle.isSolicitacaoTrocaEmAndamento()) ||
@@ -1215,6 +1570,7 @@ public class MainActivity extends AppCompatActivity {
                                 nomes.addAll(resultado.getNomes());
                                 links.addAll(resultado.getLinks());
                                 textosPlanilha.addAll(resultado.getTextos());
+                                planilhaCarregada = true;
 
                                 gerenciadorNavegacaoGif.reiniciar();
 
@@ -1231,7 +1587,16 @@ public class MainActivity extends AppCompatActivity {
                                                     " GIFs disponíveis."
                                     );
 
-                                    proximoGif();
+                                    if (modoIndividual) {
+                                        proximoGif();
+                                    } else {
+                                        solicitarSincronizacaoInicialSePronto();
+                                        if (!salaComParceiro) {
+                                            status.setText(
+                                                    "Planilha pronta. Aguardando o parceiro..."
+                                            );
+                                        }
+                                    }
                                 }
                             }
 
@@ -1322,6 +1687,30 @@ public class MainActivity extends AppCompatActivity {
     private void proximoGif() {
 
         if (!atividadeDisponivel() || carregando) {
+            return;
+        }
+
+        if (!modoIndividual) {
+            if (!salaComParceiro) {
+                status.setText("Aguardando o parceiro para sincronizar os GIFs...");
+                return;
+            }
+
+            if (nomes.isEmpty()) {
+                status.setText("Nenhum GIF disponível.");
+                return;
+            }
+
+            if (!"A".equals(papelUsuarioLocal)) {
+                return;
+            }
+
+            int indiceAtual =
+                    gerenciadorNavegacaoGif.getIndiceAtual();
+            int proximoIndice = indiceAtual < 0
+                    ? 0
+                    : (indiceAtual + 1) % nomes.size();
+            solicitarPreparacaoGifSincronizado(proximoIndice);
             return;
         }
 
@@ -1472,6 +1861,22 @@ public class MainActivity extends AppCompatActivity {
 
                         gerenciadorReproducao.reiniciar();
 
+                        if (!modoIndividual
+                                && salaComParceiro
+                                && aguardandoInicioSincronizado) {
+                            areaGif.post(() -> {
+                                if (!atividadeDisponivel()
+                                        || geracaoAtual != geracaoExibicao
+                                        || !aguardandoInicioSincronizado) {
+                                    return;
+                                }
+
+                                desenharQuadro();
+                                enviarProntoParaSincronizacao();
+                            });
+                            return;
+                        }
+
                         // ---------------------------------
                         // TEXTO ASSOCIADO AO GIF
                         // ---------------------------------
@@ -1549,6 +1954,15 @@ public class MainActivity extends AppCompatActivity {
                         gerenciadorTextoPlanilha.parar();
 
                         movie = null;
+
+                        if (!modoIndividual
+                                && salaComParceiro
+                                && aguardandoInicioSincronizado) {
+                            enviarFalhaPreparacaoSincronizada(
+                                    revisaoSincronizacao,
+                                    "O GIF baixado não pôde ser decodificado."
+                            );
+                        }
 
                         if (arquivo.exists()) {
                             arquivo.delete();
@@ -1643,6 +2057,13 @@ public class MainActivity extends AppCompatActivity {
         if (gerenciadorComunicacaoServidor != null) {
 
             gerenciadorComunicacaoServidor.removerCallback();
+        }
+
+        if (!isChangingConfigurations()) {
+            if (ConexaoActivity.conexao != null) {
+                ConexaoActivity.conexao.desconectar();
+                ConexaoActivity.conexao = null;
+            }
         }
 
         // -------------------------------------------------
