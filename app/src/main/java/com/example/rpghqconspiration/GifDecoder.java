@@ -45,4 +45,9 @@ public final class GifDecoder {
             return movie;
         }
     }
+
+    public static GifFrameSequence carregarSequencia(File arquivo)
+            throws Exception {
+        return GifFrameSequence.extract(carregar(arquivo));
+    }
 }

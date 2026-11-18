@@ -1,48 +1,31 @@
 package com.example.rpghqconspiration;
 
-import android.graphics.Movie;
 import android.os.Handler;
 import android.os.SystemClock;
 
-/**
- * Responsável pelo controle temporal da reprodução dos GIFs.
- *
- * Controla:
- * - início e pausa da reprodução;
- * - posição atual da animação;
- * - atualização periódica dos quadros.
- *
- * Não manipula Views nem decide como o quadro será desenhado.
- */
+/** Advances through every frame in the combined GIF timeline. */
 public final class GerenciadorReproducaoGif {
 
     public interface Listener {
-
-        /**
-         * Informa se a reprodução pode ser iniciada.
-         */
         boolean podeIniciar();
-
-        /**
-         * Solicita à MainActivity que desenhe o quadro atual.
-         */
         void atualizarQuadro();
     }
 
     private final AnimationTicker animationTicker;
     private final Listener listener;
 
-    private long posicaoMs = 0;
-    private long inicioReproducao = 0;
-    private int duracaoAnimacaoMs = 1000;
-
-    private boolean reproduzindo = false;
+    private GifFrameSequence sequencia;
+    private float progresso;
+    private int indiceQuadro;
+    private int quadrosAvancados;
+    private long tempoAcumuladoMs;
+    private long inicioReproducao;
+    private boolean reproduzindo;
 
     public GerenciadorReproducaoGif(
             Handler handler,
             long intervalo,
             Listener listener) {
-
         if (handler == null || listener == null) {
             throw new IllegalArgumentException(
                     "Handler e Listener são obrigatórios."
@@ -50,7 +33,6 @@ public final class GerenciadorReproducaoGif {
         }
 
         this.listener = listener;
-
         animationTicker = new AnimationTicker(
                 handler,
                 this::atualizar,
@@ -59,79 +41,91 @@ public final class GerenciadorReproducaoGif {
     }
 
     private void atualizar() {
-
         if (!reproduzindo) {
             return;
         }
 
         long agora = SystemClock.uptimeMillis();
-
-        long decorrido = agora - inicioReproducao;
-
-        posicaoMs = (posicaoMs + decorrido % duracaoAnimacaoMs)
-                % duracaoAnimacaoMs;
-
+        tempoAcumuladoMs += agora - inicioReproducao;
         inicioReproducao = agora;
 
+        int totalQuadros = sequencia.getFrameCount();
+        while (tempoAcumuladoMs >= obterDuracaoQuadro(quadrosAvancados)) {
+            tempoAcumuladoMs -= obterDuracaoQuadro(quadrosAvancados);
+            quadrosAvancados = (quadrosAvancados + 1) % totalQuadros;
+        }
+
+        indiceQuadro = quadrosAvancados;
+        progresso = (float) indiceQuadro / totalQuadros;
         listener.atualizarQuadro();
     }
 
-    public void iniciar(Movie movie) {
+    private long obterDuracaoQuadro(int indice) {
+        int totalQuadros = sequencia.getFrameCount();
+        long duracaoTotal = sequencia.getDurationMs();
+        long inicio = (long) indice * duracaoTotal / totalQuadros;
+        long fim = (long) (indice + 1) * duracaoTotal / totalQuadros;
+        return Math.max(1L, fim - inicio);
+    }
 
-        if (movie == null ||
+    public void iniciar(GifFrameSequence sequencia) {
+        if (sequencia == null ||
                 reproduzindo ||
                 !listener.podeIniciar()) {
-
             return;
         }
 
-        duracaoAnimacaoMs = obterDuracao(movie);
+        if (this.sequencia != sequencia) {
+            definirSequencia(sequencia);
+        }
         reproduzindo = true;
-
-        inicioReproducao =
-                SystemClock.uptimeMillis();
-
+        inicioReproducao = SystemClock.uptimeMillis();
         animationTicker.iniciar();
     }
 
-    public void pausar(Movie movie) {
-
-        if (movie == null) {
-            return;
-        }
-
-        if (reproduzindo) {
-            long agora = SystemClock.uptimeMillis();
-            long decorrido = Math.max(0, agora - inicioReproducao);
-            posicaoMs = (posicaoMs + decorrido % duracaoAnimacaoMs)
-                    % duracaoAnimacaoMs;
-        }
-
+    public void pausar() {
         reproduzindo = false;
-
         animationTicker.parar();
     }
 
-    public int obterDuracao(Movie movie) {
+    public void definirSequencia(GifFrameSequence sequencia) {
+        this.sequencia = sequencia;
+        indiceQuadro = sequencia == null
+                ? 0
+                : sequencia.getFrameIndex(progresso);
+        quadrosAvancados = indiceQuadro;
+        tempoAcumuladoMs = 0L;
+    }
 
-        if (movie == null) {
-            return 1000;
+    public int getIndiceQuadro() {
+        return indiceQuadro;
+    }
+
+    public float getProgresso() {
+        return progresso;
+    }
+
+    public void definirProgresso(float progresso) {
+        this.progresso = Math.max(0f, Math.min(1f, progresso));
+        if (sequencia != null) {
+            indiceQuadro = sequencia.getFrameIndex(this.progresso);
+            quadrosAvancados = indiceQuadro;
+            tempoAcumuladoMs = 0L;
+        }
+    }
+
+    public void definirIndiceQuadro(int indice) {
+        if (sequencia == null) {
+            return;
         }
 
-        int duracao = movie.duration();
-
-        return duracao > 0 ? duracao : 1000;
-    }
-
-    public long getPosicaoMs() {
-        return posicaoMs;
-    }
-
-    public void definirPosicao(long posicaoMs) {
-        this.posicaoMs = Math.max(
+        indiceQuadro = Math.max(
                 0,
-                Math.min(duracaoAnimacaoMs - 1L, posicaoMs)
+                Math.min(sequencia.getFrameCount() - 1, indice)
         );
+        quadrosAvancados = indiceQuadro;
+        progresso = (float) indiceQuadro / sequencia.getFrameCount();
+        tempoAcumuladoMs = 0L;
     }
 
     public boolean isReproduzindo() {
@@ -139,23 +133,19 @@ public final class GerenciadorReproducaoGif {
     }
 
     public void reiniciar() {
-
         animationTicker.parar();
-
         reproduzindo = false;
-
-        posicaoMs = 0;
-        duracaoAnimacaoMs = 1000;
-
-        inicioReproducao = 0;
+        progresso = 0f;
+        indiceQuadro = 0;
+        quadrosAvancados = 0;
+        tempoAcumuladoMs = 0L;
+        inicioReproducao = 0L;
+        sequencia = null;
     }
 
     public void encerrar() {
-
         animationTicker.parar();
-
         reproduzindo = false;
-
-        inicioReproducao = 0;
+        inicioReproducao = 0L;
     }
 }

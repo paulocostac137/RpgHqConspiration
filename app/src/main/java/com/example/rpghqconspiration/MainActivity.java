@@ -4,8 +4,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 
-import android.graphics.Movie;
-import android.graphics.Paint;
 import android.graphics.drawable.GradientDrawable;
 
 import android.util.Log;
@@ -36,7 +34,8 @@ public class MainActivity extends AppCompatActivity {
     // =====================================================
 
     private static final long INTERVALO_ANIMACAO_MS = 30;
-    private static final long INTERVALO_TROCA_GIF_MS = 7000;
+    private static final long INTERVALO_TROCA_GIF_MS = 10000;
+    private static final long INTERVALO_EXIBICAO_TEXTO_MS = 5000;
     private static final long ANTECEDENCIA_LIBERACAO_CONTROLES_MS = 2000;
     private static final int AMOSTRAS_RELOGIO_SERVIDOR = 3;
     private static final long ATRASO_AMOSTRA_RELOGIO_MS = 100;
@@ -95,21 +94,11 @@ public class MainActivity extends AppCompatActivity {
             gerenciadorCarregamentoPlanilha;
 
     // =====================================================
-    // GERENCIADOR DE CARREGAMENTO DOS GIFS
-    // =====================================================
-
-    private GerenciadorCarregamentoGif
-            gerenciadorCarregamentoGif;
-
-    // =====================================================
     // GERENCIADOR DE DECODIFICAÇÃO DOS GIFS
     // =====================================================
 
     private GerenciadorDecodificacaoGif
             gerenciadorDecodificacaoGif;
-
-    // Nome do GIF solicitado ao gerenciador.
-    private String nomeGifSolicitado = "";
 
     // =====================================================
     // GERENCIADOR DE ESTADO DOS CONTROLES
@@ -227,6 +216,7 @@ public class MainActivity extends AppCompatActivity {
     private Boolean estiloControlesPassivos = null;
 
     private boolean controleRemotoAtivo = false;
+    private float progressoControlesAtual = 0.5f;
 
     private boolean carregando = false;
     private boolean planilhaCarregada = false;
@@ -251,8 +241,6 @@ public class MainActivity extends AppCompatActivity {
 
     private final GerenciadorNavegacaoGif gerenciadorNavegacaoGif =
             new GerenciadorNavegacaoGif();
-
-    private long geracaoExibicao = 0;
 
     // =====================================================
     // GERENCIADOR DE MOVIMENTAÇÃO
@@ -322,14 +310,13 @@ public class MainActivity extends AppCompatActivity {
     // ANIMAÇÃO E RENDERIZAÇÃO
     // =====================================================
 
-    private Movie movie;
+    private GifFrameSequence movie;
+    private long geracaoLinhaDoTempo = 0;
+    private int indiceInicialLinhaDoTempo = 0;
+    private int indiceSegmentoExibido = -1;
+    private boolean preparandoLinhaDoTempo = false;
 
     private GifFrameRenderer renderizadorGif;
-
-    private final Paint pincel = new Paint(
-            Paint.ANTI_ALIAS_FLAG |
-                    Paint.FILTER_BITMAP_FLAG
-    );
 
     // =====================================================
     // VERIFICAÇÃO DO CICLO DE VIDA
@@ -773,11 +760,11 @@ public class MainActivity extends AppCompatActivity {
         gerenciadorReproducao.reiniciar();
         gifTiming.pararTrocaAutomatica();
         gerenciadorTextoPlanilha.parar();
-        movie = null;
-        imagemGif.setImageDrawable(null);
-
-        gerenciadorNavegacaoGif.selecionar(indice, nomes.size());
-        baixarEExibir(indice);
+        if (movie == null) {
+            baixarEExibir(indice);
+        } else {
+            prepararExibicaoSincronizada(indice);
+        }
     }
 
     private void enviarProntoParaSincronizacao() {
@@ -863,11 +850,21 @@ public class MainActivity extends AppCompatActivity {
         aguardandoInicioSincronizado = false;
         gifSincronizadoPronto = false;
         gerenciadorReproducao.reiniciar();
-        gerenciadorReproducao.definirPosicao(0L);
+        gerenciadorReproducao.definirSequencia(movie);
+        gerenciadorReproducao.definirIndiceQuadro(
+                movie.getFrameForSegment(indiceGifSincronizado)
+        );
+        progressoControlesAtual = movie.getProgressForSegment(
+                indiceGifSincronizado
+        );
+        indiceSegmentoExibido = indiceGifSincronizado;
         desenharQuadro();
         iniciarAnimacao();
-        gifTiming.iniciarTrocaAutomatica();
-        precarregarProximoGif(indiceGifSincronizado);
+        if (!controleRemotoAtivo &&
+                (gerenciadorControle == null ||
+                        !gerenciadorControle.isControleManualAtivo())) {
+            gifTiming.iniciarTrocaAutomatica();
+        }
 
         if (!ehDonoDoControle()) {
             handler.removeCallbacks(mostrarControlesPassivos);
@@ -951,11 +948,8 @@ public class MainActivity extends AppCompatActivity {
                 controleRemotoAtivo
         );
 
-        int duracao = obterDuracaoGif();
-
-        gerenciadorReproducao.definirPosicao(
-                (long) (progressoRecebido * duracao)
-        );
+        gerenciadorReproducao.definirProgresso(progressoRecebido        );
+        progressoControlesAtual = progressoRecebido;
 
         areaGif.post(() -> {
 
@@ -971,6 +965,7 @@ public class MainActivity extends AppCompatActivity {
             );
 
             desenharQuadro();
+            atualizarSegmentoLinhaDoTempo();
         });
     }
 
@@ -1011,19 +1006,6 @@ public class MainActivity extends AppCompatActivity {
                 ativo,
                 progresso
         );
-    }
-
-    // =====================================================
-    // DURAÇÃO DO GIF
-    // =====================================================
-
-    private int obterDuracaoGif() {
-
-        if (gerenciadorReproducao == null) {
-            return 1000;
-        }
-
-        return gerenciadorReproducao.obterDuracao(movie);
     }
 
     // =====================================================
@@ -1235,78 +1217,6 @@ public class MainActivity extends AppCompatActivity {
         );
 
         // -------------------------------------------------
-        // GERENCIADOR DE CARREGAMENTO DOS GIFS
-        // -------------------------------------------------
-
-        gerenciadorCarregamentoGif =
-                new GerenciadorCarregamentoGif(
-                        gifRepository,
-                        executor,
-                        handler,
-                        new GerenciadorCarregamentoGif.Listener() {
-
-                            @Override
-                            public void onCarregamentoIniciado() {
-
-                                if (!atividadeDisponivel()) {
-                                    return;
-                                }
-
-                                carregando = true;
-
-                                status.setText(
-                                        "Carregando: " +
-                                                nomeGifSolicitado
-                                );
-                            }
-
-                            @Override
-                            public void onCarregamentoConcluido(
-                                    File arquivo) {
-
-                                if (!atividadeDisponivel()) {
-                                    return;
-                                }
-
-                                carregando = false;
-
-                                exibirGif(
-                                        arquivo,
-                                        nomeGifSolicitado
-                                );
-                            }
-
-                            @Override
-                            public void onErro(Exception erro) {
-
-                                if (!atividadeDisponivel()) {
-                                    return;
-                                }
-
-                                carregando = false;
-
-                                if (aguardandoInicioSincronizado) {
-                                    enviarFalhaPreparacaoSincronizada(
-                                            revisaoSincronizacao,
-                                            "Não foi possível baixar o GIF."
-                                    );
-                                }
-
-                                Log.e(
-                                        TAG,
-                                        "Erro ao carregar GIF.",
-                                        erro
-                                );
-
-                                status.setText(
-                                        "Erro ao obter GIF: " +
-                                                erro.getMessage()
-                                );
-                            }
-                        }
-                );
-
-        // -------------------------------------------------
         // GERENCIADOR DE REPRODUÇÃO
         // -------------------------------------------------
 
@@ -1330,6 +1240,7 @@ public class MainActivity extends AppCompatActivity {
                             public void atualizarQuadro() {
 
                                 desenharQuadro();
+                                atualizarSegmentoLinhaDoTempo();
                             }
                         }
                 );
@@ -1337,29 +1248,18 @@ public class MainActivity extends AppCompatActivity {
         gifTiming = new GifTiming(
                 handler,
                 INTERVALO_TROCA_GIF_MS,
-                INTERVALO_TROCA_GIF_MS - 2000,
+                INTERVALO_EXIBICAO_TEXTO_MS,
                 INTERVALO_ANIMACAO_MS,
                 new GifTiming.Callback() {
 
                     @Override
+                    public void onNextGifPreparationRequested() {
+                        // Todos os quadros já pertencem à linha do tempo.
+                    }
+
+                    @Override
                     public void onAutoAdvanceRequested() {
-
-                        if (!atividadeDisponivel() ||
-                                carregando ||
-                                nomes.isEmpty() ||
-                                (salaComParceiro &&
-                                        !"A".equals(papelUsuarioLocal)) ||
-                                controleRemotoAtivo ||
-                                (gerenciadorControle != null &&
-                                        gerenciadorControle.isSolicitacaoTrocaEmAndamento()) ||
-                                (gerenciadorControle != null &&
-                                        gerenciadorControle.isControleManualAtivo())) {
-
-                            return;
-                        }
-
-                        gerenciadorMovimento.reiniciarContagem();
-                        proximoGif();
+                        // A reprodução percorre a linha do tempo sem trocar Views.
                     }
 
                     @Override
@@ -1439,13 +1339,13 @@ public class MainActivity extends AppCompatActivity {
                                         controleRemotoAtivo
                                 );
 
-                                int duracao = obterDuracaoGif();
-
-                                gerenciadorReproducao.definirPosicao(
-                                        (long) (progresso * duracao)
+                                progressoControlesAtual = progresso;
+                                gerenciadorReproducao.definirProgresso(
+                                        progresso
                                 );
 
                                 desenharQuadro();
+                                atualizarSegmentoLinhaDoTempo();
 
                                 enviarComandoControle(
                                         true,
@@ -1644,7 +1544,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        gerenciadorReproducao.pausar(movie);
+        gerenciadorReproducao.pausar();
     }
 
     // =====================================================
@@ -1658,6 +1558,10 @@ public class MainActivity extends AppCompatActivity {
         }
 
         gerenciadorReproducao.iniciar(movie);
+    }
+
+    private float limitarProgresso(float progresso) {
+        return Math.max(0f, Math.min(1f, progresso));
     }
 
     // =====================================================
@@ -1676,9 +1580,39 @@ public class MainActivity extends AppCompatActivity {
 
         renderizadorGif.desenhar(
                 movie,
-                gerenciadorReproducao.getPosicaoMs(),
-                pincel
+                gerenciadorReproducao.getIndiceQuadro()
         );
+    }
+
+    private void atualizarSegmentoLinhaDoTempo() {
+        if (movie == null || gerenciadorReproducao == null) {
+            return;
+        }
+
+        int segmento = movie.getSegmentIndex(
+                gerenciadorReproducao.getIndiceQuadro()
+        );
+        if (segmento == indiceSegmentoExibido ||
+                segmento < 0 ||
+                segmento >= nomes.size()) {
+            return;
+        }
+
+        indiceSegmentoExibido = segmento;
+        gerenciadorNavegacaoGif.selecionar(segmento, nomes.size());
+        String texto = segmento < textosPlanilha.size()
+                ? textosPlanilha.get(segmento)
+                : "";
+        gerenciadorTextoPlanilha.iniciarComVisibilidadeExterna(texto);
+        status.setText(
+                nomes.get(segmento) + " | " +
+                        (segmento + 1) + "/" + nomes.size()
+        );
+        if (!controleRemotoAtivo &&
+                (gerenciadorControle == null ||
+                        !gerenciadorControle.isControleManualAtivo())) {
+            gifTiming.iniciarTrocaAutomatica();
+        }
     }
 
     // =====================================================
@@ -1731,6 +1665,11 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        if (movie != null) {
+            exibirSegmentoLinhaDoTempo(indiceSelecionado);
+            return;
+        }
+
         baixarEExibir(indiceSelecionado);
     }
 
@@ -1757,249 +1696,122 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        nomeGifSolicitado = nomes.get(posicao);
-
-        String link = links.get(posicao);
-
-        status.setText(
-                "Carregando: " + nomeGifSolicitado
-        );
-
-        gerenciadorCarregamentoGif.carregar(link);
-    }
-
-    private void precarregarProximoGif(int indiceAtual) {
-        if (!atividadeDisponivel() ||
-                links.size() < 2 ||
-                gerenciadorDecodificacaoGif == null ||
-                gifRepository == null ||
-                indiceAtual < 0 ||
-                indiceAtual >= links.size()) {
+        indiceInicialLinhaDoTempo = posicao;
+        if (movie != null) {
+            exibirSegmentoLinhaDoTempo(posicao);
+            return;
+        }
+        if (preparandoLinhaDoTempo) {
+            status.setText("Preparando a linha do tempo dos GIFs...");
             return;
         }
 
-        int proximoIndice = (indiceAtual + 1) % links.size();
-        gerenciadorDecodificacaoGif.precarregar(
-                links.get(proximoIndice),
-                gifRepository
-        );
-    }
-
-    // =====================================================
-    // EXIBIÇÃO DO GIF PRINCIPAL
-    // =====================================================
-
-    private void exibirGif(
-            File arquivo,
-            String nome) {
-
-        if (!atividadeDisponivel()) {
-            return;
-        }
-
-        if (arquivo == null ||
-                !arquivo.isFile() ||
-                arquivo.length() == 0) {
-
-            status.setText(
-                    "Arquivo GIF inválido."
-            );
-
-            return;
-        }
-
-        final long geracaoAtual = ++geracaoExibicao;
-
-        handler.removeCallbacks(mostrarControlesPassivos);
-        if (!ehDonoDoControle()) {
-            controlesPassivosVisiveis = false;
-            atualizarPermissaoControles();
-        }
-
-        // -------------------------------------------------
-        // INTERROMPER GIF ANTERIOR
-        // -------------------------------------------------
-
-        gerenciadorReproducao.reiniciar();
-
-        gifTiming.pararTrocaAutomatica();
-
-        gerenciadorTextoPlanilha.parar();
-
-        if (gerenciadorControle != null &&
-                gerenciadorControle.isControleManualAtivo()) {
-
-            enviarComandoControle(false, 0f);
-        }
-
-        movie = null;
-
-        controleRemotoAtivo = false;
-
-        // -------------------------------------------------
-        // REINICIAR CONTROLES E MOVIMENTO
-        // -------------------------------------------------
-
-        gerenciadorMovimento.reiniciarContagem();
-
-        gerenciadorControle.limpar();
-
-        atualizarVisibilidadeControles();
-
-        areaGif.post(() -> {
-
-            if (!atividadeDisponivel() ||
-                    geracaoAtual != geracaoExibicao) {
-
-                return;
-            }
-
-            gerenciadorControle.moverControles(0.5f);
-        });
-
-        // -------------------------------------------------
-        // DECODIFICAR O GIF
-        // -------------------------------------------------
-
-        gerenciadorDecodificacaoGif.decodificar(
-                arquivo,
-                new GerenciadorDecodificacaoGif.Listener() {
-
+        carregando = true;
+        preparandoLinhaDoTempo = true;
+        status.setText("Preparando a linha do tempo dos GIFs...");
+        long geracao = ++geracaoLinhaDoTempo;
+        gerenciadorDecodificacaoGif.prepararLinhaDoTempo(
+                links,
+                gifRepository,
+                new GerenciadorDecodificacaoGif.TimelineListener() {
                     @Override
-                    public void onDecodificacaoConcluida(
-                            Movie resultado) {
-
+                    public void onTimelineReady(GifFrameSequence timeline) {
                         if (!atividadeDisponivel() ||
-                                geracaoAtual != geracaoExibicao) {
-
+                                geracao != geracaoLinhaDoTempo) {
+                            timeline.liberar();
                             return;
                         }
 
-                        movie = resultado;
-
-                        gerenciadorReproducao.reiniciar();
-
-                        if (!modoIndividual
-                                && salaComParceiro
-                                && aguardandoInicioSincronizado) {
-                            areaGif.post(() -> {
-                                if (!atividadeDisponivel()
-                                        || geracaoAtual != geracaoExibicao
-                                        || !aguardandoInicioSincronizado) {
-                                    return;
-                                }
-
-                                desenharQuadro();
-                                enviarProntoParaSincronizacao();
-                            });
-                            return;
+                        preparandoLinhaDoTempo = false;
+                        carregando = false;
+                        GifFrameSequence sequenciaAnterior = movie;
+                        movie = timeline;
+                        if (sequenciaAnterior != null) {
+                            sequenciaAnterior.liberar();
                         }
-
-                        // ---------------------------------
-                        // TEXTO ASSOCIADO AO GIF
-                        // ---------------------------------
-
-                        final String textoFinal;
-
-                        int indiceAtual =
-                                gerenciadorNavegacaoGif.getIndiceAtual();
-
-                        if (indiceAtual >= 0 &&
-                                indiceAtual < textosPlanilha.size()) {
-
-                            textoFinal =
-                                    textosPlanilha.get(indiceAtual);
-
+                        if (aguardandoInicioSincronizado) {
+                            prepararExibicaoSincronizada(
+                                    indiceGifSincronizado
+                            );
                         } else {
-
-                            textoFinal = "";
+                            exibirSegmentoLinhaDoTempo(
+                                    indiceInicialLinhaDoTempo
+                            );
                         }
-
-                        final int indiceExibido =
-                                indiceAtual + 1;
-
-                        areaGif.post(() -> {
-
-                            if (!atividadeDisponivel() ||
-                                    geracaoAtual != geracaoExibicao) {
-
-                                return;
-                            }
-
-                            desenharQuadro();
-
-                            iniciarAnimacao();
-
-                            gifTiming.iniciarTrocaAutomatica();
-                            precarregarProximoGif(indiceAtual);
-
-                            if (!ehDonoDoControle()) {
-                                handler.removeCallbacks(
-                                        mostrarControlesPassivos
-                                );
-                                handler.postDelayed(
-                                        mostrarControlesPassivos,
-                                        Math.max(
-                                                0,
-                                                INTERVALO_TROCA_GIF_MS -
-                                                        ANTECEDENCIA_LIBERACAO_CONTROLES_MS
-                                        )
-                                );
-                            }
-
-                            gerenciadorTextoPlanilha.iniciarComVisibilidadeExterna(
-                                    textoFinal
-                            );
-
-                            status.setText(
-                                    nome + " | " +
-                                            indiceExibido +
-                                            "/" + nomes.size()
-                            );
-                        });
                     }
 
                     @Override
                     public void onErro(Exception erro) {
-
                         if (!atividadeDisponivel() ||
-                                geracaoAtual != geracaoExibicao) {
-
+                                geracao != geracaoLinhaDoTempo) {
                             return;
                         }
 
-                        gerenciadorReproducao.reiniciar();
-
-                        gerenciadorTextoPlanilha.parar();
-
-                        movie = null;
-
-                        if (!modoIndividual
-                                && salaComParceiro
-                                && aguardandoInicioSincronizado) {
-                            enviarFalhaPreparacaoSincronizada(
-                                    revisaoSincronizacao,
-                                    "O GIF baixado não pôde ser decodificado."
-                            );
-                        }
-
-                        if (arquivo.exists()) {
-                            arquivo.delete();
-                        }
-
+                        preparandoLinhaDoTempo = false;
+                        carregando = false;
                         status.setText(
-                                "Erro ao abrir GIF: " +
+                                "Erro ao preparar os GIFs: " +
                                         erro.getMessage()
                         );
-
-                        Log.e(
-                                TAG,
-                                "Erro ao decodificar GIF.",
-                                erro
-                        );
+                        if (aguardandoInicioSincronizado) {
+                            enviarFalhaPreparacaoSincronizada(
+                                    revisaoSincronizacao,
+                                    "Não foi possível preparar a linha do tempo."
+                            );
+                        }
+                        Log.e(TAG, "Falha ao unir os quadros dos GIFs.", erro);
                     }
                 }
         );
+    }
+
+    private void prepararExibicaoSincronizada(int indice) {
+        if (movie == null ||
+                !gerenciadorNavegacaoGif.selecionar(indice, nomes.size())) {
+            return;
+        }
+
+        gerenciadorReproducao.reiniciar();
+        gerenciadorReproducao.definirSequencia(movie);
+        progressoControlesAtual = movie.getProgressForSegment(indice);
+        gerenciadorReproducao.definirIndiceQuadro(
+                movie.getFrameForSegment(indice)
+        );
+        indiceSegmentoExibido = indice;
+        desenharQuadro();
+        String texto = obterTextoSegmento(indice);
+        gerenciadorTextoPlanilha.iniciarComVisibilidadeExterna(texto);
+        status.setText(
+                nomes.get(indice) + " | " +
+                        (indice + 1) + "/" + nomes.size()
+        );
+        enviarProntoParaSincronizacao();
+    }
+
+    private void exibirSegmentoLinhaDoTempo(int indice) {
+        if (movie == null ||
+                !gerenciadorNavegacaoGif.selecionar(indice, nomes.size())) {
+            return;
+        }
+
+        gerenciadorReproducao.pausar();
+        gerenciadorReproducao.definirSequencia(movie);
+        progressoControlesAtual = movie.getProgressForSegment(indice);
+        gerenciadorReproducao.definirIndiceQuadro(
+                movie.getFrameForSegment(indice)
+        );
+        indiceSegmentoExibido = -1;
+        gerenciadorMovimento.reiniciarContagem();
+        gerenciadorControle.moverControles(progressoControlesAtual);
+        desenharQuadro();
+        atualizarSegmentoLinhaDoTempo();
+        iniciarAnimacao();
+    }
+
+    private String obterTextoSegmento(int indice) {
+        return indice >= 0 && indice < textosPlanilha.size()
+                ? textosPlanilha.get(indice)
+                : "";
     }
 
     // =====================================================
@@ -2011,7 +1823,9 @@ public class MainActivity extends AppCompatActivity {
 
         atividadeEncerrada = true;
 
-        geracaoExibicao++;
+        geracaoLinhaDoTempo++;
+        preparandoLinhaDoTempo = false;
+        GifFrameSequence sequenciaAtual = movie;
 
         if (gifTiming != null) {
 
@@ -2051,8 +1865,6 @@ public class MainActivity extends AppCompatActivity {
         controleRemotoAtivo = false;
 
         carregando = false;
-
-        nomeGifSolicitado = "";
 
         gerenciadorMovimento.reiniciarContagem();
 
@@ -2094,6 +1906,10 @@ public class MainActivity extends AppCompatActivity {
             renderizadorGif.liberar();
 
             renderizadorGif = null;
+        }
+
+        if (sequenciaAtual != null) {
+            sequenciaAtual.liberar();
         }
 
         // -------------------------------------------------

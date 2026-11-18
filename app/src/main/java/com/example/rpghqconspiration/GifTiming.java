@@ -5,7 +5,10 @@ import android.os.SystemClock;
 
 public final class GifTiming {
 
+    private static final long ANTECEDENCIA_PREPARO_PROXIMO_MS = 5000L;
+
     public interface Callback {
+        void onNextGifPreparationRequested();
         void onAutoAdvanceRequested();
         void onTextVisibilityChanged(boolean visible);
     }
@@ -19,6 +22,7 @@ public final class GifTiming {
     private boolean trocaAutomaticaAtiva = false;
     private boolean trocaAutomaticaPausada = false;
     private boolean textoJaExibido = false;
+    private boolean preparoProximoSolicitado = false;
     private long proximaTrocaEm = 0L;
     private long tempoRestantePausado = 0L;
 
@@ -32,6 +36,16 @@ public final class GifTiming {
 
             long restante = obterTempoRestante();
             long decorrido = intervaloGifMs - restante;
+            if (!preparoProximoSolicitado &&
+                    decorrido >= Math.max(
+                            0L,
+                            intervaloGifMs - ANTECEDENCIA_PREPARO_PROXIMO_MS
+                    )) {
+                preparoProximoSolicitado = true;
+                if (callback != null) {
+                    callback.onNextGifPreparationRequested();
+                }
+            }
             if (decorrido >= tempoTextoMs) {
                 textoJaExibido = true;
             }
@@ -56,7 +70,10 @@ public final class GifTiming {
             if (trocaAutomaticaAtiva && !trocaAutomaticaPausada) {
                 proximaTrocaEm =
                         SystemClock.uptimeMillis() + intervaloGifMs;
+                preparoProximoSolicitado = false;
                 handler.postDelayed(this, intervaloGifMs);
+                textoJaExibido = false;
+                atualizarVisibilidadeTexto();
             }
         }
     };
@@ -78,6 +95,7 @@ public final class GifTiming {
         handler.removeCallbacks(atualizacaoTextoRunnable);
         trocaAutomaticaAtiva = true;
         trocaAutomaticaPausada = false;
+        preparoProximoSolicitado = false;
         tempoRestantePausado = 0L;
         proximaTrocaEm =
                 SystemClock.uptimeMillis() + intervaloGifMs;
@@ -89,6 +107,7 @@ public final class GifTiming {
         trocaAutomaticaAtiva = false;
         trocaAutomaticaPausada = false;
         textoJaExibido = false;
+        preparoProximoSolicitado = false;
         tempoRestantePausado = 0L;
         handler.removeCallbacks(trocaAutomaticaRunnable);
         handler.removeCallbacks(atualizacaoTextoRunnable);

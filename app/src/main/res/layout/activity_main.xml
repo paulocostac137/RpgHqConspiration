@@ -86,7 +86,7 @@
 
             <!-- GIF PRINCIPAL CENTRALIZADO -->
 
-            <com.example.rpghqconspiration.GifSincronizadoView
+            <ImageView
                 android:id="@+id/imagemGif"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
