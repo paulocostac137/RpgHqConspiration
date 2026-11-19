@@ -13,18 +13,21 @@ public class AnimationTicker {
     private final Handler handler;
     private final Runnable atualizacao;
     private final long intervalo;
+    private boolean ativo;
 
     private final Runnable ciclo = new Runnable() {
 
         @Override
         public void run() {
+            if (!ativo) {
+                return;
+            }
 
             atualizacao.run();
 
-            handler.postDelayed(
-                    this,
-                    intervalo
-            );
+            if (ativo) {
+                handler.postDelayed(this, intervalo);
+            }
         }
     };
 
@@ -42,11 +45,13 @@ public class AnimationTicker {
 
         parar();
 
+        ativo = true;
         handler.post(ciclo);
     }
 
     public void parar() {
 
+        ativo = false;
         handler.removeCallbacks(ciclo);
     }
 }
