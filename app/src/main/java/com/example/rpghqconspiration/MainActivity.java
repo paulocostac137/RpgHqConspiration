@@ -218,6 +218,10 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean controleRemotoAtivo = false;
     private float progressoControlesAtual = 0f;
+    private final GifCycleControlMapper mapeadorControleManual =
+            new GifCycleControlMapper();
+    private final GifCycleControlMapper mapeadorControleRemoto =
+            new GifCycleControlMapper();
 
     private boolean carregando = false;
     private boolean planilhaCarregada = false;
@@ -933,6 +937,9 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        if (!controleRemotoAtivo) {
+            mapeadorControleRemoto.reset();
+        }
         controleRemotoAtivo = true;
 
         if (gifTiming != null) {
@@ -948,15 +955,19 @@ public class MainActivity extends AppCompatActivity {
         );
 
         int segmentoControle = obterIndiceSegmentoControle();
-        int indiceQuadro = movie.getFrameIndexForSegmentProgress(
-                segmentoControle,
+        int inicioSegmento =
+                movie.getSegmentStartFrame(segmentoControle);
+        int deslocamentoQuadro =
+                gerenciadorReproducao.getIndiceQuadro() - inicioSegmento;
+        int deslocamentoMapeado = mapeadorControleRemoto.map(
+                movie.getSegmentFrameCount(segmentoControle),
+                deslocamentoQuadro,
                 progressoRecebido
         );
-        gerenciadorReproducao.definirIndiceQuadro(indiceQuadro);
-        progressoControlesAtual = movie.getProgressForFrameInSegment(
-                segmentoControle,
-                indiceQuadro
+        gerenciadorReproducao.definirIndiceQuadro(
+                inicioSegmento + deslocamentoMapeado
         );
+        progressoControlesAtual = progressoRecebido;
 
         areaGif.post(() -> {
 
@@ -967,9 +978,7 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
 
-            gerenciadorControle.moverControles(
-                    progressoControlesAtual
-            );
+            gerenciadorControle.moverControles(progressoRecebido);
 
             desenharQuadro();
             atualizarSegmentoLinhaDoTempo();
@@ -983,6 +992,7 @@ public class MainActivity extends AppCompatActivity {
     private void liberarControleRemoto() {
 
         controleRemotoAtivo = false;
+        mapeadorControleRemoto.reset();
 
         Log.d(
                 TAG,
@@ -1325,6 +1335,7 @@ public class MainActivity extends AppCompatActivity {
                             @Override
                             public void onControleManualIniciado() {
 
+                                mapeadorControleManual.reset();
                                 pausarAnimacao();
                                 if (gifTiming != null) {
                                     gifTiming.pausarTrocaAutomatica();
@@ -1348,35 +1359,40 @@ public class MainActivity extends AppCompatActivity {
 
                                 int segmentoControle =
                                         obterIndiceSegmentoControle();
-                                int indiceQuadro =
-                                        movie.getFrameIndexForSegmentProgress(
-                                                segmentoControle,
+                                int inicioSegmento =
+                                        movie.getSegmentStartFrame(
+                                                segmentoControle
+                                        );
+                                int deslocamentoQuadro =
+                                        gerenciadorReproducao.getIndiceQuadro()
+                                                - inicioSegmento;
+                                int deslocamentoMapeado =
+                                        mapeadorControleManual.map(
+                                                movie.getSegmentFrameCount(
+                                                        segmentoControle
+                                                ),
+                                                deslocamentoQuadro,
                                                 progresso
                                         );
                                 gerenciadorReproducao.definirIndiceQuadro(
-                                        indiceQuadro
+                                        inicioSegmento + deslocamentoMapeado
                                 );
-                                progressoControlesAtual =
-                                        movie.getProgressForFrameInSegment(
-                                                segmentoControle,
-                                                indiceQuadro
-                                );
-                                gerenciadorControle.moverControles(
-                                        progressoControlesAtual
-                                );
+                                progressoControlesAtual = progresso;
+                                gerenciadorControle.moverControles(progresso);
 
                                 desenharQuadro();
                                 atualizarSegmentoLinhaDoTempo();
 
                                 enviarComandoControle(
                                         true,
-                                        progressoControlesAtual
+                                        progresso
                                 );
                             }
 
                             @Override
                             public void onControleManualLiberado() {
 
+                                mapeadorControleManual.reset();
                                 enviarComandoControle(
                                         false,
                                         0f
@@ -1800,6 +1816,8 @@ public class MainActivity extends AppCompatActivity {
         gerenciadorReproducao.reiniciar();
         gerenciadorReproducao.definirSequencia(movie);
         progressoControlesAtual = 0f;
+        mapeadorControleManual.reset();
+        mapeadorControleRemoto.reset();
         gerenciadorReproducao.definirIndiceQuadro(
                 movie.getFrameForSegment(indice)
         );
@@ -1823,6 +1841,8 @@ public class MainActivity extends AppCompatActivity {
         gerenciadorReproducao.pausar();
         gerenciadorReproducao.definirSequencia(movie);
         progressoControlesAtual = 0f;
+        mapeadorControleManual.reset();
+        mapeadorControleRemoto.reset();
         gerenciadorReproducao.definirIndiceQuadro(
                 movie.getFrameForSegment(indice)
         );
