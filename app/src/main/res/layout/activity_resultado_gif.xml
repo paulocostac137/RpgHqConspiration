@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121212"
+    android:gravity="center_horizontal"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <ImageView
+            android:id="@+id/imagemQuadroResultado"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#1E1E1E"
+            android:contentDescription="Quadro gerado do GIF"
+            android:scaleType="fitCenter" />
+
+        <Button
+            android:id="@+id/botaoVoltarResultado"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:layout_margin="8dp"
+            android:minWidth="0dp"
+            android:text="VOLTAR"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/textoContadorQuadros"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:layout_margin="12dp"
+            android:background="#99000000"
+            android:paddingStart="10dp"
+            android:paddingTop="6dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="6dp"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:gravity="center_vertical"
+            android:orientation="vertical"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="8dp">
+
+            <SeekBar
+                android:id="@+id/barraQuadros"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:contentDescription="Navegar pelos quadros gerados" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/botaoQuadroAnterior"
+                    android:layout_width="64dp"
+                    android:layout_height="wrap_content"
+                    android:minWidth="0dp"
+                    android:text="←"
+                    android:textSize="20sp" />
+
+                <Button
+                    android:id="@+id/botaoPlayQuadros"
+                    android:layout_width="66dp"
+                    android:layout_height="wrap_content"
+                    android:minWidth="0dp"
+                    android:text="▶"
+                    android:textSize="16sp" />
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
+
+                <Button
+                    android:id="@+id/botaoProximoQuadro"
+                    android:layout_width="64dp"
+                    android:layout_height="wrap_content"
+                    android:minWidth="0dp"
+                    android:text="→"
+                    android:textSize="20sp" />
+            </LinearLayout>
+        </LinearLayout>
+    </FrameLayout>
+</LinearLayout>

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="10dp"
+    android:background="#171717">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <Button
+            android:id="@+id/botaoVoltar"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:minWidth="0dp"
+            android:text="Voltar"
+            android:textAllCaps="false"/>
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="Testes de GIFs"
+            android:textColor="#FFFFFF"
+            android:textSize="21sp"
+            android:textStyle="bold"/>
+
+        <Button
+            android:id="@+id/botaoReproduzir"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:minWidth="0dp"
+            android:text="Reproduzir ciclo"
+            android:textAllCaps="false"/>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/statusTestes"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="8dp"
+        android:text="Carregando planilha..."
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:gravity="center"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal">
+
+        <ListView
+            android:id="@+id/listaGifs"
+            android:layout_width="260dp"
+            android:layout_height="match_parent"
+            android:background="#222222"
+            android:divider="#444444"
+            android:dividerHeight="1dp"/>
+
+        <ImageView
+            android:id="@+id/imagemCicloGif"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="#000000"
+            android:contentDescription="Quadro do GIF selecionado"
+            android:scaleType="fitCenter"/>
+    </LinearLayout>
+</LinearLayout>
