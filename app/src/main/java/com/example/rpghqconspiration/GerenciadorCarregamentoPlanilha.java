@@ -27,15 +27,18 @@ public final class GerenciadorCarregamentoPlanilha {
         private final ArrayList<String> nomes;
         private final ArrayList<String> links;
         private final ArrayList<String> textos;
+        private final ArrayList<Integer> repeticoes;
 
         private Resultado(
                 ArrayList<String> nomes,
                 ArrayList<String> links,
-                ArrayList<String> textos) {
+                ArrayList<String> textos,
+                ArrayList<Integer> repeticoes) {
 
             this.nomes = new ArrayList<>(nomes);
             this.links = new ArrayList<>(links);
             this.textos = new ArrayList<>(textos);
+            this.repeticoes = new ArrayList<>(repeticoes);
         }
 
         public ArrayList<String> getNomes() {
@@ -48,6 +51,10 @@ public final class GerenciadorCarregamentoPlanilha {
 
         public ArrayList<String> getTextos() {
             return new ArrayList<>(textos);
+        }
+
+        public ArrayList<Integer> getRepeticoes() {
+            return new ArrayList<>(repeticoes);
         }
 
         public int getQuantidade() {
@@ -142,18 +149,22 @@ public final class GerenciadorCarregamentoPlanilha {
 
                 ArrayList<String> textos =
                         new ArrayList<>();
+                ArrayList<Integer> repeticoes =
+                        new ArrayList<>();
 
                 PlanilhaParser.preencherListas(
                         conteudo,
                         nomes,
                         links,
-                        textos
+                        textos,
+                        repeticoes
                 );
 
                 Resultado resultado = new Resultado(
                         nomes,
                         links,
-                        textos
+                        textos,
+                        repeticoes
                 );
 
                 Log.d(

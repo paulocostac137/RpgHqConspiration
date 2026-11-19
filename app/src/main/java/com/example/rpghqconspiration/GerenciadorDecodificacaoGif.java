@@ -6,6 +6,7 @@ import android.util.Log;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
@@ -230,14 +231,29 @@ public final class GerenciadorDecodificacaoGif {
             List<String> links,
             GifRepository repository,
             TimelineListener listener) {
+        prepararLinhaDoTempo(
+                links,
+                Collections.nCopies(links == null ? 0 : links.size(), 1),
+                repository,
+                listener
+        );
+    }
+
+    public void prepararLinhaDoTempo(
+            List<String> links,
+            List<Integer> repeticoes,
+            GifRepository repository,
+            TimelineListener listener) {
         if (links == null || links.isEmpty() ||
+                repeticoes == null || repeticoes.size() != links.size() ||
                 repository == null || listener == null) {
             throw new IllegalArgumentException(
-                    "Links, repositório e listener são obrigatórios."
+                    "Links, repetições, repositório e listener são obrigatórios."
             );
         }
 
         List<String> linksCopiados = new ArrayList<>(links);
+        List<Integer> repeticoesCopiadas = new ArrayList<>(repeticoes);
         try {
             executor.execute(() -> {
                 List<GifFrameSequence> sequencias = new ArrayList<>();
@@ -248,11 +264,20 @@ public final class GerenciadorDecodificacaoGif {
                     long totalPosicoes = 0L;
                     long totalBitmaps = 0L;
 
-                    for (String link : linksCopiados) {
+                    for (int i = 0; i < linksCopiados.size(); i++) {
+                        String link = linksCopiados.get(i);
+                        int repeticao = repeticoesCopiadas.get(i);
+                        if (repeticao <= 0) {
+                            throw new IllegalArgumentException(
+                                    "O número de repetições do GIF " +
+                                            (i + 1) +
+                                            " deve ser positivo."
+                            );
+                        }
                         File arquivo = repository.obter(link);
                         GifFrameInfo frameInfo = GifFrameInfo.read(arquivo);
-                        int quantidadeQuadros =
-                                frameInfo.getFrameCountAt30Fps();
+                        int quantidadeQuadros = frameInfo
+                                .getFrameCountAt30Fps(repeticao);
                         if (quantidadeQuadros >
                                 LIMITE_QUADROS_LINHA_DO_TEMPO
                                         - totalPosicoes) {
@@ -284,7 +309,10 @@ public final class GerenciadorDecodificacaoGif {
                     }
 
                     GifFrameSequence timeline =
-                            GifFrameSequence.concatenate(sequencias);
+                            GifFrameSequence.concatenate(
+                                    sequencias,
+                                    toIntArray(repeticoesCopiadas)
+                            );
                     handler.post(() -> listener.onTimelineReady(timeline));
                 } catch (Exception erro) {
                     for (GifFrameSequence sequencia : sequencias) {
@@ -298,6 +326,14 @@ public final class GerenciadorDecodificacaoGif {
             Log.e(TAG, "Não foi possível iniciar a linha do tempo.", erro);
             handler.post(() -> listener.onErro(erro));
         }
+    }
+
+    private int[] toIntArray(List<Integer> valores) {
+        int[] resultado = new int[valores.size()];
+        for (int i = 0; i < valores.size(); i++) {
+            resultado[i] = valores.get(i);
+        }
+        return resultado;
     }
 
     private int calcularDimensaoQuadro(long totalQuadros) {

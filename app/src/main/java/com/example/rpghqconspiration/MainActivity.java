@@ -61,6 +61,7 @@ public class MainActivity extends AppCompatActivity {
     private final ArrayList<String> nomes = new ArrayList<>();
     private final ArrayList<String> links = new ArrayList<>();
     private final ArrayList<String> textosPlanilha = new ArrayList<>();
+    private final ArrayList<Integer> repeticoesCiclos = new ArrayList<>();
 
     // =====================================================
     // EXECUÇÃO
@@ -1467,10 +1468,14 @@ public class MainActivity extends AppCompatActivity {
                                 nomes.clear();
                                 links.clear();
                                 textosPlanilha.clear();
+                                repeticoesCiclos.clear();
 
                                 nomes.addAll(resultado.getNomes());
                                 links.addAll(resultado.getLinks());
                                 textosPlanilha.addAll(resultado.getTextos());
+                                repeticoesCiclos.addAll(
+                                        resultado.getRepeticoes()
+                                );
                                 planilhaCarregada = true;
 
                                 gerenciadorNavegacaoGif.reiniciar();
@@ -1712,6 +1717,7 @@ public class MainActivity extends AppCompatActivity {
         long geracao = ++geracaoLinhaDoTempo;
         gerenciadorDecodificacaoGif.prepararLinhaDoTempo(
                 links,
+                repeticoesCiclos,
                 gifRepository,
                 new GerenciadorDecodificacaoGif.TimelineListener() {
                     @Override
