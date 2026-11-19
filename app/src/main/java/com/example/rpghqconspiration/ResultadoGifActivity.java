@@ -22,6 +22,7 @@ public class ResultadoGifActivity extends AppCompatActivity {
     private Button botaoPlayQuadros;
     private SeekBar barraQuadros;
     private TextView textoContadorQuadros;
+    private MarcadoresBarraView marcadoresBarraQuadros;
     private int indiceQuadro;
     private boolean reproduzindo;
     private long inicioReproducaoMs;
@@ -66,6 +67,11 @@ public class ResultadoGifActivity extends AppCompatActivity {
         botaoProximoQuadro = findViewById(R.id.botaoProximoQuadro);
         botaoPlayQuadros = findViewById(R.id.botaoPlayQuadros);
         barraQuadros = findViewById(R.id.barraQuadros);
+        marcadoresBarraQuadros =
+                findViewById(R.id.marcadoresBarraQuadros);
+        Button botaoGo = findViewById(R.id.botaoGo);
+        Button botaoOn = findViewById(R.id.botaoOn);
+        Button botaoOut = findViewById(R.id.botaoOut);
         botaoVoltar.setOnClickListener(view -> finish());
 
         sequencia = ResultadoProcessamentoGif.consumir();
@@ -77,10 +83,17 @@ public class ResultadoGifActivity extends AppCompatActivity {
             botaoProximoQuadro.setVisibility(Button.GONE);
             botaoPlayQuadros.setVisibility(Button.GONE);
             barraQuadros.setVisibility(SeekBar.GONE);
+            marcadoresBarraQuadros.setVisibility(
+                    MarcadoresBarraView.GONE
+            );
             return;
         }
 
         barraQuadros.setMax(sequencia.getFrameCount() - 1);
+        marcadoresBarraQuadros.configurar(
+                barraQuadros,
+                sequencia.getFrameCount()
+        );
         barraQuadros.setOnSeekBarChangeListener(
                 new SeekBar.OnSeekBarChangeListener() {
                     @Override
@@ -122,6 +135,24 @@ public class ResultadoGifActivity extends AppCompatActivity {
                 iniciarReproducao();
             }
         });
+        botaoGo.setOnClickListener(
+                view -> marcadoresBarraQuadros.adicionarMarcador(
+                        indiceQuadro,
+                        "G"
+                )
+        );
+        botaoOn.setOnClickListener(
+                view -> marcadoresBarraQuadros.adicionarMarcador(
+                        indiceQuadro,
+                        "O"
+                )
+        );
+        botaoOut.setOnClickListener(
+                view -> marcadoresBarraQuadros.adicionarMarcador(
+                        indiceQuadro,
+                        "T"
+                )
+        );
         mostrarQuadro(0);
     }
 
