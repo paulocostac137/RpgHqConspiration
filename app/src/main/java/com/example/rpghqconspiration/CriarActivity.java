@@ -94,10 +94,12 @@ public class CriarActivity extends AppCompatActivity {
                         sequenciaGerada = timeline;
                         ResultadoProcessamentoGif.publicar(timeline);
                         sequenciaGerada = null;
-                        startActivity(new Intent(
+                        Intent intent = new Intent(
                                 CriarActivity.this,
                                 ResultadoGifActivity.class
-                        ));
+                        );
+                        intent.putExtra("link_gif", link);
+                        startActivity(intent);
                     }
 
                     @Override

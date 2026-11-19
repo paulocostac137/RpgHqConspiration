@@ -10,6 +10,8 @@ import android.widget.SeekBar;
 
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.ArrayList;
+import java.util.List;
 
 public final class MarcadoresBarraView extends View {
 
@@ -59,6 +61,29 @@ public final class MarcadoresBarraView extends View {
         }
         letras.append(letra);
         invalidate();
+    }
+
+    public List<String[]> obterLinhasPlanilha(String linkGif) {
+        if (linkGif == null || linkGif.trim().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "O link do GIF não pode estar vazio."
+            );
+        }
+
+        List<String[]> linhas = new ArrayList<>();
+        for (Map.Entry<Integer, StringBuilder> marcador
+                : marcadores.entrySet()) {
+            String letras = marcador.getValue().toString();
+            for (int i = 0; i < letras.length(); i++) {
+                linhas.add(new String[]{
+                        "",
+                        linkGif,
+                        String.valueOf(letras.charAt(i)),
+                        String.valueOf(marcador.getKey() + 1)
+                });
+            }
+        }
+        return linhas;
     }
 
     @Override

@@ -36,20 +36,37 @@
             android:text="VOLTAR"
             android:textSize="12sp" />
 
-        <TextView
-            android:id="@+id/textoContadorQuadros"
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="top|end"
-            android:layout_margin="12dp"
-            android:background="#99000000"
-            android:paddingStart="10dp"
-            android:paddingTop="6dp"
-            android:paddingEnd="10dp"
-            android:paddingBottom="6dp"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:textStyle="bold" />
+            android:layout_margin="8dp"
+            android:gravity="end"
+            android:orientation="vertical">
+
+            <Button
+                android:id="@+id/botaoFinalizar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:text="FINALIZAR"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/textoContadorQuadros"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end"
+                android:layout_marginTop="4dp"
+                android:background="#99000000"
+                android:paddingStart="10dp"
+                android:paddingTop="6dp"
+                android:paddingEnd="10dp"
+                android:paddingBottom="6dp"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="wrap_content"

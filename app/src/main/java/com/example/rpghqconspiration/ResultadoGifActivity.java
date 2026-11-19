@@ -8,8 +8,13 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class ResultadoGifActivity extends AppCompatActivity {
 
@@ -23,6 +28,10 @@ public class ResultadoGifActivity extends AppCompatActivity {
     private SeekBar barraQuadros;
     private TextView textoContadorQuadros;
     private MarcadoresBarraView marcadoresBarraQuadros;
+    private Button botaoFinalizar;
+    private final ExecutorService executor =
+            Executors.newSingleThreadExecutor();
+    private String linkGif;
     private int indiceQuadro;
     private boolean reproduzindo;
     private long inicioReproducaoMs;
@@ -61,6 +70,7 @@ public class ResultadoGifActivity extends AppCompatActivity {
         ModoImersivo.ativar(getWindow());
 
         Button botaoVoltar = findViewById(R.id.botaoVoltarResultado);
+        botaoFinalizar = findViewById(R.id.botaoFinalizar);
         textoContadorQuadros = findViewById(R.id.textoContadorQuadros);
         imagemQuadro = findViewById(R.id.imagemQuadroResultado);
         botaoQuadroAnterior = findViewById(R.id.botaoQuadroAnterior);
@@ -73,7 +83,9 @@ public class ResultadoGifActivity extends AppCompatActivity {
         Button botaoOn = findViewById(R.id.botaoOn);
         Button botaoOut = findViewById(R.id.botaoOut);
         botaoVoltar.setOnClickListener(view -> finish());
+        botaoFinalizar.setOnClickListener(view -> finalizarMarcadores());
 
+        linkGif = getIntent().getStringExtra("link_gif");
         sequencia = ResultadoProcessamentoGif.consumir();
         if (sequencia == null || sequencia.getFrameCount() == 0) {
             textoContadorQuadros.setText("Sem quadros");
@@ -180,6 +192,69 @@ public class ResultadoGifActivity extends AppCompatActivity {
         }
     }
 
+    private void finalizarMarcadores() {
+        if (linkGif == null || linkGif.trim().isEmpty()) {
+            Toast.makeText(
+                    this,
+                    "O link do GIF não está disponível.",
+                    Toast.LENGTH_LONG
+            ).show();
+            return;
+        }
+
+        final List<String[]> linhas;
+        try {
+            linhas = marcadoresBarraQuadros.obterLinhasPlanilha(linkGif);
+        } catch (IllegalArgumentException erro) {
+            Toast.makeText(this, erro.getMessage(), Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (linhas.isEmpty()) {
+            Toast.makeText(
+                    this,
+                    "Adicione ao menos um marcador antes de finalizar.",
+                    Toast.LENGTH_LONG
+            ).show();
+            return;
+        }
+
+        pararReproducao();
+        botaoFinalizar.setEnabled(false);
+        Toast.makeText(
+                this,
+                "Enviando " + linhas.size() + " marcador(es)...",
+                Toast.LENGTH_SHORT
+        ).show();
+        executor.execute(() -> {
+            try {
+                MarcadoresPlanilhaRepository.enviar(linhas);
+                handler.post(() -> {
+                    if (isFinishing() || isDestroyed()) {
+                        return;
+                    }
+                    Toast.makeText(
+                            this,
+                            "Marcadores salvos na planilha.",
+                            Toast.LENGTH_LONG
+                    ).show();
+                    finish();
+                });
+            } catch (Exception erro) {
+                handler.post(() -> {
+                    if (isFinishing() || isDestroyed()) {
+                        return;
+                    }
+                    botaoFinalizar.setEnabled(true);
+                    Toast.makeText(
+                            this,
+                            "Falha ao salvar: " + erro.getMessage(),
+                            Toast.LENGTH_LONG
+                    ).show();
+                });
+            }
+        });
+    }
+
     private void mostrarQuadro(int indice) {
         if (sequencia == null || sequencia.getFrameCount() == 0) {
             return;
@@ -211,6 +286,7 @@ public class ResultadoGifActivity extends AppCompatActivity {
             sequencia.liberar();
             sequencia = null;
         }
+        executor.shutdownNow();
         super.onDestroy();
     }
 
