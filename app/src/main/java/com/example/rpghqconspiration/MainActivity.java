@@ -217,7 +217,7 @@ public class MainActivity extends AppCompatActivity {
     private Boolean estiloControlesPassivos = null;
 
     private boolean controleRemotoAtivo = false;
-    private float progressoControlesAtual = 0.5f;
+    private float progressoControlesAtual = 0f;
 
     private boolean carregando = false;
     private boolean planilhaCarregada = false;
@@ -855,9 +855,7 @@ public class MainActivity extends AppCompatActivity {
         gerenciadorReproducao.definirIndiceQuadro(
                 movie.getFrameForSegment(indiceGifSincronizado)
         );
-        progressoControlesAtual = movie.getProgressForSegment(
-                indiceGifSincronizado
-        );
+        progressoControlesAtual = 0f;
         indiceSegmentoExibido = indiceGifSincronizado;
         desenharQuadro();
         iniciarAnimacao();
@@ -949,8 +947,16 @@ public class MainActivity extends AppCompatActivity {
                 controleRemotoAtivo
         );
 
-        gerenciadorReproducao.definirProgresso(progressoRecebido        );
-        progressoControlesAtual = progressoRecebido;
+        int segmentoControle = obterIndiceSegmentoControle();
+        int indiceQuadro = movie.getFrameIndexForSegmentProgress(
+                segmentoControle,
+                progressoRecebido
+        );
+        gerenciadorReproducao.definirIndiceQuadro(indiceQuadro);
+        progressoControlesAtual = movie.getProgressForFrameInSegment(
+                segmentoControle,
+                indiceQuadro
+        );
 
         areaGif.post(() -> {
 
@@ -962,7 +968,7 @@ public class MainActivity extends AppCompatActivity {
             }
 
             gerenciadorControle.moverControles(
-                    progressoRecebido
+                    progressoControlesAtual
             );
 
             desenharQuadro();
@@ -1340,9 +1346,23 @@ public class MainActivity extends AppCompatActivity {
                                         controleRemotoAtivo
                                 );
 
-                                progressoControlesAtual = progresso;
-                                gerenciadorReproducao.definirProgresso(
-                                        progresso
+                                int segmentoControle =
+                                        obterIndiceSegmentoControle();
+                                int indiceQuadro =
+                                        movie.getFrameIndexForSegmentProgress(
+                                                segmentoControle,
+                                                progresso
+                                        );
+                                gerenciadorReproducao.definirIndiceQuadro(
+                                        indiceQuadro
+                                );
+                                progressoControlesAtual =
+                                        movie.getProgressForFrameInSegment(
+                                                segmentoControle,
+                                                indiceQuadro
+                                );
+                                gerenciadorControle.moverControles(
+                                        progressoControlesAtual
                                 );
 
                                 desenharQuadro();
@@ -1350,7 +1370,7 @@ public class MainActivity extends AppCompatActivity {
 
                                 enviarComandoControle(
                                         true,
-                                        progresso
+                                        progressoControlesAtual
                                 );
                             }
 
@@ -1779,7 +1799,7 @@ public class MainActivity extends AppCompatActivity {
 
         gerenciadorReproducao.reiniciar();
         gerenciadorReproducao.definirSequencia(movie);
-        progressoControlesAtual = movie.getProgressForSegment(indice);
+        progressoControlesAtual = 0f;
         gerenciadorReproducao.definirIndiceQuadro(
                 movie.getFrameForSegment(indice)
         );
@@ -1802,7 +1822,7 @@ public class MainActivity extends AppCompatActivity {
 
         gerenciadorReproducao.pausar();
         gerenciadorReproducao.definirSequencia(movie);
-        progressoControlesAtual = movie.getProgressForSegment(indice);
+        progressoControlesAtual = 0f;
         gerenciadorReproducao.definirIndiceQuadro(
                 movie.getFrameForSegment(indice)
         );
@@ -1812,6 +1832,16 @@ public class MainActivity extends AppCompatActivity {
         desenharQuadro();
         atualizarSegmentoLinhaDoTempo();
         iniciarAnimacao();
+    }
+
+    private int obterIndiceSegmentoControle() {
+        int segmento = gerenciadorNavegacaoGif.getIndiceAtual();
+        if (segmento >= 0 && segmento < movie.getSegmentCount()) {
+            return segmento;
+        }
+        return movie.getSegmentIndex(
+                gerenciadorReproducao.getIndiceQuadro()
+        );
     }
 
     private String obterTextoSegmento(int indice) {
