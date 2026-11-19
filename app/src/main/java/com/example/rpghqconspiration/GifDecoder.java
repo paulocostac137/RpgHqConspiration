@@ -48,6 +48,11 @@ public final class GifDecoder {
 
     public static GifFrameSequence carregarSequencia(File arquivo)
             throws Exception {
-        return GifFrameSequence.extract(carregar(arquivo));
+        GifFrameInfo frameInfo = GifFrameInfo.read(arquivo);
+        return GifFrameSequence.extract(
+                carregar(arquivo),
+                frameInfo,
+                360
+        );
     }
 }

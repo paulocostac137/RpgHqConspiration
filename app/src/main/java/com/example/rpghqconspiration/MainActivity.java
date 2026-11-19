@@ -33,7 +33,7 @@ public class MainActivity extends AppCompatActivity {
     // TEMPOS
     // =====================================================
 
-    private static final long INTERVALO_ANIMACAO_MS = 30;
+    private static final long INTERVALO_ANIMACAO_MS = 33;
     private static final long INTERVALO_TROCA_GIF_MS = 10000;
     private static final long INTERVALO_EXIBICAO_TEXTO_MS = 5000;
     private static final long ANTECEDENCIA_LIBERACAO_CONTROLES_MS = 2000;

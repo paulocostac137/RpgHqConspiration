@@ -34,6 +34,11 @@
             android:screenOrientation="reverseLandscape"
             android:windowSoftInputMode="adjustResize" />
 
+        <activity
+            android:name=".VisualizadorQuadrosActivity"
+            android:exported="false"
+            android:screenOrientation="reverseLandscape" />
+
     </application>
 
 </manifest>

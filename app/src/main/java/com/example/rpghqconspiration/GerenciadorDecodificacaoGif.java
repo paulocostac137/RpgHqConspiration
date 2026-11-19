@@ -21,6 +21,10 @@ public final class GerenciadorDecodificacaoGif {
 
     private static final String TAG =
             "GerenciadorDecodificacaoGif";
+    private static final long LIMITE_MEMORIA_QUADROS_BYTES =
+            32L * 1024L * 1024L;
+    private static final int DIMENSAO_MAXIMA_QUADRO = 240;
+    private static final long LIMITE_QUADROS_LINHA_DO_TEMPO = 1_000_000L;
 
     public interface Listener {
 
@@ -238,43 +242,49 @@ public final class GerenciadorDecodificacaoGif {
             executor.execute(() -> {
                 List<GifFrameSequence> sequencias = new ArrayList<>();
                 try {
-                    int limiteQuadros = Math.max(300, linksCopiados.size());
-                    int limiteDimensao = Math.max(
-                            1,
-                            Math.min(
-                                    240,
-                                    (int) Math.sqrt(
-                                            (32d * 1024d * 1024d)
-                                                    / (2d * limiteQuadros)
-                                    )
-                            )
-                    );
-                    int quadrosUsados = 0;
+                    List<File> arquivos = new ArrayList<>(linksCopiados.size());
+                    List<GifFrameInfo> metadados =
+                            new ArrayList<>(linksCopiados.size());
+                    long totalPosicoes = 0L;
+                    long totalBitmaps = 0L;
 
-                    for (int i = 0; i < linksCopiados.size(); i++) {
-                        File arquivo = repository.obter(linksCopiados.get(i));
-                        Movie movie = GifDecoder.carregar(arquivo);
-                        int restantes = linksCopiados.size() - i;
-                        int quotaQuadros = Math.max(
-                                1,
-                                Math.min(
-                                        60,
-                                        (limiteQuadros - quadrosUsados)
-                                                / restantes
-                                )
+                    for (String link : linksCopiados) {
+                        File arquivo = repository.obter(link);
+                        GifFrameInfo frameInfo = GifFrameInfo.read(arquivo);
+                        int quantidadeQuadros =
+                                frameInfo.getFrameCountAt30Fps();
+                        if (quantidadeQuadros >
+                                LIMITE_QUADROS_LINHA_DO_TEMPO
+                                        - totalPosicoes) {
+                            throw new IllegalArgumentException(
+                                    "A linha do tempo ultrapassa o limite de um milhão de posições."
+                            );
+                        }
+                        totalPosicoes += quantidadeQuadros;
+                        totalBitmaps += Math.min(
+                                frameInfo.getFrameCount(),
+                                quantidadeQuadros
                         );
+                        arquivos.add(arquivo);
+                        metadados.add(frameInfo);
+                    }
+
+                    int limiteDimensao = calcularDimensaoQuadro(
+                            totalBitmaps
+                    );
+                    for (int i = 0; i < arquivos.size(); i++) {
+                        Movie movie = GifDecoder.carregar(arquivos.get(i));
                         GifFrameSequence sequencia =
                                 GifFrameSequence.extract(
                                         movie,
-                                        quotaQuadros,
+                                        metadados.get(i),
                                         limiteDimensao
                                 );
                         sequencias.add(sequencia);
-                        quadrosUsados += sequencia.getFrameCount();
                     }
 
                     GifFrameSequence timeline =
-                            GifFrameSequence.concatenate(sequencias, 5);
+                            GifFrameSequence.concatenate(sequencias);
                     handler.post(() -> listener.onTimelineReady(timeline));
                 } catch (Exception erro) {
                     for (GifFrameSequence sequencia : sequencias) {
@@ -288,5 +298,25 @@ public final class GerenciadorDecodificacaoGif {
             Log.e(TAG, "Não foi possível iniciar a linha do tempo.", erro);
             handler.post(() -> listener.onErro(erro));
         }
+    }
+
+    private int calcularDimensaoQuadro(long totalQuadros) {
+        if (totalQuadros <= 0L) {
+            throw new IllegalArgumentException(
+                    "A linha do tempo não contém quadros."
+            );
+        }
+        long pixelsPorQuadro = Math.max(
+                1L,
+                LIMITE_MEMORIA_QUADROS_BYTES /
+                        Math.max(2L, totalQuadros * 2L)
+        );
+        return Math.max(
+                1,
+                Math.min(
+                        DIMENSAO_MAXIMA_QUADRO,
+                        (int) Math.sqrt(pixelsPorQuadro)
+                )
+        );
     }
 }

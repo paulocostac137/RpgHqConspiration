@@ -32,6 +32,7 @@ public class ConexaoActivity extends AppCompatActivity {
     private EditText campoCodigoPar;
     private Button botaoConectar;
     private Button botaoUsarSemConexao;
+    private Button botaoVerQuadros;
     private TextView textoOu;
     private TextView statusConexao;
     private TextView textoStatusConexaoAtivo;
@@ -92,6 +93,7 @@ public class ConexaoActivity extends AppCompatActivity {
         campoCodigoPar = findViewById(R.id.campoCodigoPar);
         botaoConectar = findViewById(R.id.botaoConectar);
         botaoUsarSemConexao = findViewById(R.id.botaoUsarSemConexao);
+        botaoVerQuadros = findViewById(R.id.botaoVerQuadros);
         textoOu = findViewById(R.id.textoOu);
         statusConexao = findViewById(R.id.statusConexao);
         statusConexaoAtivo = findViewById(R.id.statusConexaoAtivo);
@@ -110,6 +112,12 @@ public class ConexaoActivity extends AppCompatActivity {
 
         botaoConectar.setOnClickListener(v -> iniciarConexao());
         botaoUsarSemConexao.setOnClickListener(v -> abrirModoIndividual());
+        botaoVerQuadros.setOnClickListener(v ->
+                startActivity(new Intent(
+                        ConexaoActivity.this,
+                        VisualizadorQuadrosActivity.class
+                ))
+        );
 
         if (conexao == null) {
             conexao = new ServicoConexao(criarCallback());
