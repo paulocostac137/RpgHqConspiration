@@ -32,8 +32,7 @@ public class ConexaoActivity extends AppCompatActivity {
     private EditText campoCodigoPar;
     private Button botaoConectar;
     private Button botaoUsarSemConexao;
-    private Button botaoVerQuadros;
-    private TextView textoOu;
+    private Button botaoCriar;
     private TextView statusConexao;
     private TextView textoStatusConexaoAtivo;
     private ScrollView statusConexaoAtivo;
@@ -93,8 +92,7 @@ public class ConexaoActivity extends AppCompatActivity {
         campoCodigoPar = findViewById(R.id.campoCodigoPar);
         botaoConectar = findViewById(R.id.botaoConectar);
         botaoUsarSemConexao = findViewById(R.id.botaoUsarSemConexao);
-        botaoVerQuadros = findViewById(R.id.botaoVerQuadros);
-        textoOu = findViewById(R.id.textoOu);
+        botaoCriar = findViewById(R.id.botaoCriar);
         statusConexao = findViewById(R.id.statusConexao);
         statusConexaoAtivo = findViewById(R.id.statusConexaoAtivo);
         textoStatusConexaoAtivo =
@@ -112,12 +110,7 @@ public class ConexaoActivity extends AppCompatActivity {
 
         botaoConectar.setOnClickListener(v -> iniciarConexao());
         botaoUsarSemConexao.setOnClickListener(v -> abrirModoIndividual());
-        botaoVerQuadros.setOnClickListener(v ->
-                startActivity(new Intent(
-                        ConexaoActivity.this,
-                        VisualizadorQuadrosActivity.class
-                ))
-        );
+        botaoCriar.setOnClickListener(v -> abrirTelaCriar());
 
         if (conexao == null) {
             conexao = new ServicoConexao(criarCallback());
@@ -140,6 +133,7 @@ public class ConexaoActivity extends AppCompatActivity {
 
         botaoConectar.setEnabled(false);
         botaoUsarSemConexao.setEnabled(false);
+        botaoCriar.setEnabled(false);
         campoCodigoPar.setEnabled(false);
 
         statusConexao.setText("Abrindo modo individual...");
@@ -151,6 +145,10 @@ public class ConexaoActivity extends AppCompatActivity {
 
         intent.putExtra("modo_individual", true);
         startActivity(intent);
+    }
+
+    private void abrirTelaCriar() {
+        startActivity(new Intent(this, CriarActivity.class));
     }
 
     private void iniciarConexao() {
@@ -180,6 +178,7 @@ public class ConexaoActivity extends AppCompatActivity {
 
         botaoConectar.setEnabled(false);
         botaoUsarSemConexao.setEnabled(false);
+        botaoCriar.setEnabled(false);
         campoCodigoPar.setEnabled(false);
         mostrarSomenteStatusConexao();
 
@@ -355,17 +354,18 @@ public class ConexaoActivity extends AppCompatActivity {
 
         botaoConectar.setEnabled(true);
         botaoUsarSemConexao.setEnabled(true);
+        botaoCriar.setEnabled(true);
         campoCodigoPar.setEnabled(true);
         botaoConectar.setVisibility(View.VISIBLE);
-        textoOu.setVisibility(View.VISIBLE);
         botaoUsarSemConexao.setVisibility(View.VISIBLE);
+        botaoCriar.setVisibility(View.VISIBLE);
     }
 
     private void mostrarSomenteStatusConexao() {
 
         botaoConectar.setVisibility(View.INVISIBLE);
-        textoOu.setVisibility(View.INVISIBLE);
         botaoUsarSemConexao.setVisibility(View.INVISIBLE);
+        botaoCriar.setVisibility(View.INVISIBLE);
     }
 
     private void posicionarStatusAbaixoDoCampo() {

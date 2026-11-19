@@ -35,7 +35,12 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
-            android:name=".VisualizadorQuadrosActivity"
+            android:name=".CriarActivity"
+            android:exported="false"
+            android:screenOrientation="reverseLandscape" />
+
+        <activity
+            android:name=".ResultadoGifActivity"
             android:exported="false"
             android:screenOrientation="reverseLandscape" />
 
