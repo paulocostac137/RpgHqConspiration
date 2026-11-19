@@ -1,10 +1,12 @@
 package com.example.rpghqconspiration;
 
 import android.util.Log;
+import android.animation.ValueAnimator;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.os.Handler;
@@ -21,6 +23,7 @@ public final class GerenciadorControleMultitoque {
     private static final String TAG =
             "GerenciadorMultitoque";
     private static final long DURACAO_TROCA_CONTROLE_MS = 2000L;
+    private static final long DURACAO_RETORNO_CONTROLES_MS = 450L;
 
     // =====================================================
     // COMUNICAÇÃO COM A MAINACTIVITY
@@ -74,6 +77,9 @@ public final class GerenciadorControleMultitoque {
     private int idDedoEsquerdo = -1;
 
     private int idDedoDireito = -1;
+
+    private float progressoVisualControles = 0.5f;
+    private ValueAnimator animacaoRetornoControles;
 
     private final Runnable concluirSolicitacao =
             this::concluirSolicitacao;
@@ -456,6 +462,7 @@ public final class GerenciadorControleMultitoque {
 
         if (!controleManualAtivo) {
 
+            cancelarRetornoControles();
             controleManualAtivo = true;
 
             Log.d(TAG, "CONTROLE MANUAL INICIADO.");
@@ -516,6 +523,7 @@ public final class GerenciadorControleMultitoque {
                 0f,
                 Math.min(1f, progresso)
         );
+        progressoVisualControles = progresso;
 
         int centroY = (int) posicaoLocal;
 
@@ -544,10 +552,51 @@ public final class GerenciadorControleMultitoque {
             return;
         }
 
-        final float progressoFinal = Math.max(
+        cancelarRetornoControles();
+        progressoVisualControles = Math.max(
                 0f,
                 Math.min(1f, progresso)
         );
+        moverControlesInterno(progressoVisualControles);
+    }
+
+    public void retornarControlesAoCentro() {
+        if (modoSolicitacao) {
+            return;
+        }
+
+        cancelarRetornoControles();
+        if (Math.abs(progressoVisualControles - 0.5f) < 0.001f) {
+            moverControlesInterno(0.5f);
+            return;
+        }
+
+        animacaoRetornoControles = ValueAnimator.ofFloat(
+                progressoVisualControles,
+                0.5f
+        );
+        animacaoRetornoControles.setDuration(
+                DURACAO_RETORNO_CONTROLES_MS
+        );
+        animacaoRetornoControles.setInterpolator(
+                new DecelerateInterpolator()
+        );
+        animacaoRetornoControles.addUpdateListener(animator -> {
+            progressoVisualControles =
+                    (float) animator.getAnimatedValue();
+            moverControlesInterno(progressoVisualControles);
+        });
+        animacaoRetornoControles.start();
+    }
+
+    private void cancelarRetornoControles() {
+        if (animacaoRetornoControles != null) {
+            animacaoRetornoControles.cancel();
+            animacaoRetornoControles = null;
+        }
+    }
+
+    private void moverControlesInterno(float progressoFinal) {
 
         areaGif.post(() -> {
 
@@ -631,6 +680,7 @@ public final class GerenciadorControleMultitoque {
 
             Log.d(TAG, "CONTROLE MANUAL ENCERRADO.");
 
+            retornarControlesAoCentro();
             listener.onControleManualLiberado();
         }
     }
@@ -691,6 +741,7 @@ public final class GerenciadorControleMultitoque {
 
     public void limpar() {
 
+        cancelarRetornoControles();
         handler.removeCallbacks(concluirSolicitacao);
         liberarTodosOsDedos();
 

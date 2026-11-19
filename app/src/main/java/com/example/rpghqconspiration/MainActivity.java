@@ -859,7 +859,8 @@ public class MainActivity extends AppCompatActivity {
         gerenciadorReproducao.definirIndiceQuadro(
                 movie.getFrameForSegment(indiceGifSincronizado)
         );
-        progressoControlesAtual = 0f;
+        progressoControlesAtual = 0.5f;
+        gerenciadorControle.moverControles(progressoControlesAtual);
         indiceSegmentoExibido = indiceGifSincronizado;
         desenharQuadro();
         iniciarAnimacao();
@@ -999,6 +1000,9 @@ public class MainActivity extends AppCompatActivity {
                 "Parceiro liberou os controles."
         );
 
+        if (gerenciadorControle != null) {
+            gerenciadorControle.retornarControlesAoCentro();
+        }
         finalizarMovimentoSeLiberado();
         if (gifTiming != null) {
             gifTiming.retomarTrocaAutomatica();
@@ -1815,9 +1819,10 @@ public class MainActivity extends AppCompatActivity {
 
         gerenciadorReproducao.reiniciar();
         gerenciadorReproducao.definirSequencia(movie);
-        progressoControlesAtual = 0f;
+        progressoControlesAtual = 0.5f;
         mapeadorControleManual.reset();
         mapeadorControleRemoto.reset();
+        gerenciadorControle.moverControles(progressoControlesAtual);
         gerenciadorReproducao.definirIndiceQuadro(
                 movie.getFrameForSegment(indice)
         );
@@ -1840,7 +1845,7 @@ public class MainActivity extends AppCompatActivity {
 
         gerenciadorReproducao.pausar();
         gerenciadorReproducao.definirSequencia(movie);
-        progressoControlesAtual = 0f;
+        progressoControlesAtual = 0.5f;
         mapeadorControleManual.reset();
         mapeadorControleRemoto.reset();
         gerenciadorReproducao.definirIndiceQuadro(
@@ -1848,7 +1853,7 @@ public class MainActivity extends AppCompatActivity {
         );
         indiceSegmentoExibido = -1;
         gerenciadorMovimento.reiniciarContagem();
-        gerenciadorControle.moverControles(progressoControlesAtual);
+        gerenciadorControle.retornarControlesAoCentro();
         desenharQuadro();
         atualizarSegmentoLinhaDoTempo();
         iniciarAnimacao();
