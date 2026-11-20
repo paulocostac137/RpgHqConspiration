@@ -51,6 +51,21 @@ public class GifFrameInfoTest {
     }
 
     @Test
+    public void repeteSomenteAFaixaMarcadaCincoVezes() throws Exception {
+        GifFrameInfo info = GifFrameInfo.read(
+                new ByteArrayInputStream(gifWithDelays(10, 20, 10))
+        );
+
+        assertEquals(
+                24,
+                info.getFrameCountAt30Fps(
+                        new FaixaRepeticaoGif(2, 4),
+                        5
+                )
+        );
+    }
+
+    @Test
     public void distribuiReducaoDeQuadrosUniformemente() throws Exception {
         int[] delays = new int[40];
         for (int i = 0; i < delays.length; i++) {

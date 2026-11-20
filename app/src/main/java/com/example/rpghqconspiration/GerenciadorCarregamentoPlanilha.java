@@ -28,17 +28,20 @@ public final class GerenciadorCarregamentoPlanilha {
         private final ArrayList<String> links;
         private final ArrayList<String> textos;
         private final ArrayList<Integer> repeticoes;
+        private final ArrayList<FaixaRepeticaoGif> faixasRepetidas;
 
         private Resultado(
                 ArrayList<String> nomes,
                 ArrayList<String> links,
                 ArrayList<String> textos,
-                ArrayList<Integer> repeticoes) {
+                ArrayList<Integer> repeticoes,
+                ArrayList<FaixaRepeticaoGif> faixasRepetidas) {
 
             this.nomes = new ArrayList<>(nomes);
             this.links = new ArrayList<>(links);
             this.textos = new ArrayList<>(textos);
             this.repeticoes = new ArrayList<>(repeticoes);
+            this.faixasRepetidas = new ArrayList<>(faixasRepetidas);
         }
 
         public ArrayList<String> getNomes() {
@@ -55,6 +58,10 @@ public final class GerenciadorCarregamentoPlanilha {
 
         public ArrayList<Integer> getRepeticoes() {
             return new ArrayList<>(repeticoes);
+        }
+
+        public ArrayList<FaixaRepeticaoGif> getFaixasRepetidas() {
+            return new ArrayList<>(faixasRepetidas);
         }
 
         public int getQuantidade() {
@@ -151,20 +158,24 @@ public final class GerenciadorCarregamentoPlanilha {
                         new ArrayList<>();
                 ArrayList<Integer> repeticoes =
                         new ArrayList<>();
+                ArrayList<FaixaRepeticaoGif> faixasRepetidas =
+                        new ArrayList<>();
 
                 PlanilhaParser.preencherListas(
                         conteudo,
                         nomes,
                         links,
                         textos,
-                        repeticoes
+                        repeticoes,
+                        faixasRepetidas
                 );
 
                 Resultado resultado = new Resultado(
                         nomes,
                         links,
                         textos,
-                        repeticoes
+                        repeticoes,
+                        faixasRepetidas
                 );
 
                 Log.d(

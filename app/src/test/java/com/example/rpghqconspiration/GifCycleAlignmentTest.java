@@ -35,6 +35,18 @@ public class GifCycleAlignmentTest {
     }
 
     @Test
+    public void reduzVelocidadeQuandoAlvoDoControleParaDeAtualizar() {
+        GifCycleAlignment alignment = new GifCycleAlignment();
+        alignment.begin(24, 800L, 0, 3, 0L);
+        alignment.updateTarget(3, 100L);
+
+        float enquantoControleAtualiza = alignment.updateSpeed(1, 200L);
+        float aposControleParar = alignment.updateSpeed(2, 300L);
+
+        assertTrue(aposControleParar < enquantoControleAtualiza);
+    }
+
+    @Test
     public void naoUltrapassaVelocidadeNaturalQuandoControleMoveRapido() {
         GifCycleAlignment alignment = new GifCycleAlignment();
         alignment.begin(24, 800L, 0, 1, 0L);

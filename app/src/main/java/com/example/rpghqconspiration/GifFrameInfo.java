@@ -159,6 +159,33 @@ public final class GifFrameInfo {
         return (int) count;
     }
 
+    public int getFrameCountAt30Fps(
+            FaixaRepeticaoGif faixa,
+            int repeticoes) {
+        if (faixa == null || repeticoes <= 0) {
+            throw new IllegalArgumentException(
+                    "A faixa e o número de repetições devem ser válidos."
+            );
+        }
+        int frameCount = getFrameCountAt30Fps();
+        int primeiro = faixa.getPrimeiroQuadro();
+        int ultimo = faixa.getUltimoQuadro();
+        if (primeiro > frameCount || ultimo > frameCount) {
+            throw new IllegalArgumentException(
+                    "A faixa Go1–Out1 excede a quantidade de quadros do GIF."
+            );
+        }
+
+        long loopFrameCount = (long) ultimo - primeiro + 1L;
+        long count = frameCount + loopFrameCount * (repeticoes - 1L);
+        if (count > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException(
+                    "O GIF excede o limite de quadros suportado."
+            );
+        }
+        return (int) count;
+    }
+
     public int getSourceFrameFor30FpsFrame(int presentationFrameIndex) {
         int presentationFrameCount = getFrameCountAt30Fps();
         if (presentationFrameIndex < 0 ||

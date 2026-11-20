@@ -52,37 +52,31 @@ public final class GerenciadorReproducaoGif {
         }
 
         long agora = SystemClock.uptimeMillis();
-        tempoAcumuladoMs += agora - inicioReproducao;
+        long tempoDecorridoMs = Math.max(0L, agora - inicioReproducao);
         inicioReproducao = agora;
 
         float fatorVelocidadeRecuperacao =
                 alinhamentoCiclo.isRecovering()
                         ? alinhamentoCiclo.updateRecovery(agora)
                         : 1f;
+        float fatorVelocidade = alinhandoControle
+                ? alinhamentoCiclo.updateSpeed(
+                        obterOffsetQuadroCiclo(),
+                        agora
+                )
+                : fatorVelocidadeRecuperacao;
+        tempoAcumuladoMs += Math.round(tempoDecorridoMs * fatorVelocidade);
+
         int totalQuadros = sequencia.getFrameCount();
         boolean controleAlinhado = false;
         while (true) {
-            long duracaoQuadro = obterDuracaoQuadro(quadrosAvancados);
-            if (alinhandoControle) {
-                duracaoQuadro = Math.max(
-                        1L,
-                        Math.round(
-                                duracaoQuadro /
-                                        alinhamentoCiclo.updateSpeed(
-                                                obterOffsetQuadroCiclo(),
-                                                agora
-                                        )
-                        )
-                );
-            } else if (alinhamentoCiclo.isRecovering()) {
-                duracaoQuadro = Math.max(
-                        1L,
-                        Math.round(
-                                duracaoQuadro /
-                                        fatorVelocidadeRecuperacao
-                        )
-                );
+            if (alinhandoControle && estaNoQuadroAlvo()) {
+                tempoAcumuladoMs = 0L;
+                alinhandoControle = false;
+                controleAlinhado = true;
+                break;
             }
+            long duracaoQuadro = obterDuracaoQuadro(quadrosAvancados);
             if (tempoAcumuladoMs < duracaoQuadro) {
                 break;
             }
@@ -90,9 +84,9 @@ public final class GerenciadorReproducaoGif {
             tempoAcumuladoMs -= duracaoQuadro;
             if (alinhandoControle) {
                 int inicioSegmento =
-                        sequencia.getSegmentStartFrame(segmentoAlinhamento);
+                        sequencia.getCycleStartFrame(segmentoAlinhamento);
                 int fimSegmento = inicioSegmento +
-                        sequencia.getSegmentTotalFrameCount(
+                        sequencia.getCycleTotalFrameCount(
                                 segmentoAlinhamento
                         );
                 quadrosAvancados = quadrosAvancados + 1 >= fimSegmento
@@ -103,9 +97,8 @@ public final class GerenciadorReproducaoGif {
             }
 
             if (alinhandoControle && estaNoQuadroAlvo()) {
-                alinhandoControle = false;
-                segmentoAlinhamento = -1;
                 tempoAcumuladoMs = 0L;
+                alinhandoControle = false;
                 controleAlinhado = true;
                 break;
             }
@@ -116,10 +109,10 @@ public final class GerenciadorReproducaoGif {
         }
         indiceQuadro = quadrosAvancados;
         progresso = (float) indiceQuadro / totalQuadros;
+        listener.atualizarQuadro();
         if (controleAlinhado) {
             listener.onControleAlinhado();
         }
-        listener.atualizarQuadro();
     }
 
     private long obterDuracaoQuadro(int indice) {
@@ -139,6 +132,15 @@ public final class GerenciadorReproducaoGif {
 
         if (this.sequencia != sequencia) {
             definirSequencia(sequencia);
+        }
+        reproduzindo = true;
+        inicioReproducao = SystemClock.uptimeMillis();
+        animationTicker.iniciar();
+    }
+
+    public void iniciarDuranteControle() {
+        if (sequencia == null || reproduzindo) {
+            return;
         }
         reproduzindo = true;
         inicioReproducao = SystemClock.uptimeMillis();
@@ -199,7 +201,7 @@ public final class GerenciadorReproducaoGif {
                     "Não há sequência de GIF carregada."
             );
         }
-        int cycleFrameCount = sequencia.getSegmentFrameCount(segmentIndex);
+        int cycleFrameCount = sequencia.getCycleFrameCount(segmentIndex);
         if (targetCycleFrameOffset < 0 ||
                 targetCycleFrameOffset >= cycleFrameCount) {
             throw new IndexOutOfBoundsException(
@@ -219,7 +221,7 @@ public final class GerenciadorReproducaoGif {
             segmentoAlinhamento = segmentIndex;
             alinhamentoCiclo.begin(
                     cycleFrameCount,
-                    sequencia.getSegmentCycleDurationMs(segmentIndex),
+                    sequencia.getCycleDurationMs(segmentIndex),
                     currentCycleOffset,
                     targetCycleFrameOffset,
                     SystemClock.uptimeMillis()
@@ -231,7 +233,8 @@ public final class GerenciadorReproducaoGif {
             );
         }
         if (estaNoQuadroAlvo()) {
-            cancelarAlinhamentoControle();
+            alinhandoControle = false;
+            tempoAcumuladoMs = 0L;
             return false;
         }
         alinhandoControle = true;
@@ -249,6 +252,10 @@ public final class GerenciadorReproducaoGif {
         tempoAcumuladoMs = 0L;
         if (reproduzindo) {
             inicioReproducao = SystemClock.uptimeMillis();
+        } else if (sequencia != null) {
+            reproduzindo = true;
+            inicioReproducao = SystemClock.uptimeMillis();
+            animationTicker.iniciar();
         }
     }
 
@@ -263,7 +270,7 @@ public final class GerenciadorReproducaoGif {
     }
 
     private boolean estaNoQuadroAlvo() {
-        return sequencia.getSegmentIndex(quadrosAvancados)
+        return sequencia.getCycleIndexForFrame(quadrosAvancados)
                         == segmentoAlinhamento &&
                 sequencia.getCycleOffsetForFrame(
                         segmentoAlinhamento,

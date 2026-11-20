@@ -18,7 +18,7 @@ public final class MarcadoresPlanilhaRepository {
 
     private static final String TAG = "MarcadoresPlanilha";
     private static final String WEB_APP_URL =
-            "https://script.google.com/macros/s/AKfycbyZLifncYjBQz9ax9mnJn2ddU-NQ1k24CjhEBCXfpb8q384nfd8-HA_UZfsUAY1pYuE/exec";
+            "https://script.google.com/macros/s/AKfycbxKtosM9GJg8fgBrV_QsrUhkMPfx1MV1dNpoFsNwF-TlL4XWxAjxnzTOupZ2Msf_5LZ-A/exec";
     private static final String TOKEN = "9718";
     private static final int TIMEOUT_MS = 20000;
 
@@ -39,7 +39,7 @@ public final class MarcadoresPlanilhaRepository {
 
         JSONArray registros = new JSONArray();
         for (String[] linha : linhas) {
-            if (linha == null || linha.length != 5) {
+            if (linha == null || linha.length != 11) {
                 throw new IllegalArgumentException(
                         "Um dos registros de marcador está inválido."
                 );

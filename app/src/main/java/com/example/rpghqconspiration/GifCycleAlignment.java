@@ -5,6 +5,7 @@ public final class GifCycleAlignment {
 
     private static final float CATCH_UP_PER_FRAME = 0.04f;
     private static final float RESPONSE_TIME_MS = 220f;
+    private static final long TARGET_IDLE_TIMEOUT_MS = 150L;
 
     private int cycleFrameCount;
     private long cycleDurationMs;
@@ -85,8 +86,12 @@ public final class GifCycleAlignment {
                 targetFrame - currentFrame,
                 cycleFrameCount
         );
+        float targetSpeed = nowMs - previousTargetTimeMs
+                > TARGET_IDLE_TIMEOUT_MS
+                ? 0f
+                : targetSpeedMultiplier;
         float desiredSpeed = clamp(
-                targetSpeedMultiplier +
+                targetSpeed +
                         framesUntilTarget * CATCH_UP_PER_FRAME,
                 0f,
                 1f

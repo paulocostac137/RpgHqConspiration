@@ -19,6 +19,9 @@ public final class MarcadoresBarraView extends View {
     private final Paint texto = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF areaFundo = new RectF();
     private final Map<Integer, StringBuilder> marcadores = new TreeMap<>();
+    private final List<Integer> ordemMarcacoes = new ArrayList<>();
+    private final SequenciaMarcadores sequenciaMarcadores =
+            new SequenciaMarcadores();
     private final int[] barraLocalizacao = new int[2];
     private final int[] viewLocalizacao = new int[2];
     private SeekBar barra;
@@ -47,20 +50,48 @@ public final class MarcadoresBarraView extends View {
         invalidate();
     }
 
-    public void adicionarMarcador(int indiceQuadro, String letra) {
+    public boolean adicionarMarcador(int indiceQuadro, String letra) {
         if (totalQuadros <= 0 ||
                 indiceQuadro < 0 || indiceQuadro >= totalQuadros ||
-                letra == null || letra.isEmpty()) {
-            return;
+                letra == null || letra.length() != 1) {
+            return false;
+        }
+
+        char marcacao = letra.charAt(0);
+        if (!sequenciaMarcadores.adicionar(marcacao, indiceQuadro)) {
+            return false;
         }
 
         StringBuilder letras = marcadores.get(indiceQuadro);
         if (letras == null) {
-            letras = new StringBuilder();
+            letras = new StringBuilder(3);
             marcadores.put(indiceQuadro, letras);
         }
-        letras.append(letra);
+        letras.append(marcacao);
+        ordemMarcacoes.add(indiceQuadro);
         invalidate();
+        return true;
+    }
+
+    public boolean podeAdicionarMarcador(int indiceQuadro, String letra) {
+        if (totalQuadros <= 0 ||
+                indiceQuadro < 0 || indiceQuadro >= totalQuadros ||
+                letra == null || letra.length() != 1) {
+            return false;
+        }
+
+        return sequenciaMarcadores.podeAdicionar(
+                letra.charAt(0),
+                indiceQuadro
+        );
+    }
+
+    public String obterRotuloBotaoOn() {
+        return sequenciaMarcadores.obterRotuloOn();
+    }
+
+    public boolean temPeloMenosTresMarcacoes() {
+        return sequenciaMarcadores.temPeloMenosTresMarcacoes();
     }
 
     public List<String[]> obterLinhasPlanilha(
@@ -81,47 +112,31 @@ public final class MarcadoresBarraView extends View {
             );
         }
 
-        StringBuilder quadrosGo = new StringBuilder();
-        StringBuilder quadrosOn = new StringBuilder();
-        StringBuilder quadrosOut = new StringBuilder();
-        for (Map.Entry<Integer, StringBuilder> marcador
-                : marcadores.entrySet()) {
-            String letras = marcador.getValue().toString();
-            for (int i = 0; i < letras.length(); i++) {
-                StringBuilder destino;
-                switch (letras.charAt(i)) {
-                    case 'G':
-                        destino = quadrosGo;
-                        break;
-                    case 'O':
-                        destino = quadrosOn;
-                        break;
-                    case 'T':
-                        destino = quadrosOut;
-                        break;
-                    default:
-                        continue;
-                }
-                if (destino.length() > 0) {
-                    destino.append(',');
-                }
-                destino.append(marcador.getKey() + 1);
-            }
-        }
+        String[] colunasMarcadores =
+                MarcadoresPlanilha.colunasPorCiclo(ordemMarcacoes);
 
         List<String[]> linhas = new ArrayList<>();
-        if (quadrosGo.length() == 0 &&
-                quadrosOn.length() == 0 &&
-                quadrosOut.length() == 0) {
+        boolean haMarcadores = false;
+        for (String coluna : colunasMarcadores) {
+            if (!coluna.isEmpty()) {
+                haMarcadores = true;
+                break;
+            }
+        }
+        if (!haMarcadores) {
             return linhas;
         }
-        linhas.add(new String[]{
-                linkGif.trim(),
-                textoImagem,
-                quadrosGo.toString(),
-                quadrosOn.toString(),
-                quadrosOut.toString()
-        });
+        String[] linha = new String[11];
+        linha[0] = linkGif.trim();
+        linha[1] = textoImagem;
+        System.arraycopy(
+                colunasMarcadores,
+                0,
+                linha,
+                2,
+                colunasMarcadores.length
+        );
+        linhas.add(linha);
         return linhas;
     }
 

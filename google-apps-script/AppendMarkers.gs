@@ -1,6 +1,11 @@
 const SPREADSHEET_ID = '13ESbous-qqBsQf6VU_6Rw4zb_aoBguosGXY9eh86P9M';
 const API_TOKEN = '9718';
-const COLUMN_HEADERS = ['Link', 'Express', 'Go1', 'On1', 'Out1'];
+const COLUMN_HEADERS = [
+  'Link', 'Express',
+  'Go1', 'On1', 'Out1',
+  'Go2', 'On2', 'Out2',
+  'Go3', 'On3', 'Out3'
+];
 const ID_HEADER = 'Pov000';
 
 function doPost(event) {
@@ -18,24 +23,20 @@ function doPost(event) {
     }
 
     const records = body.rows.map(function (row) {
-      if (!Array.isArray(row) || row.length !== 5 ||
+      if (!Array.isArray(row) || row.length !== 11 ||
           typeof row[0] !== 'string' || row[0].trim() === '' ||
           typeof row[1] !== 'string' || row[1].length > 100 ||
-          !isValidFrameList(row[2]) ||
-          !isValidFrameList(row[3]) ||
-          !isValidFrameList(row[4]) ||
-          [row[2], row[3], row[4]].every(function (frames) {
+          !row.slice(2).every(isValidFrameList) ||
+          row.slice(2).every(function (frames) {
             return String(frames).trim() === '';
           })) {
         throw new Error('Registro de marcador inválido.');
       }
-      return [
-        row[0].trim(),
-        row[1],
-        String(row[2]).trim(),
-        String(row[3]).trim(),
-        String(row[4]).trim()
-      ];
+      return [row[0].trim(), row[1]].concat(
+        row.slice(2).map(function (frames) {
+          return String(frames).trim();
+        })
+      );
     });
 
     const lock = LockService.getScriptLock();
@@ -60,6 +61,20 @@ function doPost(event) {
         if (key && headerMap[key] === undefined) {
           headerMap[key] = index + 1;
         }
+      });
+      COLUMN_HEADERS.forEach(function (header, index) {
+        const key = header.toLowerCase();
+        if (headerMap[key] !== undefined) {
+          return;
+        }
+        if (index < 5) {
+          throw new Error(
+            'Cabeçalho não encontrado na planilha: ' + header
+          );
+        }
+        const newColumn = sheet.getLastColumn() + 1;
+        sheet.getRange(1, newColumn).setValue(header);
+        headerMap[key] = newColumn;
       });
       const targetColumns = COLUMN_HEADERS.map(function (header) {
         const column = headerMap[header.toLowerCase()];

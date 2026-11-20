@@ -26,6 +26,9 @@ public class ResultadoGifActivity extends AppCompatActivity {
     private Button botaoQuadroAnterior;
     private Button botaoProximoQuadro;
     private Button botaoPlayQuadros;
+    private Button botaoGo;
+    private Button botaoOn;
+    private Button botaoOut;
     private SeekBar barraQuadros;
     private TextView textoContadorQuadros;
     private MarcadoresBarraView marcadoresBarraQuadros;
@@ -82,9 +85,9 @@ public class ResultadoGifActivity extends AppCompatActivity {
         barraQuadros = findViewById(R.id.barraQuadros);
         marcadoresBarraQuadros =
                 findViewById(R.id.marcadoresBarraQuadros);
-        Button botaoGo = findViewById(R.id.botaoGo);
-        Button botaoOn = findViewById(R.id.botaoOn);
-        Button botaoOut = findViewById(R.id.botaoOut);
+        botaoGo = findViewById(R.id.botaoGo);
+        botaoOn = findViewById(R.id.botaoOn);
+        botaoOut = findViewById(R.id.botaoOut);
         botaoVoltar.setOnClickListener(view -> finish());
         botaoFinalizar.setOnClickListener(view -> finalizarMarcadores());
 
@@ -101,6 +104,7 @@ public class ResultadoGifActivity extends AppCompatActivity {
             marcadoresBarraQuadros.setVisibility(
                     MarcadoresBarraView.GONE
             );
+            atualizarBotoesMarcadores();
             return;
         }
 
@@ -151,24 +155,46 @@ public class ResultadoGifActivity extends AppCompatActivity {
             }
         });
         botaoGo.setOnClickListener(
-                view -> marcadoresBarraQuadros.adicionarMarcador(
+                view -> adicionarMarcadorAtual("G")
+        );
+        botaoOn.setOnClickListener(
+                view -> adicionarMarcadorAtual("O")
+        );
+        botaoOut.setOnClickListener(
+                view -> adicionarMarcadorAtual("T")
+        );
+        mostrarQuadro(0);
+    }
+
+    private void adicionarMarcadorAtual(String letra) {
+        marcadoresBarraQuadros.adicionarMarcador(indiceQuadro, letra);
+        atualizarBotoesMarcadores();
+    }
+
+    private void atualizarBotoesMarcadores() {
+        if (marcadoresBarraQuadros == null ||
+                botaoGo == null || botaoOn == null || botaoOut == null) {
+            return;
+        }
+        botaoGo.setEnabled(
+                marcadoresBarraQuadros.podeAdicionarMarcador(
                         indiceQuadro,
                         "G"
                 )
         );
-        botaoOn.setOnClickListener(
-                view -> marcadoresBarraQuadros.adicionarMarcador(
+        botaoOn.setEnabled(
+                marcadoresBarraQuadros.podeAdicionarMarcador(
                         indiceQuadro,
                         "O"
                 )
         );
-        botaoOut.setOnClickListener(
-                view -> marcadoresBarraQuadros.adicionarMarcador(
+        botaoOut.setEnabled(
+                marcadoresBarraQuadros.podeAdicionarMarcador(
                         indiceQuadro,
                         "T"
                 )
         );
-        mostrarQuadro(0);
+        botaoOn.setText(marcadoresBarraQuadros.obterRotuloBotaoOn());
     }
 
     private void iniciarReproducao() {
@@ -200,6 +226,15 @@ public class ResultadoGifActivity extends AppCompatActivity {
             Toast.makeText(
                     this,
                     "O link do GIF não está disponível.",
+                    Toast.LENGTH_LONG
+            ).show();
+            return;
+        }
+
+        if (!marcadoresBarraQuadros.temPeloMenosTresMarcacoes()) {
+            Toast.makeText(
+                    this,
+                    "Complete ao menos uma sequência (Go, On e Out) antes de finalizar.",
                     Toast.LENGTH_LONG
             ).show();
             return;
@@ -280,6 +315,7 @@ public class ResultadoGifActivity extends AppCompatActivity {
         if (barraQuadros.getProgress() != indiceQuadro) {
             barraQuadros.setProgress(indiceQuadro);
         }
+        atualizarBotoesMarcadores();
     }
 
     @Override

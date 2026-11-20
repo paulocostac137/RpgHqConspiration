@@ -26,6 +26,7 @@ public final class GerenciadorDecodificacaoGif {
             32L * 1024L * 1024L;
     private static final int DIMENSAO_MAXIMA_QUADRO = 240;
     private static final long LIMITE_QUADROS_LINHA_DO_TEMPO = 1_000_000L;
+    private static final int REPETICOES_FAIXA_MARCADA = 5;
 
     public interface Listener {
 
@@ -244,8 +245,25 @@ public final class GerenciadorDecodificacaoGif {
             List<Integer> repeticoes,
             GifRepository repository,
             TimelineListener listener) {
+        prepararLinhaDoTempo(
+                links,
+                repeticoes,
+                Collections.nCopies(links == null ? 0 : links.size(), null),
+                repository,
+                listener
+        );
+    }
+
+    public void prepararLinhaDoTempo(
+            List<String> links,
+            List<Integer> repeticoes,
+            List<FaixaRepeticaoGif> faixasRepetidas,
+            GifRepository repository,
+            TimelineListener listener) {
         if (links == null || links.isEmpty() ||
                 repeticoes == null || repeticoes.size() != links.size() ||
+                faixasRepetidas == null ||
+                faixasRepetidas.size() != links.size() ||
                 repository == null || listener == null) {
             throw new IllegalArgumentException(
                     "Links, repetições, repositório e listener são obrigatórios."
@@ -254,6 +272,8 @@ public final class GerenciadorDecodificacaoGif {
 
         List<String> linksCopiados = new ArrayList<>(links);
         List<Integer> repeticoesCopiadas = new ArrayList<>(repeticoes);
+        List<FaixaRepeticaoGif> faixasCopiadas =
+                new ArrayList<>(faixasRepetidas);
         try {
             executor.execute(() -> {
                 List<GifFrameSequence> sequencias = new ArrayList<>();
@@ -276,8 +296,16 @@ public final class GerenciadorDecodificacaoGif {
                         }
                         File arquivo = repository.obter(link);
                         GifFrameInfo frameInfo = GifFrameInfo.read(arquivo);
-                        int quantidadeQuadros = frameInfo
-                                .getFrameCountAt30Fps(repeticao);
+                        FaixaRepeticaoGif faixa =
+                                faixasCopiadas.get(i);
+                        int quadrosDoCiclo = faixa == null
+                                ? frameInfo.getFrameCountAt30Fps()
+                                : frameInfo.getFrameCountAt30Fps(
+                                        faixa,
+                                        REPETICOES_FAIXA_MARCADA
+                                );
+                        long quantidadeQuadros =
+                                (long) quadrosDoCiclo * repeticao;
                         if (quantidadeQuadros >
                                 LIMITE_QUADROS_LINHA_DO_TEMPO
                                         - totalPosicoes) {
@@ -288,7 +316,7 @@ public final class GerenciadorDecodificacaoGif {
                         totalPosicoes += quantidadeQuadros;
                         totalBitmaps += Math.min(
                                 frameInfo.getFrameCount(),
-                                quantidadeQuadros
+                                frameInfo.getFrameCountAt30Fps()
                         );
                         arquivos.add(arquivo);
                         metadados.add(frameInfo);
@@ -303,7 +331,9 @@ public final class GerenciadorDecodificacaoGif {
                                 GifFrameSequence.extract(
                                         movie,
                                         metadados.get(i),
-                                        limiteDimensao
+                                        limiteDimensao,
+                                        faixasCopiadas.get(i),
+                                        REPETICOES_FAIXA_MARCADA
                                 );
                         sequencias.add(sequencia);
                     }
