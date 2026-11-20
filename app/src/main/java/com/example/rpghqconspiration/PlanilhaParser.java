@@ -45,70 +45,64 @@ public final class PlanilhaParser {
         repeticoes.clear();
 
         String[] linhas = conteudo.split("\\n");
+        if (linhas.length == 0) {
+            throw new IllegalArgumentException(
+                    "A planilha está vazia."
+            );
+        }
 
-        boolean primeiraLinha = true;
-        int numeroLinha = 0;
+        ArrayList<String> cabecalhos = CsvParser.separar(linhas[0]);
+        int colunaNome = localizarColuna(cabecalhos, "Pov000");
+        int colunaLink = localizarColuna(cabecalhos, "Link");
+        int colunaTexto = localizarColuna(cabecalhos, "Express");
+        localizarColuna(cabecalhos, "Go1");
+        localizarColuna(cabecalhos, "On1");
+        localizarColuna(cabecalhos, "Out1");
 
-        for (String linha : linhas) {
-            numeroLinha++;
-
+        for (int numeroLinha = 1; numeroLinha < linhas.length; numeroLinha++) {
             ArrayList<String> colunas =
-                    CsvParser.separar(linha);
+                    CsvParser.separar(linhas[numeroLinha]);
 
-            if (primeiraLinha) {
-
-                primeiraLinha = false;
-
-                continue;
-            }
-
-            if (colunas.size() < 2) {
+            int ultimaColunaNecessaria = Math.max(
+                    colunaNome,
+                    Math.max(colunaLink, colunaTexto)
+            );
+            if (colunas.size() <= ultimaColunaNecessaria) {
                 continue;
             }
 
             String nome =
-                    colunas.get(0).trim();
+                    colunas.get(colunaNome).trim();
 
             String link =
-                    colunas.get(1).trim();
+                    colunas.get(colunaLink).trim();
 
             String texto =
-                    colunas.size() > 2
-                            ? colunas.get(2).trim()
-                            : "";
-            String repeticaoTexto =
-                    colunas.size() > 3
-                            ? colunas.get(3).trim()
-                            : "";
+                    colunas.get(colunaTexto).trim();
 
             if (!nome.isEmpty() &&
                     !link.isEmpty()) {
-
-                int quantidadeRepeticoes = 1;
-                if (!repeticaoTexto.isEmpty()) {
-                    try {
-                        quantidadeRepeticoes =
-                                Integer.parseInt(repeticaoTexto);
-                    } catch (NumberFormatException erro) {
-                        throw new IllegalArgumentException(
-                                "A coluna D da linha " + numeroLinha +
-                                        " deve conter um número inteiro positivo.",
-                                erro
-                        );
-                    }
-                    if (quantidadeRepeticoes <= 0) {
-                        throw new IllegalArgumentException(
-                                "A coluna D da linha " + numeroLinha +
-                                        " deve conter um número inteiro positivo."
-                        );
-                    }
-                }
-
                 nomes.add(nome);
                 links.add(link);
                 textosPlanilha.add(texto);
-                repeticoes.add(quantidadeRepeticoes);
+                repeticoes.add(1);
             }
         }
+    }
+
+    private static int localizarColuna(
+            ArrayList<String> cabecalhos,
+            String nome) {
+        for (int i = 0; i < cabecalhos.size(); i++) {
+            String cabecalho = cabecalhos.get(i)
+                    .replace("\uFEFF", "")
+                    .trim();
+            if (nome.equalsIgnoreCase(cabecalho)) {
+                return i;
+            }
+        }
+        throw new IllegalArgumentException(
+                "Cabeçalho obrigatório não encontrado: " + nome
+        );
     }
 }

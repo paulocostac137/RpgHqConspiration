@@ -63,26 +63,65 @@ public final class MarcadoresBarraView extends View {
         invalidate();
     }
 
-    public List<String[]> obterLinhasPlanilha(String linkGif) {
+    public List<String[]> obterLinhasPlanilha(
+            String linkGif,
+            String textoImagem) {
         if (linkGif == null || linkGif.trim().isEmpty()) {
             throw new IllegalArgumentException(
                     "O link do GIF não pode estar vazio."
             );
         }
 
-        List<String[]> linhas = new ArrayList<>();
+        if (textoImagem == null) {
+            textoImagem = "";
+        }
+        if (textoImagem.length() > 100) {
+            throw new IllegalArgumentException(
+                    "O texto deve ter no máximo 100 caracteres."
+            );
+        }
+
+        StringBuilder quadrosGo = new StringBuilder();
+        StringBuilder quadrosOn = new StringBuilder();
+        StringBuilder quadrosOut = new StringBuilder();
         for (Map.Entry<Integer, StringBuilder> marcador
                 : marcadores.entrySet()) {
             String letras = marcador.getValue().toString();
             for (int i = 0; i < letras.length(); i++) {
-                linhas.add(new String[]{
-                        "",
-                        linkGif,
-                        String.valueOf(letras.charAt(i)),
-                        String.valueOf(marcador.getKey() + 1)
-                });
+                StringBuilder destino;
+                switch (letras.charAt(i)) {
+                    case 'G':
+                        destino = quadrosGo;
+                        break;
+                    case 'O':
+                        destino = quadrosOn;
+                        break;
+                    case 'T':
+                        destino = quadrosOut;
+                        break;
+                    default:
+                        continue;
+                }
+                if (destino.length() > 0) {
+                    destino.append(',');
+                }
+                destino.append(marcador.getKey() + 1);
             }
         }
+
+        List<String[]> linhas = new ArrayList<>();
+        if (quadrosGo.length() == 0 &&
+                quadrosOn.length() == 0 &&
+                quadrosOut.length() == 0) {
+            return linhas;
+        }
+        linhas.add(new String[]{
+                linkGif.trim(),
+                textoImagem,
+                quadrosGo.toString(),
+                quadrosOn.toString(),
+                quadrosOut.toString()
+        });
         return linhas;
     }
 

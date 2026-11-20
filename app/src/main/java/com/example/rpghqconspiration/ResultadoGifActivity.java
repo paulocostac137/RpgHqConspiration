@@ -5,6 +5,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
@@ -29,6 +30,7 @@ public class ResultadoGifActivity extends AppCompatActivity {
     private TextView textoContadorQuadros;
     private MarcadoresBarraView marcadoresBarraQuadros;
     private Button botaoFinalizar;
+    private EditText campoTextoImagem;
     private final ExecutorService executor =
             Executors.newSingleThreadExecutor();
     private String linkGif;
@@ -71,6 +73,7 @@ public class ResultadoGifActivity extends AppCompatActivity {
 
         Button botaoVoltar = findViewById(R.id.botaoVoltarResultado);
         botaoFinalizar = findViewById(R.id.botaoFinalizar);
+        campoTextoImagem = findViewById(R.id.campoTextoImagem);
         textoContadorQuadros = findViewById(R.id.textoContadorQuadros);
         imagemQuadro = findViewById(R.id.imagemQuadroResultado);
         botaoQuadroAnterior = findViewById(R.id.botaoQuadroAnterior);
@@ -204,7 +207,10 @@ public class ResultadoGifActivity extends AppCompatActivity {
 
         final List<String[]> linhas;
         try {
-            linhas = marcadoresBarraQuadros.obterLinhasPlanilha(linkGif);
+            linhas = marcadoresBarraQuadros.obterLinhasPlanilha(
+                    linkGif,
+                    campoTextoImagem.getText().toString()
+            );
         } catch (IllegalArgumentException erro) {
             Toast.makeText(this, erro.getMessage(), Toast.LENGTH_LONG).show();
             return;
@@ -222,7 +228,7 @@ public class ResultadoGifActivity extends AppCompatActivity {
         botaoFinalizar.setEnabled(false);
         Toast.makeText(
                 this,
-                "Enviando " + linhas.size() + " marcador(es)...",
+                "Enviando os marcadores...",
                 Toast.LENGTH_SHORT
         ).show();
         executor.execute(() -> {

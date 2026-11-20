@@ -26,23 +26,42 @@
             android:layout_height="match_parent"
             android:importantForAccessibility="no" />
 
-        <Button
-            android:id="@+id/botaoVoltarResultado"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="top|start"
-            android:layout_margin="8dp"
-            android:minWidth="0dp"
-            android:text="VOLTAR"
-            android:textSize="12sp" />
-
         <LinearLayout
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="top|end"
+            android:layout_gravity="top"
             android:layout_margin="8dp"
-            android:gravity="end"
-            android:orientation="vertical">
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/botaoVoltarResultado"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:text="VOLTAR"
+                android:textSize="12sp" />
+
+            <EditText
+                android:id="@+id/campoTextoImagem"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_marginEnd="6dp"
+                android:layout_weight="1"
+                android:background="#99000000"
+                android:hint="Texto..."
+                android:imeOptions="actionDone"
+                android:inputType="textCapSentences"
+                android:maxLength="100"
+                android:paddingStart="8dp"
+                android:paddingTop="10dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="10dp"
+                android:singleLine="true"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#BDBDBD"
+                android:textSize="14sp" />
 
             <Button
                 android:id="@+id/botaoFinalizar"
@@ -52,21 +71,23 @@
                 android:text="FINALIZAR"
                 android:textSize="12sp" />
 
-            <TextView
-                android:id="@+id/textoContadorQuadros"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="end"
-                android:layout_marginTop="4dp"
-                android:background="#99000000"
-                android:paddingStart="10dp"
-                android:paddingTop="6dp"
-                android:paddingEnd="10dp"
-                android:paddingBottom="6dp"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:textStyle="bold" />
         </LinearLayout>
+
+        <TextView
+            android:id="@+id/textoContadorQuadros"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:layout_marginTop="56dp"
+            android:layout_marginEnd="8dp"
+            android:background="#99000000"
+            android:paddingStart="10dp"
+            android:paddingTop="6dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="6dp"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold" />
 
         <LinearLayout
             android:layout_width="wrap_content"
