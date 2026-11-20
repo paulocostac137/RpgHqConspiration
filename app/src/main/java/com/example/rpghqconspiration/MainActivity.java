@@ -222,6 +222,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean controleRemotoAtivo = false;
     private boolean controleAlinhadoInicialmente = false;
     private boolean faixaControleOnOutAtiva = false;
+    private int indiceCicloSombraSuperior = -1;
     private float progressoControlesAtual = 0f;
 
     private boolean carregando = false;
@@ -976,14 +977,11 @@ public class MainActivity extends AppCompatActivity {
         if (!controleRemotoAtivo) {
             controleAlinhadoInicialmente = false;
             faixaControleOnOutAtiva = false;
+            indiceCicloSombraSuperior = -1;
             gerenciadorReproducao.cancelarAlinhamentoControle();
         }
         controleRemotoAtivo = true;
-        if (GifFramePositionMapper.entrouNaSombraInferior(
-                progressoRecebido
-        )) {
-            faixaControleOnOutAtiva = true;
-        }
+        atualizarFaixaControlePorProgresso(progressoRecebido);
 
         if (gifTiming != null) {
             gifTiming.definirProgressoExibicao(progressoRecebido);
@@ -1047,6 +1045,7 @@ public class MainActivity extends AppCompatActivity {
         controleRemotoAtivo = false;
         controleAlinhadoInicialmente = false;
         faixaControleOnOutAtiva = false;
+        indiceCicloSombraSuperior = -1;
         if (gerenciadorReproducao != null) {
             gerenciadorReproducao.retomarAposControle();
         }
@@ -1483,6 +1482,7 @@ public class MainActivity extends AppCompatActivity {
 
                                 controleAlinhadoInicialmente = false;
                                 faixaControleOnOutAtiva = false;
+                                indiceCicloSombraSuperior = -1;
                                 gerenciadorReproducao
                                         .cancelarAlinhamentoControle();
                                 if (gifTiming != null) {
@@ -1493,11 +1493,7 @@ public class MainActivity extends AppCompatActivity {
                             @Override
                             public void onProgressoManual(float progresso) {
 
-                                if (GifFramePositionMapper.entrouNaSombraInferior(
-                                        progresso
-                                )) {
-                                    faixaControleOnOutAtiva = true;
-                                }
+                                atualizarFaixaControlePorProgresso(progresso);
                                 if (gifTiming != null) {
                                     gifTiming.definirProgressoExibicao(
                                             progresso
@@ -1565,6 +1561,7 @@ public class MainActivity extends AppCompatActivity {
 
                                 controleAlinhadoInicialmente = false;
                                 faixaControleOnOutAtiva = false;
+                                indiceCicloSombraSuperior = -1;
                                 gerenciadorReproducao.retomarAposControle();
                                 enviarComandoControle(
                                         false,
@@ -2044,9 +2041,27 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private int obterIndiceSegmentoControle() {
+        if (indiceCicloSombraSuperior >= 0) {
+            return indiceCicloSombraSuperior;
+        }
         return movie.getControlCycleIndexForFrame(
                 gerenciadorReproducao.getIndiceQuadro()
         );
+    }
+
+    private void atualizarFaixaControlePorProgresso(float progresso) {
+        if (GifFramePositionMapper.entrouNaSombraInferior(progresso)) {
+            faixaControleOnOutAtiva = true;
+        }
+
+        if (indiceCicloSombraSuperior < 0 &&
+                GifFramePositionMapper.entrouNaSombraSuperior(progresso)) {
+            int cicloAtual = movie.getControlCycleIndexForFrame(
+                    gerenciadorReproducao.getIndiceQuadro()
+            );
+            indiceCicloSombraSuperior = Math.max(0, cicloAtual - 1);
+            faixaControleOnOutAtiva = true;
+        }
     }
 
     private String obterTextoSegmento(int indice) {

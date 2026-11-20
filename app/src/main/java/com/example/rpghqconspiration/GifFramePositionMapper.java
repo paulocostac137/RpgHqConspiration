@@ -4,6 +4,7 @@ package com.example.rpghqconspiration;
 public final class GifFramePositionMapper {
 
     private static final float PROGRESSO_LIMITE_SOMBRA_INFERIOR = 0.9f;
+    private static final float PROGRESSO_LIMITE_SOMBRA_SUPERIOR = 0.1f;
 
     private GifFramePositionMapper() {
     }
@@ -17,6 +18,11 @@ public final class GifFramePositionMapper {
     public static boolean entrouNaSombraInferior(float progress) {
         return limitarProgresso(progress) >=
                 PROGRESSO_LIMITE_SOMBRA_INFERIOR;
+    }
+
+    public static boolean entrouNaSombraSuperior(float progress) {
+        return limitarProgresso(progress) <=
+                PROGRESSO_LIMITE_SOMBRA_SUPERIOR;
     }
 
     public static int frameOffsetForControlProgress(
