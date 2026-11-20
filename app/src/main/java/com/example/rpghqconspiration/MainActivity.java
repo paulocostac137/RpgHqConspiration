@@ -22,6 +22,7 @@ import org.json.JSONObject;
 import java.io.File;
 
 import java.util.ArrayList;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -560,7 +561,7 @@ public class MainActivity extends AppCompatActivity {
         String papelUsuario = servicoConexao.getPapelUsuario();
         if ("A".equalsIgnoreCase(papelUsuario.trim()) ||
                 papelEhUsuarioB(papelUsuario)) {
-            papelUsuarioLocal = papelUsuario.trim().toUpperCase();
+            papelUsuarioLocal = papelUsuario.trim().toUpperCase(Locale.ROOT);
             String turnoServidor =
                     servicoConexao.getPapelControleAtual();
             if ("A".equals(turnoServidor) ||

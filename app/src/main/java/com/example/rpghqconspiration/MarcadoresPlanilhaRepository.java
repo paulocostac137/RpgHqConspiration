@@ -18,7 +18,7 @@ public final class MarcadoresPlanilhaRepository {
 
     private static final String TAG = "MarcadoresPlanilha";
     private static final String WEB_APP_URL =
-            "https://script.google.com/macros/s/AKfycbxKuZEsuSILIccEAGDrPikd4CZdD4XIZSrg-j_mjkx7MaEJ4iYIPZSEk6ea-5ke4EJA/exec";
+            "https://script.google.com/macros/s/AKfycby1gWFnpl3tjR80sTC9SnVtD_KWDjp8axACKElHmWt22T2L8SQOc_ypdHAVZuaETXkMFQ/exec";
     private static final String TOKEN = "9718";
     private static final int TIMEOUT_MS = 20000;
 
