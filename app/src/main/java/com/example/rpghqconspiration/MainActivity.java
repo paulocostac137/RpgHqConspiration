@@ -438,6 +438,40 @@ public class MainActivity extends AppCompatActivity {
             fundo.setCornerRadius(raio);
         }
         controle.setBackground(fundo);
+
+        View sombra = findViewById(
+                controle.getId() == R.id.controleEsquerdo
+                        ? R.id.sombraSuperiorEsquerda
+                        : R.id.sombraSuperiorDireita
+        );
+        GradientDrawable degrade = new GradientDrawable(
+                GradientDrawable.Orientation.BOTTOM_TOP,
+                new int[]{0xCC1E88E5, 0x661E88E5, 0x001E88E5}
+        );
+        degrade.setCornerRadii(new float[]{
+                0f, 0f,
+                0f, 0f,
+                raio, raio,
+                raio, raio
+        });
+        sombra.setBackground(degrade);
+
+        View sombraInferior = findViewById(
+                controle.getId() == R.id.controleEsquerdo
+                        ? R.id.sombraInferiorEsquerda
+                        : R.id.sombraInferiorDireita
+        );
+        GradientDrawable degradeInferior = new GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{0xCCF44336, 0x66F44336, 0x00F44336}
+        );
+        degradeInferior.setCornerRadii(new float[]{
+                raio, raio,
+                raio, raio,
+                0f, 0f,
+                0f, 0f
+        });
+        sombraInferior.setBackground(degradeInferior);
     }
 
     private void aplicarTurnoControle(String papel) {
@@ -1076,8 +1110,83 @@ public class MainActivity extends AppCompatActivity {
                     controleDireito.setTranslationX(
                             -direcaoInicio * deslocamento
                     );
+                    atualizarPosicaoSombrasControles();
                 }
         );
+        controleEsquerdo.addOnLayoutChangeListener(
+                (view, left, top, right, bottom,
+                 oldLeft, oldTop, oldRight, oldBottom) ->
+                        atualizarPosicaoSombrasControles()
+        );
+        controleDireito.addOnLayoutChangeListener(
+                (view, left, top, right, bottom,
+                 oldLeft, oldTop, oldRight, oldBottom) ->
+                        atualizarPosicaoSombrasControles()
+        );
+    }
+
+    private void atualizarPosicaoSombrasControles() {
+
+        atualizarPosicaoSombraControle(
+                controleEsquerdo,
+                findViewById(R.id.sombraSuperiorEsquerda),
+                true,
+                false
+        );
+        atualizarPosicaoSombraControle(
+                controleDireito,
+                findViewById(R.id.sombraSuperiorDireita),
+                false,
+                false
+        );
+        atualizarPosicaoSombraControle(
+                controleEsquerdo,
+                findViewById(R.id.sombraInferiorEsquerda),
+                true,
+                true
+        );
+        atualizarPosicaoSombraControle(
+                controleDireito,
+                findViewById(R.id.sombraInferiorDireita),
+                false,
+                true
+        );
+    }
+
+    private void atualizarPosicaoSombraControle(
+            TextView controle,
+            View sombra,
+            boolean esquerda,
+            boolean inferior) {
+
+        if (controle == null || sombra == null ||
+                controle.getWidth() <= 0 || controle.getHeight() <= 0 ||
+                areaGif.getHeight() <= controle.getHeight()) {
+            return;
+        }
+
+        int percursoControle =
+                areaGif.getHeight() - controle.getHeight();
+        int alturaSombra = Math.max(
+                1,
+                Math.round(percursoControle * 0.10f)
+        );
+
+        FrameLayout.LayoutParams parametros =
+                new FrameLayout.LayoutParams(
+                        controle.getWidth(),
+                        alturaSombra
+                );
+        parametros.gravity =
+                (inferior
+                        ? android.view.Gravity.BOTTOM
+                        : android.view.Gravity.TOP) |
+                        (esquerda
+                                ? android.view.Gravity.START
+                                : android.view.Gravity.END);
+        parametros.topMargin = 0;
+        sombra.setLayoutParams(parametros);
+        sombra.setTranslationX(controle.getTranslationX());
     }
 
     @Override
@@ -1812,6 +1921,7 @@ public class MainActivity extends AppCompatActivity {
 
                         preparandoLinhaDoTempo = false;
                         carregando = false;
+                        status.setVisibility(View.GONE);
                         GifFrameSequence sequenciaAnterior = movie;
                         movie = timeline;
                         if (sequenciaAnterior != null) {
