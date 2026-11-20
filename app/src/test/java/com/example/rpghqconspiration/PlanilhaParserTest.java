@@ -93,7 +93,7 @@ public class PlanilhaParserTest {
     }
 
     @Test
-    public void interpretaGo1EOut1ComoLimitesDaFaixaRepetida() {
+    public void interpretaGo1On1EOut1ComoLimitesDaFaixa() {
         ArrayList<String> nomes = new ArrayList<>();
         ArrayList<String> links = new ArrayList<>();
         ArrayList<String> textos = new ArrayList<>();
@@ -113,6 +113,7 @@ public class PlanilhaParserTest {
 
         assertEquals(2, faixas.size());
         assertEquals(2, faixas.get(0).getPrimeiroQuadro());
+        assertEquals(4, faixas.get(0).getQuadroOn());
         assertEquals(5, faixas.get(0).getUltimoQuadro());
         assertNull(faixas.get(1));
     }

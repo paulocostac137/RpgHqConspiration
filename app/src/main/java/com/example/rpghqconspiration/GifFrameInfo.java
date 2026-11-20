@@ -169,10 +169,13 @@ public final class GifFrameInfo {
         }
         int frameCount = getFrameCountAt30Fps();
         int primeiro = faixa.getPrimeiroQuadro();
+        int quadroOn = faixa.getQuadroOn();
         int ultimo = faixa.getUltimoQuadro();
-        if (primeiro > frameCount || ultimo > frameCount) {
+        if (primeiro > frameCount ||
+                quadroOn > frameCount ||
+                ultimo > frameCount) {
             throw new IllegalArgumentException(
-                    "A faixa Go1–Out1 excede a quantidade de quadros do GIF."
+                    "A faixa Go1–On1–Out1 excede a quantidade de quadros do GIF."
             );
         }
 

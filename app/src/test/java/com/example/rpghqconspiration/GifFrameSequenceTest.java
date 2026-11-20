@@ -73,4 +73,16 @@ public class GifFrameSequenceTest {
         assertEquals(6, GifFrameSequence.cycleIndexForFrame(starts, 20, 17));
         assertEquals(6, GifFrameSequence.cycleIndexForFrame(starts, 20, 19));
     }
+
+    @Test
+    public void registraOn1EmCadaRepeticaoDaFaixaGo1Out1() {
+        assertArrayEquals(
+                new int[]{-1, 1, 1, 1, 1, 1, -1},
+                GifFrameSequence.expandCycleOnFrameOffsets(
+                        8,
+                        new FaixaRepeticaoGif(3, 4, 5),
+                        5
+                )
+        );
+    }
 }

@@ -75,7 +75,7 @@ public final class PlanilhaParser {
         int colunaLink = localizarColuna(cabecalhos, "Link");
         int colunaTexto = localizarColuna(cabecalhos, "Express");
         int colunaGo1 = localizarColuna(cabecalhos, "Go1");
-        localizarColuna(cabecalhos, "On1");
+        int colunaOn1 = localizarColuna(cabecalhos, "On1");
         localizarColuna(cabecalhos, "Out1");
         int colunaOut1 = localizarColunaOpcional(cabecalhos, "Out1");
 
@@ -110,6 +110,7 @@ public final class PlanilhaParser {
                         extrairFaixaRepetida(
                                 colunas,
                                 colunaGo1,
+                                colunaOn1,
                                 colunaOut1,
                                 numeroLinha + 1
                         )
@@ -121,17 +122,20 @@ public final class PlanilhaParser {
     private static FaixaRepeticaoGif extrairFaixaRepetida(
             ArrayList<String> colunas,
             int colunaGo1,
+            int colunaOn1,
             int colunaOut1,
             int numeroLinha) {
         if (colunaOut1 < 0 ||
                 colunaGo1 >= colunas.size() ||
+                colunaOn1 >= colunas.size() ||
                 colunaOut1 >= colunas.size()) {
             return null;
         }
 
         String go1 = colunas.get(colunaGo1).trim();
+        String on1 = colunas.get(colunaOn1).trim();
         String out1 = colunas.get(colunaOut1).trim();
-        if (go1.isEmpty() || out1.isEmpty()) {
+        if (go1.isEmpty() || on1.isEmpty() || out1.isEmpty()) {
             return null;
         }
 
@@ -140,16 +144,26 @@ public final class PlanilhaParser {
                 "Go1",
                 numeroLinha
         );
+        int quadroOn = lerPrimeiroNumeroQuadro(
+                on1,
+                "On1",
+                numeroLinha
+        );
         int ultimoQuadro = lerPrimeiroNumeroQuadro(
                 out1,
                 "Out1",
                 numeroLinha
         );
         try {
-            return new FaixaRepeticaoGif(primeiroQuadro, ultimoQuadro);
+            return new FaixaRepeticaoGif(
+                    primeiroQuadro,
+                    quadroOn,
+                    ultimoQuadro
+            );
         } catch (IllegalArgumentException erro) {
             throw new IllegalArgumentException(
-                    "Faixa Go1–Out1 inválida na linha " + numeroLinha + ".",
+                    "Faixa Go1–On1–Out1 inválida na linha " +
+                            numeroLinha + ".",
                     erro
             );
         }

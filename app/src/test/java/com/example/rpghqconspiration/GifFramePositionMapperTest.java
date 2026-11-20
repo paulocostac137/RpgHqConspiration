@@ -47,4 +47,68 @@ public class GifFramePositionMapperTest {
                 0f
         );
     }
+
+    @Test
+    public void cadaFaixaUsaTodoOPercursoDoControle() {
+        int frameCount = 11;
+        int onFrameOffset = 5;
+
+        assertEquals(
+                0,
+                GifFramePositionMapper.frameOffsetForControlProgress(
+                        frameCount,
+                        onFrameOffset,
+                        0f,
+                        false
+                )
+        );
+        assertEquals(
+                onFrameOffset,
+                GifFramePositionMapper.frameOffsetForControlProgress(
+                        frameCount,
+                        onFrameOffset,
+                        1f,
+                        false
+                )
+        );
+        assertEquals(
+                frameCount - 1,
+                GifFramePositionMapper.frameOffsetForControlProgress(
+                        frameCount,
+                        onFrameOffset,
+                        0f,
+                        true
+                )
+        );
+        assertEquals(
+                onFrameOffset,
+                GifFramePositionMapper.frameOffsetForControlProgress(
+                        frameCount,
+                        onFrameOffset,
+                        1f,
+                        true
+                )
+        );
+    }
+
+    @Test
+    public void sombraInferiorAtivaFaixaOnOut() {
+        assertEquals(
+                false,
+                GifFramePositionMapper.entrouNaSombraInferior(0.89f)
+        );
+        assertEquals(
+                true,
+                GifFramePositionMapper.entrouNaSombraInferior(0.9f)
+        );
+        assertEquals(
+                7,
+                GifFramePositionMapper.frameOffsetForControlProgress(
+                        11,
+                        5,
+                        0.5f,
+                        true
+                )
+        );
+    }
 }

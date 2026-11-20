@@ -3,6 +3,8 @@ package com.example.rpghqconspiration;
 /** Maps the control travel range to discrete frame positions. */
 public final class GifFramePositionMapper {
 
+    private static final float PROGRESSO_LIMITE_SOMBRA_INFERIOR = 0.9f;
+
     private GifFramePositionMapper() {
     }
 
@@ -10,6 +12,32 @@ public final class GifFramePositionMapper {
         validarQuantidadeQuadros(frameCount);
         float limitado = limitarProgresso(progress);
         return Math.round(limitado * (frameCount - 1));
+    }
+
+    public static boolean entrouNaSombraInferior(float progress) {
+        return limitarProgresso(progress) >=
+                PROGRESSO_LIMITE_SOMBRA_INFERIOR;
+    }
+
+    public static int frameOffsetForControlProgress(
+            int frameCount,
+            int onFrameOffset,
+            float progress,
+            boolean faixaOnOutAtiva) {
+        validarQuantidadeQuadros(frameCount);
+        if (onFrameOffset < 0 || onFrameOffset >= frameCount) {
+            throw new IndexOutOfBoundsException(
+                    "O quadro On1 precisa pertencer ao intervalo Go1–Out1."
+            );
+        }
+
+        float limitado = limitarProgresso(progress);
+        if (faixaOnOutAtiva) {
+            return frameCount - 1 - Math.round(
+                    limitado * (frameCount - 1 - onFrameOffset)
+            );
+        }
+        return Math.round(limitado * onFrameOffset);
     }
 
     public static float progressForFrameOffset(

@@ -221,6 +221,7 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean controleRemotoAtivo = false;
     private boolean controleAlinhadoInicialmente = false;
+    private boolean faixaControleOnOutAtiva = false;
     private float progressoControlesAtual = 0f;
 
     private boolean carregando = false;
@@ -974,9 +975,15 @@ public class MainActivity extends AppCompatActivity {
 
         if (!controleRemotoAtivo) {
             controleAlinhadoInicialmente = false;
+            faixaControleOnOutAtiva = false;
             gerenciadorReproducao.cancelarAlinhamentoControle();
         }
         controleRemotoAtivo = true;
+        if (GifFramePositionMapper.entrouNaSombraInferior(
+                progressoRecebido
+        )) {
+            faixaControleOnOutAtiva = true;
+        }
 
         if (gifTiming != null) {
             gifTiming.definirProgressoExibicao(progressoRecebido);
@@ -990,11 +997,19 @@ public class MainActivity extends AppCompatActivity {
 
         int segmentoControle = obterIndiceSegmentoControle();
         int deslocamentoAlvo =
-                GifFramePositionMapper.frameOffsetForProgress(
-                        movie.getCycleFrameCount(segmentoControle),
-                        progressoRecebido
+                movie.getCycleFrameOffsetForControlProgress(
+                        segmentoControle,
+                        progressoRecebido,
+                        faixaControleOnOutAtiva
                 );
-        if (controleAlinhadoInicialmente) {
+        if (faixaControleOnOutAtiva) {
+            controleAlinhadoInicialmente = true;
+            posicionarQuadroNoControle(segmentoControle, deslocamentoAlvo);
+        } else if (controleAlinhadoInicialmente ||
+                movie.getCycleIndexForFrame(
+                        gerenciadorReproducao.getIndiceQuadro()
+                ) != segmentoControle) {
+            controleAlinhadoInicialmente = true;
             posicionarQuadroNoControle(segmentoControle, deslocamentoAlvo);
         } else if (gerenciadorReproducao.alinharComQuadroDoCiclo(
                 segmentoControle,
@@ -1031,6 +1046,7 @@ public class MainActivity extends AppCompatActivity {
 
         controleRemotoAtivo = false;
         controleAlinhadoInicialmente = false;
+        faixaControleOnOutAtiva = false;
         if (gerenciadorReproducao != null) {
             gerenciadorReproducao.retomarAposControle();
         }
@@ -1466,6 +1482,7 @@ public class MainActivity extends AppCompatActivity {
                             public void onControleManualIniciado() {
 
                                 controleAlinhadoInicialmente = false;
+                                faixaControleOnOutAtiva = false;
                                 gerenciadorReproducao
                                         .cancelarAlinhamentoControle();
                                 if (gifTiming != null) {
@@ -1476,6 +1493,11 @@ public class MainActivity extends AppCompatActivity {
                             @Override
                             public void onProgressoManual(float progresso) {
 
+                                if (GifFramePositionMapper.entrouNaSombraInferior(
+                                        progresso
+                                )) {
+                                    faixaControleOnOutAtiva = true;
+                                }
                                 if (gifTiming != null) {
                                     gifTiming.definirProgressoExibicao(
                                             progresso
@@ -1491,14 +1513,23 @@ public class MainActivity extends AppCompatActivity {
                                 int segmentoControle =
                                         obterIndiceSegmentoControle();
                                 int deslocamentoAlvo =
-                                        GifFramePositionMapper
-                                                .frameOffsetForProgress(
-                                                        movie.getCycleFrameCount(
-                                                                segmentoControle
-                                                        ),
-                                                        progresso
-                                                );
-                                if (controleAlinhadoInicialmente) {
+                                        movie.getCycleFrameOffsetForControlProgress(
+                                                segmentoControle,
+                                                progresso,
+                                                faixaControleOnOutAtiva
+                                        );
+                                if (faixaControleOnOutAtiva) {
+                                    controleAlinhadoInicialmente = true;
+                                    posicionarQuadroNoControle(
+                                            segmentoControle,
+                                            deslocamentoAlvo
+                                    );
+                                } else if (controleAlinhadoInicialmente ||
+                                        movie.getCycleIndexForFrame(
+                                                gerenciadorReproducao
+                                                        .getIndiceQuadro()
+                                        ) != segmentoControle) {
+                                    controleAlinhadoInicialmente = true;
                                     posicionarQuadroNoControle(
                                             segmentoControle,
                                             deslocamentoAlvo
@@ -1533,6 +1564,7 @@ public class MainActivity extends AppCompatActivity {
                             public void onControleManualLiberado() {
 
                                 controleAlinhadoInicialmente = false;
+                                faixaControleOnOutAtiva = false;
                                 gerenciadorReproducao.retomarAposControle();
                                 enviarComandoControle(
                                         false,
@@ -2012,7 +2044,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private int obterIndiceSegmentoControle() {
-        return movie.getCycleIndexForFrame(
+        return movie.getControlCycleIndexForFrame(
                 gerenciadorReproducao.getIndiceQuadro()
         );
     }
