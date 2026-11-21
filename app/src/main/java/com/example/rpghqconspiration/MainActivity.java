@@ -49,6 +49,7 @@ public class MainActivity extends AppCompatActivity {
 
     private TextView status;
     private TextView textoPlanilha;
+    private TextView indicadorFrame;
 
     private TextView controleEsquerdo;
     private TextView controleDireito;
@@ -898,6 +899,9 @@ public class MainActivity extends AppCompatActivity {
         progressoControlesAtual = 0.5f;
         gerenciadorControle.moverControles(progressoControlesAtual);
         indiceSegmentoExibido = indiceGifSincronizado;
+        atualizarIndicadorFrame(
+                gerenciadorReproducao.getIndiceQuadro()
+        );
         desenharQuadro();
         iniciarAnimacao();
         if (!controleRemotoAtivo &&
@@ -1232,6 +1236,7 @@ public class MainActivity extends AppCompatActivity {
 
         textoPlanilha =
                 findViewById(R.id.textoPlanilha);
+        indicadorFrame = findViewById(R.id.indicadorFrame);
 
         // -------------------------------------------------
         // GERENCIADOR DE COMUNICAÇÃO COM O SERVIDOR
@@ -1806,6 +1811,28 @@ public class MainActivity extends AppCompatActivity {
                 movie,
                 gerenciadorReproducao.getIndiceQuadro()
         );
+        atualizarVisibilidadeSombraSuperior();
+    }
+
+    private void atualizarVisibilidadeSombraSuperior() {
+        if (movie == null || gerenciadorReproducao == null) {
+            return;
+        }
+        int cicloAtual = movie.getControlCycleIndexForFrame(
+                gerenciadorReproducao.getIndiceQuadro()
+        );
+        int visibilidade = movie.hasPreviousControlCycle(cicloAtual)
+                ? View.VISIBLE
+                : View.GONE;
+        definirVisibilidadeSombra(R.id.sombraSuperiorEsquerda, visibilidade);
+        definirVisibilidadeSombra(R.id.sombraSuperiorDireita, visibilidade);
+    }
+
+    private void definirVisibilidadeSombra(int idSombra, int visibilidade) {
+        View sombra = findViewById(idSombra);
+        if (sombra != null && sombra.getVisibility() != visibilidade) {
+            sombra.setVisibility(visibilidade);
+        }
     }
 
     private void atualizarSegmentoLinhaDoTempo() {
@@ -1813,9 +1840,9 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        int segmento = movie.getSegmentIndex(
-                gerenciadorReproducao.getIndiceQuadro()
-        );
+        int indiceQuadro = gerenciadorReproducao.getIndiceQuadro();
+        int segmento = movie.getSegmentIndex(indiceQuadro);
+        atualizarIndicadorFrame(indiceQuadro);
         if (segmento == indiceSegmentoExibido ||
                 segmento < 0 ||
                 segmento >= nomes.size()) {
@@ -1836,6 +1863,26 @@ public class MainActivity extends AppCompatActivity {
                 (gerenciadorControle == null ||
                         !gerenciadorControle.isControleManualAtivo())) {
             gifTiming.iniciarTrocaAutomatica();
+        }
+    }
+
+    private void atualizarIndicadorFrame(int indiceQuadro) {
+        if (indicadorFrame == null || movie == null) {
+            return;
+        }
+        if (indiceQuadro < 0 || indiceQuadro >= movie.getFrameCount()) {
+            if (indicadorFrame.getVisibility() != View.GONE) {
+                indicadorFrame.setVisibility(View.GONE);
+            }
+            return;
+        }
+        String texto = "Frame " + (indiceQuadro + 1) +
+                "/" + movie.getFrameCount();
+        if (!texto.contentEquals(indicadorFrame.getText())) {
+            indicadorFrame.setText(texto);
+        }
+        if (indicadorFrame.getVisibility() != View.VISIBLE) {
+            indicadorFrame.setVisibility(View.VISIBLE);
         }
     }
 
@@ -2008,6 +2055,9 @@ public class MainActivity extends AppCompatActivity {
                 movie.getFrameForSegment(indice)
         );
         indiceSegmentoExibido = indice;
+        atualizarIndicadorFrame(
+                gerenciadorReproducao.getIndiceQuadro()
+        );
         desenharQuadro();
         String texto = obterTextoSegmento(indice);
         gerenciadorTextoPlanilha.iniciarComVisibilidadeExterna(texto);

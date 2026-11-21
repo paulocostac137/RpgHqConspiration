@@ -531,6 +531,29 @@ public final class GifFrameSequence {
         return currentCycle;
     }
 
+    public boolean hasPreviousControlCycle(int cycleIndex) {
+        return previousControlCycleIndex(
+                cycleOnFrameOffsets,
+                cycleIndex
+        ) >= 0;
+    }
+
+    static int previousControlCycleIndex(
+            int[] controlFrameOffsets,
+            int cycleIndex) {
+        if (controlFrameOffsets == null ||
+                cycleIndex < 0 ||
+                cycleIndex >= controlFrameOffsets.length) {
+            throw new IndexOutOfBoundsException("Índice de ciclo inválido.");
+        }
+        for (int cycle = cycleIndex - 1; cycle >= 0; cycle--) {
+            if (controlFrameOffsets[cycle] >= 0) {
+                return cycle;
+            }
+        }
+        return -1;
+    }
+
     public int getCycleTotalFrameCount(int cycleIndex) {
         if (cycleIndex < 0 || cycleIndex >= cycleFrameCounts.length) {
             throw new IndexOutOfBoundsException("Índice de ciclo inválido.");

@@ -85,4 +85,22 @@ public class GifFrameSequenceTest {
                 )
         );
     }
+
+    @Test
+    public void encontraGrupoOn1AnteriorAoGrupoAtual() {
+        int[] offsets = {-1, 1, 1, 1, -1};
+
+        assertEquals(
+                -1,
+                GifFrameSequence.previousControlCycleIndex(offsets, 1)
+        );
+        assertEquals(
+                1,
+                GifFrameSequence.previousControlCycleIndex(offsets, 2)
+        );
+        assertEquals(
+                3,
+                GifFrameSequence.previousControlCycleIndex(offsets, 4)
+        );
+    }
 }
