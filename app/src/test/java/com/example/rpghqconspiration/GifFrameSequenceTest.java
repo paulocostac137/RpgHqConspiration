@@ -8,14 +8,35 @@ import static org.junit.Assert.assertArrayEquals;
 public class GifFrameSequenceTest {
 
     @Test
-    public void repeteSomenteARegiaoGo1AOut2CincoVezes() {
+    public void alternaAExibicaoDaFaixaPorSeisPassagens() {
         assertArrayEquals(
                 new int[]{
                         0,
                         1, 2, 3,
+                        3, 2, 1,
                         1, 2, 3,
+                        3, 2, 1,
                         1, 2, 3,
+                        3, 2, 1,
+                        4
+                },
+                GifFrameSequence.expandFrameIndexes(
+                        5,
+                        new FaixaRepeticaoGif(2, 4),
+                        6
+                )
+        );
+    }
+
+    @Test
+    public void repeteSomenteARegiaoGo1AOut1AlternandoDirecaoCincoVezes() {
+        assertArrayEquals(
+                new int[]{
+                        0,
                         1, 2, 3,
+                        3, 2, 1,
+                        1, 2, 3,
+                        3, 2, 1,
                         1, 2, 3,
                         4
                 },
@@ -87,20 +108,41 @@ public class GifFrameSequenceTest {
     }
 
     @Test
-    public void encontraGrupoOn1AnteriorAoGrupoAtual() {
-        int[] offsets = {-1, 1, 1, 1, -1};
+    public void identificaTrechosAntesEDepoisDoOn() {
+        int[] offsets = {2, 0, 5};
+        int[] counts = {6, 4, 6};
 
         assertEquals(
-                -1,
-                GifFrameSequence.previousControlCycleIndex(offsets, 1)
+                true,
+                GifFrameSequence.hasRangeBeforeOn(offsets, 0)
         );
         assertEquals(
-                1,
-                GifFrameSequence.previousControlCycleIndex(offsets, 2)
+                true,
+                GifFrameSequence.hasRangeAfterOn(offsets, counts, 0)
         );
         assertEquals(
-                3,
-                GifFrameSequence.previousControlCycleIndex(offsets, 4)
+                false,
+                GifFrameSequence.hasRangeBeforeOn(offsets, 1)
+        );
+        assertEquals(
+                true,
+                GifFrameSequence.hasRangeAfterOn(offsets, counts, 1)
+        );
+        assertEquals(
+                false,
+                GifFrameSequence.hasRangeAfterOn(offsets, counts, 2)
+        );
+    }
+
+    @Test
+    public void alternaPosicaoOnNasSeisPassagens() {
+        assertArrayEquals(
+                new int[]{-1, 0, 2, 0, 2, 0, 2, -1},
+                GifFrameSequence.expandCycleOnFrameOffsets(
+                        8,
+                        new FaixaRepeticaoGif(3, 3, 5),
+                        6
+                )
         );
     }
 }

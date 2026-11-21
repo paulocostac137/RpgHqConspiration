@@ -9,8 +9,6 @@ public final class GerenciadorReproducaoGif {
     public interface Listener {
         boolean podeIniciar();
         void atualizarQuadro();
-        default void onControleAlinhado() {
-        }
     }
 
     private final AnimationTicker animationTicker;
@@ -23,10 +21,6 @@ public final class GerenciadorReproducaoGif {
     private long tempoAcumuladoMs;
     private long inicioReproducao;
     private boolean reproduzindo;
-    private boolean alinhandoControle;
-    private int segmentoAlinhamento = -1;
-    private final GifCycleAlignment alinhamentoCiclo =
-            new GifCycleAlignment();
 
     public GerenciadorReproducaoGif(
             Handler handler,
@@ -55,53 +49,17 @@ public final class GerenciadorReproducaoGif {
         long tempoDecorridoMs = Math.max(0L, agora - inicioReproducao);
         inicioReproducao = agora;
 
-        float fatorVelocidadeRecuperacao =
-                alinhamentoCiclo.isRecovering()
-                        ? alinhamentoCiclo.updateRecovery(agora)
-                        : 1f;
-        float fatorVelocidade = alinhandoControle
-                ? alinhamentoCiclo.updateSpeed(
-                        obterOffsetQuadroCiclo(),
-                        agora
-                )
-                : fatorVelocidadeRecuperacao;
-        tempoAcumuladoMs += Math.round(tempoDecorridoMs * fatorVelocidade);
+        tempoAcumuladoMs += tempoDecorridoMs;
 
         int totalQuadros = sequencia.getFrameCount();
-        boolean controleAlinhado = false;
         while (true) {
-            if (alinhandoControle && estaNoQuadroAlvo()) {
-                tempoAcumuladoMs = 0L;
-                alinhandoControle = false;
-                controleAlinhado = true;
-                break;
-            }
             long duracaoQuadro = obterDuracaoQuadro(quadrosAvancados);
             if (tempoAcumuladoMs < duracaoQuadro) {
                 break;
             }
 
             tempoAcumuladoMs -= duracaoQuadro;
-            if (alinhandoControle) {
-                int inicioSegmento =
-                        sequencia.getCycleStartFrame(segmentoAlinhamento);
-                int fimSegmento = inicioSegmento +
-                        sequencia.getCycleTotalFrameCount(
-                                segmentoAlinhamento
-                        );
-                quadrosAvancados = quadrosAvancados + 1 >= fimSegmento
-                        ? inicioSegmento
-                        : quadrosAvancados + 1;
-            } else {
-                quadrosAvancados = (quadrosAvancados + 1) % totalQuadros;
-            }
-
-            if (alinhandoControle && estaNoQuadroAlvo()) {
-                tempoAcumuladoMs = 0L;
-                alinhandoControle = false;
-                controleAlinhado = true;
-                break;
-            }
+            quadrosAvancados = (quadrosAvancados + 1) % totalQuadros;
         }
 
         if (!reproduzindo) {
@@ -110,9 +68,6 @@ public final class GerenciadorReproducaoGif {
         indiceQuadro = quadrosAvancados;
         progresso = (float) indiceQuadro / totalQuadros;
         listener.atualizarQuadro();
-        if (controleAlinhado) {
-            listener.onControleAlinhado();
-        }
     }
 
     private long obterDuracaoQuadro(int indice) {
@@ -138,22 +93,12 @@ public final class GerenciadorReproducaoGif {
         animationTicker.iniciar();
     }
 
-    public void iniciarDuranteControle() {
-        if (sequencia == null || reproduzindo) {
-            return;
-        }
-        reproduzindo = true;
-        inicioReproducao = SystemClock.uptimeMillis();
-        animationTicker.iniciar();
-    }
-
     public void pausar() {
         reproduzindo = false;
         animationTicker.parar();
     }
 
     public void definirSequencia(GifFrameSequence sequencia) {
-        cancelarAlinhamentoControle();
         this.sequencia = sequencia;
         indiceQuadro = sequencia == null
                 ? 0
@@ -193,98 +138,6 @@ public final class GerenciadorReproducaoGif {
         tempoAcumuladoMs = 0L;
     }
 
-    public boolean alinharComQuadroDoCiclo(
-            int segmentIndex,
-            int targetCycleFrameOffset) {
-        if (sequencia == null) {
-            throw new IllegalStateException(
-                    "Não há sequência de GIF carregada."
-            );
-        }
-        int cycleFrameCount = sequencia.getCycleFrameCount(segmentIndex);
-        if (targetCycleFrameOffset < 0 ||
-                targetCycleFrameOffset >= cycleFrameCount) {
-            throw new IndexOutOfBoundsException(
-                    "O quadro alvo não pertence ao ciclo selecionado."
-            );
-        }
-
-        int currentCycleOffset = sequencia.getCycleOffsetForFrame(
-                segmentIndex,
-                quadrosAvancados
-        );
-        if (segmentIndex != segmentoAlinhamento || !alinhandoControle) {
-            if (currentCycleOffset == targetCycleFrameOffset) {
-                cancelarAlinhamentoControle();
-                return false;
-            }
-            segmentoAlinhamento = segmentIndex;
-            alinhamentoCiclo.begin(
-                    cycleFrameCount,
-                    sequencia.getCycleDurationMs(segmentIndex),
-                    currentCycleOffset,
-                    targetCycleFrameOffset,
-                    SystemClock.uptimeMillis()
-            );
-        } else {
-            alinhamentoCiclo.updateTarget(
-                    targetCycleFrameOffset,
-                    SystemClock.uptimeMillis()
-            );
-        }
-        if (estaNoQuadroAlvo()) {
-            alinhandoControle = false;
-            tempoAcumuladoMs = 0L;
-            return false;
-        }
-        alinhandoControle = true;
-        return true;
-    }
-
-    public boolean isAlinhandoControle() {
-        return alinhandoControle;
-    }
-
-    public void retomarAposControle() {
-        alinhandoControle = false;
-        segmentoAlinhamento = -1;
-        alinhamentoCiclo.beginRecovery(SystemClock.uptimeMillis());
-        tempoAcumuladoMs = 0L;
-        if (reproduzindo) {
-            inicioReproducao = SystemClock.uptimeMillis();
-        } else if (sequencia != null) {
-            reproduzindo = true;
-            inicioReproducao = SystemClock.uptimeMillis();
-            animationTicker.iniciar();
-        }
-    }
-
-    public void cancelarAlinhamentoControle() {
-        alinhandoControle = false;
-        segmentoAlinhamento = -1;
-        alinhamentoCiclo.reset();
-        tempoAcumuladoMs = 0L;
-        if (reproduzindo) {
-            inicioReproducao = SystemClock.uptimeMillis();
-        }
-    }
-
-    private boolean estaNoQuadroAlvo() {
-        return sequencia.getCycleIndexForFrame(quadrosAvancados)
-                        == segmentoAlinhamento &&
-                sequencia.getCycleOffsetForFrame(
-                        segmentoAlinhamento,
-                        quadrosAvancados
-                ) == alinhamentoCiclo.getTargetFrame();
-    }
-
-    private int obterOffsetQuadroCiclo() {
-        return sequencia.getCycleOffsetForFrame(
-                segmentoAlinhamento,
-                quadrosAvancados
-        );
-    }
-
     public boolean isReproduzindo() {
         return reproduzindo;
     }
@@ -297,7 +150,6 @@ public final class GerenciadorReproducaoGif {
         quadrosAvancados = 0;
         tempoAcumuladoMs = 0L;
         inicioReproducao = 0L;
-        cancelarAlinhamentoControle();
         sequencia = null;
     }
 
@@ -305,6 +157,5 @@ public final class GerenciadorReproducaoGif {
         animationTicker.parar();
         reproduzindo = false;
         inicioReproducao = 0L;
-        cancelarAlinhamentoControle();
     }
 }

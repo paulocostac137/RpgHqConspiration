@@ -223,8 +223,11 @@ public class MainActivity extends AppCompatActivity {
     private boolean controleRemotoAtivo = false;
     private boolean controleAlinhadoInicialmente = false;
     private boolean faixaControleOnOutAtiva = false;
-    private int indiceCicloSombraSuperior = -1;
+    private boolean sombraInferiorAtravessada = false;
     private float progressoControlesAtual = 0f;
+    private boolean aguardandoMovimentoInicialControle = false;
+    private float progressoInicialControle = -1f;
+    private int indiceQuadroAoSegurarControle = -1;
 
     private boolean carregando = false;
     private boolean planilhaCarregada = false;
@@ -441,23 +444,6 @@ public class MainActivity extends AppCompatActivity {
             fundo.setCornerRadius(raio);
         }
         controle.setBackground(fundo);
-
-        View sombra = findViewById(
-                controle.getId() == R.id.controleEsquerdo
-                        ? R.id.sombraSuperiorEsquerda
-                        : R.id.sombraSuperiorDireita
-        );
-        GradientDrawable degrade = new GradientDrawable(
-                GradientDrawable.Orientation.BOTTOM_TOP,
-                new int[]{0xCC1E88E5, 0x661E88E5, 0x001E88E5}
-        );
-        degrade.setCornerRadii(new float[]{
-                0f, 0f,
-                0f, 0f,
-                raio, raio,
-                raio, raio
-        });
-        sombra.setBackground(degrade);
 
         View sombraInferior = findViewById(
                 controle.getId() == R.id.controleEsquerdo
@@ -981,8 +967,7 @@ public class MainActivity extends AppCompatActivity {
         if (!controleRemotoAtivo) {
             controleAlinhadoInicialmente = false;
             faixaControleOnOutAtiva = false;
-            indiceCicloSombraSuperior = -1;
-            gerenciadorReproducao.cancelarAlinhamentoControle();
+            sombraInferiorAtravessada = false;
         }
         controleRemotoAtivo = true;
         atualizarFaixaControlePorProgresso(progressoRecebido);
@@ -1013,11 +998,6 @@ public class MainActivity extends AppCompatActivity {
                 ) != segmentoControle) {
             controleAlinhadoInicialmente = true;
             posicionarQuadroNoControle(segmentoControle, deslocamentoAlvo);
-        } else if (gerenciadorReproducao.alinharComQuadroDoCiclo(
-                segmentoControle,
-                deslocamentoAlvo
-        )) {
-            gerenciadorReproducao.iniciarDuranteControle();
         } else {
             controleAlinhadoInicialmente = true;
             posicionarQuadroNoControle(segmentoControle, deslocamentoAlvo);
@@ -1049,9 +1029,8 @@ public class MainActivity extends AppCompatActivity {
         controleRemotoAtivo = false;
         controleAlinhadoInicialmente = false;
         faixaControleOnOutAtiva = false;
-        indiceCicloSombraSuperior = -1;
+        sombraInferiorAtravessada = false;
         if (gerenciadorReproducao != null) {
-            gerenciadorReproducao.retomarAposControle();
         }
 
         Log.d(
@@ -1146,18 +1125,6 @@ public class MainActivity extends AppCompatActivity {
 
     private void atualizarPosicaoSombrasControles() {
 
-        atualizarPosicaoSombraControle(
-                controleEsquerdo,
-                findViewById(R.id.sombraSuperiorEsquerda),
-                true,
-                false
-        );
-        atualizarPosicaoSombraControle(
-                controleDireito,
-                findViewById(R.id.sombraSuperiorDireita),
-                false,
-                false
-        );
         atualizarPosicaoSombraControle(
                 controleEsquerdo,
                 findViewById(R.id.sombraInferiorEsquerda),
@@ -1399,16 +1366,6 @@ public class MainActivity extends AppCompatActivity {
                                 atualizarSegmentoLinhaDoTempo();
                             }
 
-                            @Override
-                            public void onControleAlinhado() {
-                                if (controleRemotoAtivo ||
-                                        (gerenciadorControle != null &&
-                                                gerenciadorControle
-                                                        .isControleManualAtivo())) {
-                                    controleAlinhadoInicialmente = true;
-                                    pausarAnimacao();
-                                }
-                            }
                         }
                 );
 
@@ -1487,9 +1444,13 @@ public class MainActivity extends AppCompatActivity {
 
                                 controleAlinhadoInicialmente = false;
                                 faixaControleOnOutAtiva = false;
-                                indiceCicloSombraSuperior = -1;
-                                gerenciadorReproducao
-                                        .cancelarAlinhamentoControle();
+                                sombraInferiorAtravessada = false;
+                                pausarAnimacao();
+                                indiceQuadroAoSegurarControle =
+                                        gerenciadorReproducao
+                                                .getIndiceQuadro();
+                                progressoInicialControle = -1f;
+                                aguardandoMovimentoInicialControle = true;
                                 if (gifTiming != null) {
                                     gifTiming.pausarTrocaAutomatica();
                                 }
@@ -1497,6 +1458,28 @@ public class MainActivity extends AppCompatActivity {
 
                             @Override
                             public void onProgressoManual(float progresso) {
+
+                                if (aguardandoMovimentoInicialControle) {
+                                    if (progressoInicialControle < 0f) {
+                                        progressoInicialControle = progresso;
+                                        progressoControlesAtual = progresso;
+                                        gerenciadorReproducao.definirIndiceQuadro(
+                                                indiceQuadroAoSegurarControle
+                                        );
+                                        desenharQuadro();
+                                        return;
+                                    }
+                                    if (Math.abs(
+                                            progresso - progressoInicialControle
+                                    ) < 0.002f) {
+                                        gerenciadorReproducao.definirIndiceQuadro(
+                                                indiceQuadroAoSegurarControle
+                                        );
+                                        desenharQuadro();
+                                        return;
+                                    }
+                                    aguardandoMovimentoInicialControle = false;
+                                }
 
                                 atualizarFaixaControlePorProgresso(progresso);
                                 if (gifTiming != null) {
@@ -1535,13 +1518,6 @@ public class MainActivity extends AppCompatActivity {
                                             segmentoControle,
                                             deslocamentoAlvo
                                     );
-                                } else if (gerenciadorReproducao
-                                        .alinharComQuadroDoCiclo(
-                                                segmentoControle,
-                                                deslocamentoAlvo
-                                        )) {
-                                    gerenciadorReproducao
-                                            .iniciarDuranteControle();
                                 } else {
                                     controleAlinhadoInicialmente = true;
                                     posicionarQuadroNoControle(
@@ -1566,8 +1542,10 @@ public class MainActivity extends AppCompatActivity {
 
                                 controleAlinhadoInicialmente = false;
                                 faixaControleOnOutAtiva = false;
-                                indiceCicloSombraSuperior = -1;
-                                gerenciadorReproducao.retomarAposControle();
+                                sombraInferiorAtravessada = false;
+                                aguardandoMovimentoInicialControle = false;
+                                progressoInicialControle = -1f;
+                                indiceQuadroAoSegurarControle = -1;
                                 enviarComandoControle(
                                         false,
                                         0f
@@ -1811,21 +1789,22 @@ public class MainActivity extends AppCompatActivity {
                 movie,
                 gerenciadorReproducao.getIndiceQuadro()
         );
-        atualizarVisibilidadeSombraSuperior();
+        atualizarVisibilidadeSombraInferior();
     }
 
-    private void atualizarVisibilidadeSombraSuperior() {
+    private void atualizarVisibilidadeSombraInferior() {
         if (movie == null || gerenciadorReproducao == null) {
             return;
         }
         int cicloAtual = movie.getControlCycleIndexForFrame(
                 gerenciadorReproducao.getIndiceQuadro()
         );
-        int visibilidade = movie.hasPreviousControlCycle(cicloAtual)
-                ? View.VISIBLE
-                : View.GONE;
-        definirVisibilidadeSombra(R.id.sombraSuperiorEsquerda, visibilidade);
-        definirVisibilidadeSombra(R.id.sombraSuperiorDireita, visibilidade);
+        boolean podeAlternar = faixaControleOnOutAtiva
+                ? movie.hasRangeBeforeOn(cicloAtual)
+                : movie.hasRangeAfterOn(cicloAtual);
+        int visibilidade = podeAlternar ? View.VISIBLE : View.GONE;
+        definirVisibilidadeSombra(R.id.sombraInferiorEsquerda, visibilidade);
+        definirVisibilidadeSombra(R.id.sombraInferiorDireita, visibilidade);
     }
 
     private void definirVisibilidadeSombra(int idSombra, int visibilidade) {
@@ -2048,8 +2027,9 @@ public class MainActivity extends AppCompatActivity {
         gerenciadorReproducao.reiniciar();
         gerenciadorReproducao.definirSequencia(movie);
         controleAlinhadoInicialmente = false;
+        faixaControleOnOutAtiva = false;
+        sombraInferiorAtravessada = false;
         progressoControlesAtual = 0.5f;
-        gerenciadorReproducao.cancelarAlinhamentoControle();
         gerenciadorControle.moverControles(progressoControlesAtual);
         gerenciadorReproducao.definirIndiceQuadro(
                 movie.getFrameForSegment(indice)
@@ -2077,8 +2057,9 @@ public class MainActivity extends AppCompatActivity {
         gerenciadorReproducao.pausar();
         gerenciadorReproducao.definirSequencia(movie);
         controleAlinhadoInicialmente = false;
+        faixaControleOnOutAtiva = false;
+        sombraInferiorAtravessada = false;
         progressoControlesAtual = 0.5f;
-        gerenciadorReproducao.cancelarAlinhamentoControle();
         gerenciadorReproducao.definirIndiceQuadro(
                 movie.getFrameForSegment(indice)
         );
@@ -2091,27 +2072,34 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private int obterIndiceSegmentoControle() {
-        if (indiceCicloSombraSuperior >= 0) {
-            return indiceCicloSombraSuperior;
-        }
         return movie.getControlCycleIndexForFrame(
                 gerenciadorReproducao.getIndiceQuadro()
         );
     }
 
     private void atualizarFaixaControlePorProgresso(float progresso) {
-        if (GifFramePositionMapper.entrouNaSombraInferior(progresso)) {
-            faixaControleOnOutAtiva = true;
+        boolean entrouNaSombraInferior =
+                GifFramePositionMapper.entrouNaSombraInferior(progresso);
+        if (entrouNaSombraInferior) {
+            if (!sombraInferiorAtravessada && movie != null &&
+                    gerenciadorReproducao != null) {
+                sombraInferiorAtravessada = true;
+                int cicloAtual = movie.getControlCycleIndexForFrame(
+                        gerenciadorReproducao.getIndiceQuadro()
+                );
+                if (faixaControleOnOutAtiva) {
+                    if (movie.hasRangeBeforeOn(cicloAtual)) {
+                        faixaControleOnOutAtiva = false;
+                    }
+                } else if (movie.hasRangeAfterOn(cicloAtual)) {
+                    faixaControleOnOutAtiva = true;
+                }
+                atualizarVisibilidadeSombraInferior();
+            }
+        } else {
+            sombraInferiorAtravessada = false;
         }
 
-        if (indiceCicloSombraSuperior < 0 &&
-                GifFramePositionMapper.entrouNaSombraSuperior(progresso)) {
-            int cicloAtual = movie.getControlCycleIndexForFrame(
-                    gerenciadorReproducao.getIndiceQuadro()
-            );
-            indiceCicloSombraSuperior = Math.max(0, cicloAtual - 1);
-            faixaControleOnOutAtiva = true;
-        }
     }
 
     private String obterTextoSegmento(int indice) {

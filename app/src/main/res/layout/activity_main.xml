@@ -46,14 +46,6 @@
             android:elevation="12dp">
 
             <View
-                android:id="@+id/sombraSuperiorEsquerda"
-                android:layout_width="48dp"
-                android:layout_height="5dp"
-                android:layout_gravity="top"
-                android:visibility="gone"
-                android:elevation="7dp"/>
-
-            <View
                 android:id="@+id/sombraInferiorEsquerda"
                 android:layout_width="48dp"
                 android:layout_height="5dp"
@@ -157,14 +149,6 @@
             android:clipChildren="false"
             android:clipToPadding="false"
             android:elevation="12dp">
-
-            <View
-                android:id="@+id/sombraSuperiorDireita"
-                android:layout_width="48dp"
-                android:layout_height="5dp"
-                android:layout_gravity="top"
-                android:visibility="gone"
-                android:elevation="7dp"/>
 
             <View
                 android:id="@+id/sombraInferiorDireita"

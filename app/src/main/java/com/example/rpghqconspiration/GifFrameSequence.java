@@ -209,8 +209,14 @@ public final class GifFrameSequence {
             indices[destino++] = i;
         }
         for (int repeticao = 0; repeticao < repeticoes; repeticao++) {
-            for (int i = inicio; i < fimExclusivo; i++) {
-                indices[destino++] = i;
+            if (repeticao % 2 == 0) {
+                for (int i = inicio; i < fimExclusivo; i++) {
+                    indices[destino++] = i;
+                }
+            } else {
+                for (int i = fimExclusivo - 1; i >= inicio; i--) {
+                    indices[destino++] = i;
+                }
             }
         }
         for (int i = fimExclusivo; i < frameCount; i++) {
@@ -294,9 +300,14 @@ public final class GifFrameSequence {
 
         int indiceCiclo = faixa.getPrimeiroQuadro() > 1 ? 1 : 0;
         int offsetOn = faixa.getQuadroOn() - faixa.getPrimeiroQuadro();
+        int comprimentoFaixa =
+                faixa.getUltimoQuadro() - faixa.getPrimeiroQuadro() + 1;
         int ciclosRepetidos = repeticoes;
         for (int repeticao = 0; repeticao < ciclosRepetidos; repeticao++) {
-            offsets[indiceCiclo + repeticao] = offsetOn;
+            offsets[indiceCiclo + repeticao] =
+                    repeticao % 2 == 0
+                            ? offsetOn
+                            : comprimentoFaixa - 1 - offsetOn;
         }
         return offsets;
     }
@@ -531,14 +542,28 @@ public final class GifFrameSequence {
         return currentCycle;
     }
 
-    public boolean hasPreviousControlCycle(int cycleIndex) {
-        return previousControlCycleIndex(
+    public boolean hasRangeBeforeOn(int cycleIndex) {
+        if (cycleIndex < 0 || cycleIndex >= cycleOnFrameOffsets.length) {
+            throw new IndexOutOfBoundsException("Índice de ciclo inválido.");
+        }
+        return hasRangeBeforeOn(
                 cycleOnFrameOffsets,
                 cycleIndex
-        ) >= 0;
+        );
     }
 
-    static int previousControlCycleIndex(
+    public boolean hasRangeAfterOn(int cycleIndex) {
+        if (cycleIndex < 0 || cycleIndex >= cycleOnFrameOffsets.length) {
+            throw new IndexOutOfBoundsException("Índice de ciclo inválido.");
+        }
+        return hasRangeAfterOn(
+                cycleOnFrameOffsets,
+                cycleFrameCounts,
+                cycleIndex
+        );
+    }
+
+    static boolean hasRangeBeforeOn(
             int[] controlFrameOffsets,
             int cycleIndex) {
         if (controlFrameOffsets == null ||
@@ -546,12 +571,23 @@ public final class GifFrameSequence {
                 cycleIndex >= controlFrameOffsets.length) {
             throw new IndexOutOfBoundsException("Índice de ciclo inválido.");
         }
-        for (int cycle = cycleIndex - 1; cycle >= 0; cycle--) {
-            if (controlFrameOffsets[cycle] >= 0) {
-                return cycle;
-            }
+        return controlFrameOffsets[cycleIndex] > 0;
+    }
+
+    static boolean hasRangeAfterOn(
+            int[] controlFrameOffsets,
+            int[] cycleFrameCounts,
+            int cycleIndex) {
+        if (controlFrameOffsets == null ||
+                cycleFrameCounts == null ||
+                cycleIndex < 0 ||
+                cycleIndex >= controlFrameOffsets.length ||
+                cycleIndex >= cycleFrameCounts.length) {
+            throw new IndexOutOfBoundsException("Índice de ciclo inválido.");
         }
-        return -1;
+        int onOffset = controlFrameOffsets[cycleIndex];
+        return onOffset >= 0 &&
+                onOffset < cycleFrameCounts[cycleIndex] - 1;
     }
 
     public int getCycleTotalFrameCount(int cycleIndex) {

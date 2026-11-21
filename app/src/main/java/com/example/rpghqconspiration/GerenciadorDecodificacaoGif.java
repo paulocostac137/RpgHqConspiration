@@ -26,7 +26,7 @@ public final class GerenciadorDecodificacaoGif {
             32L * 1024L * 1024L;
     private static final int DIMENSAO_MAXIMA_QUADRO = 240;
     private static final long LIMITE_QUADROS_LINHA_DO_TEMPO = 1_000_000L;
-    private static final int REPETICOES_FAIXA_MARCADA = 5;
+    private static final int REPETICOES_FAIXA_MARCADA = 7;
 
     public interface Listener {
 

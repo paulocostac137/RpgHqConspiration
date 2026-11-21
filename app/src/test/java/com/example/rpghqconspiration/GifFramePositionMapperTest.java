@@ -112,15 +112,4 @@ public class GifFramePositionMapperTest {
         );
     }
 
-    @Test
-    public void sombraSuperiorEhDetectadaNoTrechoInicialDoControle() {
-        assertEquals(
-                true,
-                GifFramePositionMapper.entrouNaSombraSuperior(0.1f)
-        );
-        assertEquals(
-                false,
-                GifFramePositionMapper.entrouNaSombraSuperior(0.11f)
-        );
-    }
 }
