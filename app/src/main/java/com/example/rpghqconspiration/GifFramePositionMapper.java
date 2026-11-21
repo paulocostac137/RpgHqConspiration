@@ -19,6 +19,19 @@ public final class GifFramePositionMapper {
                 PROGRESSO_LIMITE_SOMBRA_INFERIOR;
     }
 
+    public static boolean controlUsesOnOutRange(
+            int frameOffset,
+            int onFrameOffset,
+            boolean movingUp) {
+        if (onFrameOffset < 0 || frameOffset < 0) {
+            throw new IndexOutOfBoundsException(
+                    "A posição do quadro deve ser válida."
+            );
+        }
+        return frameOffset > onFrameOffset ||
+                (frameOffset == onFrameOffset && movingUp);
+    }
+
     public static int frameOffsetForControlProgress(
             int frameCount,
             int onFrameOffset,

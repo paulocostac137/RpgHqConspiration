@@ -504,6 +504,13 @@ public final class GifFrameSequence {
         return cycleFrameCounts[cycleIndex];
     }
 
+    public int getCycleOnFrameOffset(int cycleIndex) {
+        if (cycleIndex < 0 || cycleIndex >= cycleOnFrameOffsets.length) {
+            throw new IndexOutOfBoundsException("Índice de ciclo inválido.");
+        }
+        return cycleOnFrameOffsets[cycleIndex];
+    }
+
     public int getCycleFrameOffsetForControlProgress(
             int cycleIndex,
             float progress,
