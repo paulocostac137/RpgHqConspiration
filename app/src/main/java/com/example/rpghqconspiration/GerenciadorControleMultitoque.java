@@ -6,7 +6,7 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.animation.DecelerateInterpolator;
+import android.view.animation.LinearInterpolator;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.os.Handler;
@@ -579,7 +579,7 @@ public final class GerenciadorControleMultitoque {
                 DURACAO_RETORNO_CONTROLES_MS
         );
         animacaoRetornoControles.setInterpolator(
-                new DecelerateInterpolator()
+                new LinearInterpolator()
         );
         animacaoRetornoControles.addUpdateListener(animator -> {
             progressoVisualControles =

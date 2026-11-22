@@ -462,7 +462,7 @@ public class MainActivity extends AppCompatActivity {
         );
         GradientDrawable degradeInferior = new GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{0xCCF44336, 0x66F44336, 0x00F44336}
+                obterCoresSombraInferior()
         );
         degradeInferior.setCornerRadii(new float[]{
                 raio, raio,
@@ -471,6 +471,33 @@ public class MainActivity extends AppCompatActivity {
                 0f, 0f
         });
         sombraInferior.setBackground(degradeInferior);
+    }
+
+    private int[] obterCoresSombraInferior() {
+        int cor = faixaControleOnOutAtiva ? 0xFF2196F3 : 0xFFF44336;
+        return new int[]{
+                (cor & 0x00FFFFFF) | 0xCC000000,
+                (cor & 0x00FFFFFF) | 0x66000000,
+                cor & 0x00FFFFFF
+        };
+    }
+
+    private void definirFaixaControleOnOutAtiva(boolean ativa) {
+        if (faixaControleOnOutAtiva == ativa) {
+            return;
+        }
+        faixaControleOnOutAtiva = ativa;
+        int[] cores = obterCoresSombraInferior();
+        atualizarCoresSombraInferior(R.id.sombraInferiorEsquerda, cores);
+        atualizarCoresSombraInferior(R.id.sombraInferiorDireita, cores);
+    }
+
+    private void atualizarCoresSombraInferior(int idSombra, int[] cores) {
+        View sombra = findViewById(idSombra);
+        if (sombra != null &&
+                sombra.getBackground() instanceof GradientDrawable) {
+            ((GradientDrawable) sombra.getBackground()).setColors(cores);
+        }
     }
 
     private void aplicarTurnoControle(String papel) {
@@ -1035,7 +1062,7 @@ public class MainActivity extends AppCompatActivity {
 
         concluirTransicaoQuadroControle();
         controleRemotoAtivo = false;
-        faixaControleOnOutAtiva = false;
+        definirFaixaControleOnOutAtiva(false);
         faixaControleAguardandoDirecaoNoOn = false;
         sombraInferiorAtravessada = false;
         alternanciaSombraSuspensa = false;
@@ -1504,11 +1531,12 @@ public class MainActivity extends AppCompatActivity {
                                         return;
                                     }
                                     if (faixaControleAguardandoDirecaoNoOn) {
-                                        faixaControleOnOutAtiva =
+                                        definirFaixaControleOnOutAtiva(
                                                 progresso < progressoInicialControle &&
                                                         movie.hasRangeAfterOn(
                                                                 obterIndiceSegmentoControle()
-                                                        );
+                                                        )
+                                        );
                                         faixaControleAguardandoDirecaoNoOn =
                                                 false;
                                     }
@@ -1558,7 +1586,7 @@ public class MainActivity extends AppCompatActivity {
                             public void onControleManualLiberado() {
 
                                 concluirTransicaoQuadroControle();
-                                faixaControleOnOutAtiva = false;
+                                definirFaixaControleOnOutAtiva(false);
                                 faixaControleAguardandoDirecaoNoOn = false;
                                 sombraInferiorAtravessada = false;
                                 alternanciaSombraSuspensa = false;
@@ -2160,7 +2188,7 @@ public class MainActivity extends AppCompatActivity {
         cancelarTransicaoQuadroControle();
         gerenciadorReproducao.reiniciar();
         gerenciadorReproducao.definirSequencia(movie);
-        faixaControleOnOutAtiva = false;
+        definirFaixaControleOnOutAtiva(false);
         faixaControleAguardandoDirecaoNoOn = false;
         sombraInferiorAtravessada = false;
         progressoControlesAtual = 0.5f;
@@ -2191,7 +2219,7 @@ public class MainActivity extends AppCompatActivity {
         cancelarTransicaoQuadroControle();
         gerenciadorReproducao.pausar();
         gerenciadorReproducao.definirSequencia(movie);
-        faixaControleOnOutAtiva = false;
+        definirFaixaControleOnOutAtiva(false);
         faixaControleAguardandoDirecaoNoOn = false;
         sombraInferiorAtravessada = false;
         progressoControlesAtual = 0.5f;
@@ -2226,14 +2254,14 @@ public class MainActivity extends AppCompatActivity {
                 aguardarDirecaoNoOn &&
                         deslocamentoOn >= 0 &&
                         deslocamentoAtual == deslocamentoOn;
-        faixaControleOnOutAtiva = deslocamentoOn >= 0 &&
+        definirFaixaControleOnOutAtiva(deslocamentoOn >= 0 &&
                 GifFramePositionMapper.controlUsesOnOutRange(
                         deslocamentoAtual,
                         deslocamentoOn,
                         movimentoParaCima
-                );
+                ));
         if (!movie.hasRangeAfterOn(cicloAtual)) {
-            faixaControleOnOutAtiva = false;
+            definirFaixaControleOnOutAtiva(false);
             faixaControleAguardandoDirecaoNoOn = false;
         }
         sombraInferiorAtravessada =
@@ -2256,10 +2284,10 @@ public class MainActivity extends AppCompatActivity {
                 );
                 if (faixaControleOnOutAtiva) {
                     if (movie.hasRangeBeforeOn(cicloAtual)) {
-                        faixaControleOnOutAtiva = false;
+                        definirFaixaControleOnOutAtiva(false);
                     }
                 } else if (movie.hasRangeAfterOn(cicloAtual)) {
-                    faixaControleOnOutAtiva = true;
+                    definirFaixaControleOnOutAtiva(true);
                 }
                 atualizarVisibilidadeSombraInferior();
             }
