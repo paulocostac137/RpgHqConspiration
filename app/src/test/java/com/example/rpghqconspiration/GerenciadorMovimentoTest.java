@@ -9,17 +9,11 @@ public class GerenciadorMovimentoTest {
     private static final class ListenerDummy
             implements GerenciadorMovimento.Listener {
 
-        int avancos;
         int retomadas;
 
         @Override
         public boolean possuiGif() {
             return true;
-        }
-
-        @Override
-        public void avancarParaProximoGif() {
-            avancos++;
         }
 
         @Override
@@ -40,7 +34,7 @@ public class GerenciadorMovimentoTest {
     }
 
     @Test
-    public void tresCiclosCompletosSolicitamAvanco() {
+    public void liberarAposVariosCiclosRetomaSemAvancarGif() {
         ListenerDummy listener = new ListenerDummy();
         GerenciadorMovimento movimento =
                 new GerenciadorMovimento(listener);
@@ -55,7 +49,7 @@ public class GerenciadorMovimentoTest {
 
         movimento.finalizarMovimentoSeLiberado(false, false);
 
-        assertEquals(1, listener.avancos);
+        assertEquals(1, listener.retomadas);
         assertEquals(0, movimento.getCiclosConcluidos());
     }
 

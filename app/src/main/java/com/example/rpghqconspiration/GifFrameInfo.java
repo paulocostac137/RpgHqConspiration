@@ -168,19 +168,23 @@ public final class GifFrameInfo {
             );
         }
         int frameCount = getFrameCountAt30Fps();
-        int primeiro = faixa.getPrimeiroQuadro();
-        int quadroOn = faixa.getQuadroOn();
-        int ultimo = faixa.getUltimoQuadro();
-        if (primeiro > frameCount ||
-                quadroOn > frameCount ||
-                ultimo > frameCount) {
-            throw new IllegalArgumentException(
-                    "A faixa Go1–On1–Out1 excede a quantidade de quadros do GIF."
-            );
+        long count = 0L;
+        int cursor = 0;
+        for (FaixaRepeticaoGif faixaMarcada : faixa.getFaixas()) {
+            int inicio = faixaMarcada.getPrimeiroQuadro() - 1;
+            int fimExclusivo = faixaMarcada.getUltimoQuadro();
+            if (inicio >= frameCount ||
+                    faixaMarcada.getQuadroOn() > frameCount ||
+                    fimExclusivo > frameCount) {
+                throw new IllegalArgumentException(
+                        "A faixa Go–On–Out excede a quantidade de quadros do GIF."
+                );
+            }
+            count += Math.max(0, inicio - cursor);
+            count += (long) (fimExclusivo - inicio) * repeticoes;
+            cursor = Math.max(cursor, fimExclusivo);
         }
-
-        long loopFrameCount = (long) ultimo - primeiro + 1L;
-        long count = frameCount + loopFrameCount * (repeticoes - 1L);
+        count += frameCount - cursor;
         if (count > Integer.MAX_VALUE) {
             throw new IllegalArgumentException(
                     "O GIF excede o limite de quadros suportado."

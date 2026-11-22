@@ -154,6 +154,7 @@ public final class GerenciadorControleMultitoque {
         controleEsquerdo.setOnTouchListener(null);
         controleDireito.setOnTouchListener(null);
         linhaControles.setOnTouchListener(listenerMultitoque);
+        centralizarControles();
     }
 
     // =====================================================
@@ -566,13 +567,15 @@ public final class GerenciadorControleMultitoque {
         }
 
         cancelarRetornoControles();
-        if (Math.abs(progressoVisualControles - 0.5f) < 0.001f) {
+        float progressoInicial = progressoVisualControles;
+        if (Math.abs(progressoInicial - 0.5f) < 0.001f) {
+            progressoVisualControles = 0.5f;
             moverControlesInterno(0.5f);
             return;
         }
 
         animacaoRetornoControles = ValueAnimator.ofFloat(
-                progressoVisualControles,
+                progressoInicial,
                 0.5f
         );
         animacaoRetornoControles.setDuration(
@@ -587,6 +590,31 @@ public final class GerenciadorControleMultitoque {
             moverControlesInterno(progressoVisualControles);
         });
         animacaoRetornoControles.start();
+    }
+
+    private void centralizarControles() {
+        cancelarRetornoControles();
+        progressoVisualControles = 0.5f;
+        areaGif.post(() -> {
+            if (areaGif.getHeight() > 0 &&
+                    controleEsquerdo.getHeight() > 0) {
+                moverControlesInterno(0.5f);
+                return;
+            }
+
+            View.OnLayoutChangeListener[] listener =
+                    new View.OnLayoutChangeListener[1];
+            listener[0] = (view, left, top, right, bottom,
+                           oldLeft, oldTop, oldRight, oldBottom) -> {
+                if (areaGif.getHeight() <= 0 ||
+                        controleEsquerdo.getHeight() <= 0) {
+                    return;
+                }
+                areaGif.removeOnLayoutChangeListener(listener[0]);
+                moverControlesInterno(0.5f);
+            };
+            areaGif.addOnLayoutChangeListener(listener[0]);
+        });
     }
 
     private void cancelarRetornoControles() {

@@ -84,6 +84,9 @@ public final class GerenciadorReproducaoGif {
         if (this.sequencia != sequencia) {
             definirSequencia(sequencia);
         }
+        quadrosAvancados = indiceQuadro;
+        tempoAcumuladoMs = 0L;
+        progresso = (float) indiceQuadro / sequencia.getFrameCount();
         reproduzindo = true;
         inicioReproducao = SystemClock.uptimeMillis();
         animationTicker.iniciar();

@@ -135,6 +135,63 @@ public class PlanilhaParserTest {
     }
 
     @Test
+    public void interpretaTresGruposDeMarcadoresNaOrdemDaPlanilha() {
+        ArrayList<FaixaRepeticaoGif> faixas = new ArrayList<>();
+
+        PlanilhaParser.preencherListas(
+                "Pov000,Link,Express,Go1,On1,Out1,Go2,On2,Out2,Go3,On3,Out3\n" +
+                        "Pov001,https://example.com/1.gif,texto," +
+                        "2,3,5,5,7,9,10,12,14\n",
+                new ArrayList<>(),
+                new ArrayList<>(),
+                new ArrayList<>(),
+                new ArrayList<>(),
+                faixas
+        );
+
+        assertEquals(1, faixas.size());
+        assertEquals(3, faixas.get(0).getFaixas().size());
+        assertEquals(2, faixas.get(0).getFaixas().get(0).getPrimeiroQuadro());
+        assertEquals(5, faixas.get(0).getFaixas().get(1).getPrimeiroQuadro());
+        assertEquals(10, faixas.get(0).getFaixas().get(2).getPrimeiroQuadro());
+    }
+
+    @Test
+    public void rejeitaGrupoDeMarcadoresIncompleto() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> PlanilhaParser.preencherListas(
+                        "Pov000,Link,Express,Go1,On1,Out1,Go2,On2,Out2\n" +
+                                "Pov001,https://example.com/1.gif,texto," +
+                                "2,3,5,6,,9\n",
+                        new ArrayList<>(),
+                        new ArrayList<>(),
+                        new ArrayList<>(),
+                        new ArrayList<>(),
+                        new ArrayList<>()
+                )
+        );
+    }
+
+    @Test
+    public void rejeitaGruposDeMarcadoresComLacunas() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> PlanilhaParser.preencherListas(
+                        "Pov000,Link,Express,Go1,On1,Out1,Go2,On2,Out2," +
+                                "Go3,On3,Out3\n" +
+                                "Pov001,https://example.com/1.gif,texto," +
+                                "2,3,5,,,,10,12,14\n",
+                        new ArrayList<>(),
+                        new ArrayList<>(),
+                        new ArrayList<>(),
+                        new ArrayList<>(),
+                        new ArrayList<>()
+                )
+        );
+    }
+
+    @Test
     public void rejeitaPlanilhaSemCabecalhoDoFormatoDefinitivo() {
         assertThrows(
                 IllegalArgumentException.class,

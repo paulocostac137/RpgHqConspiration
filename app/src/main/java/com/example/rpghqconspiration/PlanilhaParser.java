@@ -74,10 +74,11 @@ public final class PlanilhaParser {
         int colunaNome = localizarColuna(cabecalhos, "Pov000");
         int colunaLink = localizarColuna(cabecalhos, "Link");
         int colunaTexto = localizarColuna(cabecalhos, "Express");
-        int colunaGo1 = localizarColuna(cabecalhos, "Go1");
-        int colunaOn1 = localizarColuna(cabecalhos, "On1");
+        localizarColuna(cabecalhos, "Go1");
+        localizarColuna(cabecalhos, "On1");
         localizarColuna(cabecalhos, "Out1");
-        int colunaOut1 = localizarColunaOpcional(cabecalhos, "Out1");
+        int quantidadeGruposMarcadores =
+                localizarQuantidadeGruposMarcadores(cabecalhos);
 
         for (int numeroLinha = 1; numeroLinha < linhas.length; numeroLinha++) {
             ArrayList<String> colunas =
@@ -107,11 +108,10 @@ public final class PlanilhaParser {
                 textosPlanilha.add(texto);
                 repeticoes.add(1);
                 faixasRepetidas.add(
-                        extrairFaixaRepetida(
+                        extrairFaixasRepetidas(
                                 colunas,
-                                colunaGo1,
-                                colunaOn1,
-                                colunaOut1,
+                                cabecalhos,
+                                quantidadeGruposMarcadores,
                                 numeroLinha + 1
                         )
                 );
@@ -119,54 +119,121 @@ public final class PlanilhaParser {
         }
     }
 
-    private static FaixaRepeticaoGif extrairFaixaRepetida(
+    private static FaixaRepeticaoGif extrairFaixasRepetidas(
             ArrayList<String> colunas,
-            int colunaGo1,
-            int colunaOn1,
-            int colunaOut1,
+            ArrayList<String> cabecalhos,
+            int quantidadeGrupos,
             int numeroLinha) {
-        if (colunaOut1 < 0 ||
-                colunaGo1 >= colunas.size() ||
-                colunaOn1 >= colunas.size() ||
-                colunaOut1 >= colunas.size()) {
-            return null;
-        }
-
-        String go1 = colunas.get(colunaGo1).trim();
-        String on1 = colunas.get(colunaOn1).trim();
-        String out1 = colunas.get(colunaOut1).trim();
-        if (go1.isEmpty() || on1.isEmpty() || out1.isEmpty()) {
-            return null;
-        }
-
-        int primeiroQuadro = lerPrimeiroNumeroQuadro(
-                go1,
-                "Go1",
-                numeroLinha
-        );
-        int quadroOn = lerPrimeiroNumeroQuadro(
-                on1,
-                "On1",
-                numeroLinha
-        );
-        int ultimoQuadro = lerPrimeiroNumeroQuadro(
-                out1,
-                "Out1",
-                numeroLinha
-        );
-        try {
-            return new FaixaRepeticaoGif(
-                    primeiroQuadro,
-                    quadroOn,
-                    ultimoQuadro
-            );
+        ArrayList<FaixaRepeticaoGif> faixas = new ArrayList<>();
+            boolean grupoVazioAnterior = false;
+            try {
+            for (int grupo = 1; grupo <= quantidadeGrupos; grupo++) {
+                int colunaGo = localizarColunaOpcional(
+                        cabecalhos,
+                        "Go" + grupo
+                );
+                int colunaOn = localizarColunaOpcional(
+                        cabecalhos,
+                        "On" + grupo
+                );
+                int colunaOut = localizarColunaOpcional(
+                        cabecalhos,
+                        "Out" + grupo
+                );
+                String go = valorColuna(colunas, colunaGo);
+                String on = valorColuna(colunas, colunaOn);
+                String out = valorColuna(colunas, colunaOut);
+                boolean grupoVazio = go.isEmpty() && on.isEmpty() &&
+                        out.isEmpty();
+                if (grupoVazio) {
+                    grupoVazioAnterior = true;
+                    continue;
+                }
+                if (grupoVazioAnterior) {
+                    throw new IllegalArgumentException(
+                            "Os grupos de marcadores precisam ser preenchidos " +
+                                    "em sequência na linha " + numeroLinha + "."
+                    );
+                }
+                if (go.isEmpty() || on.isEmpty() || out.isEmpty()) {
+                    throw new IllegalArgumentException(
+                            "O grupo Go" + grupo + "–On" + grupo +
+                                    "–Out" + grupo + " está incompleto na linha " +
+                                    numeroLinha + "."
+                    );
+                }
+                int primeiroQuadro = lerPrimeiroNumeroQuadro(
+                        go,
+                        "Go" + grupo,
+                        numeroLinha
+                );
+                int quadroOn = lerPrimeiroNumeroQuadro(
+                        on,
+                        "On" + grupo,
+                        numeroLinha
+                );
+                int ultimoQuadro = lerPrimeiroNumeroQuadro(
+                        out,
+                        "Out" + grupo,
+                        numeroLinha
+                );
+                FaixaRepeticaoGif faixa = new FaixaRepeticaoGif(
+                        primeiroQuadro,
+                        quadroOn,
+                        ultimoQuadro
+                );
+                if (!faixas.isEmpty() &&
+                        primeiroQuadro <
+                                faixas.get(faixas.size() - 1)
+                                        .getUltimoQuadro()) {
+                    throw new IllegalArgumentException(
+                            "As faixas marcadas estão fora de ordem na linha " +
+                                    numeroLinha + "."
+                    );
+                }
+                faixas.add(faixa);
+            }
+            return FaixaRepeticaoGif.agrupar(faixas);
         } catch (IllegalArgumentException erro) {
+            if (erro.getMessage() != null &&
+                    erro.getMessage().contains("linha " + numeroLinha)) {
+                throw erro;
+            }
             throw new IllegalArgumentException(
-                    "Faixa Go1–On1–Out1 inválida na linha " +
+                    "Faixa marcada inválida na linha " +
                             numeroLinha + ".",
                     erro
             );
         }
+    }
+
+    private static String valorColuna(
+            ArrayList<String> colunas,
+            int indiceColuna) {
+        return indiceColuna < 0 || indiceColuna >= colunas.size()
+                ? ""
+                : colunas.get(indiceColuna).trim();
+    }
+
+    private static int localizarQuantidadeGruposMarcadores(
+            ArrayList<String> cabecalhos) {
+        int quantidade = 0;
+        for (int grupo = 1; ; grupo++) {
+            int go = localizarColunaOpcional(cabecalhos, "Go" + grupo);
+            int on = localizarColunaOpcional(cabecalhos, "On" + grupo);
+            int out = localizarColunaOpcional(cabecalhos, "Out" + grupo);
+            if (go < 0 && on < 0 && out < 0) {
+                break;
+            }
+            if (go < 0 || on < 0 || out < 0) {
+                throw new IllegalArgumentException(
+                        "Cada grupo de marcadores precisa ter Go" + grupo +
+                                ", On" + grupo + " e Out" + grupo + "."
+                );
+            }
+            quantidade = grupo;
+        }
+        return quantidade;
     }
 
     private static int lerPrimeiroNumeroQuadro(

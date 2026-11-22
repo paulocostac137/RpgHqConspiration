@@ -15,6 +15,44 @@ public final class GifFrameSequence {
     private static final int QUADROS_DESACELERACAO = 30;
     private static final float VELOCIDADE_FINAL = 0.20f;
 
+    private static final class ExpansaoFaixas {
+        private final int[] indicesQuadros;
+        private final int[] quantidadeQuadrosPorCiclo;
+        private final int[] deslocamentosOnPorCiclo;
+        private final int primeiroQuadroMarcado;
+        private final int ultimoQuadroMarcado;
+        private final int[] inicioPrimeiroCicloVelocidade;
+        private final int[] fimPrimeiroCicloVelocidade;
+        private final int[] inicioUltimoCicloVelocidade;
+        private final int[] fimUltimoCicloVelocidade;
+
+        private ExpansaoFaixas(
+                int[] indicesQuadros,
+                int[] quantidadeQuadrosPorCiclo,
+                int[] deslocamentosOnPorCiclo,
+                int primeiroQuadroMarcado,
+                int ultimoQuadroMarcado,
+                int[] inicioPrimeiroCicloVelocidade,
+                int[] fimPrimeiroCicloVelocidade,
+                int[] inicioUltimoCicloVelocidade,
+                int[] fimUltimoCicloVelocidade) {
+            this.indicesQuadros = indicesQuadros;
+            this.quantidadeQuadrosPorCiclo =
+                    quantidadeQuadrosPorCiclo;
+            this.deslocamentosOnPorCiclo =
+                    deslocamentosOnPorCiclo;
+            this.primeiroQuadroMarcado = primeiroQuadroMarcado;
+            this.ultimoQuadroMarcado = ultimoQuadroMarcado;
+            this.inicioPrimeiroCicloVelocidade =
+                    inicioPrimeiroCicloVelocidade;
+            this.fimPrimeiroCicloVelocidade =
+                    fimPrimeiroCicloVelocidade;
+            this.inicioUltimoCicloVelocidade =
+                    inicioUltimoCicloVelocidade;
+            this.fimUltimoCicloVelocidade = fimUltimoCicloVelocidade;
+        }
+    }
+
     private final Bitmap[] frames;
     private final Bitmap[] ownedFrames;
     private final int[] segmentStarts;
@@ -24,6 +62,10 @@ public final class GifFrameSequence {
     private final long durationMs;
     private final int indicePrimeiroGo1;
     private final int indiceUltimoOut1;
+    private final int[] inicioPrimeiroCicloVelocidade;
+    private final int[] fimPrimeiroCicloVelocidade;
+    private final int[] inicioUltimoCicloVelocidade;
+    private final int[] fimUltimoCicloVelocidade;
     private boolean released;
 
     private GifFrameSequence(
@@ -43,7 +85,11 @@ public final class GifFrameSequence {
                 cycleOnFrameOffsets,
                 durationMs,
                 -1,
-                -1
+                -1,
+                new int[0],
+                new int[0],
+                new int[0],
+                new int[0]
         );
     }
 
@@ -57,6 +103,37 @@ public final class GifFrameSequence {
             long durationMs,
             int indicePrimeiroGo1,
             int indiceUltimoOut1) {
+        this(
+                frames,
+                ownedFrames,
+                segmentStarts,
+                cycleStarts,
+                cycleFrameCounts,
+                cycleOnFrameOffsets,
+                durationMs,
+                indicePrimeiroGo1,
+                indiceUltimoOut1,
+                new int[0],
+                new int[0],
+                new int[0],
+                new int[0]
+        );
+    }
+
+    private GifFrameSequence(
+            Bitmap[] frames,
+            Bitmap[] ownedFrames,
+            int[] segmentStarts,
+            int[] cycleStarts,
+            int[] cycleFrameCounts,
+            int[] cycleOnFrameOffsets,
+            long durationMs,
+            int indicePrimeiroGo1,
+            int indiceUltimoOut1,
+            int[] inicioPrimeiroCicloVelocidade,
+            int[] fimPrimeiroCicloVelocidade,
+            int[] inicioUltimoCicloVelocidade,
+            int[] fimUltimoCicloVelocidade) {
         this.frames = frames;
         this.ownedFrames = ownedFrames;
         this.segmentStarts = segmentStarts;
@@ -66,6 +143,14 @@ public final class GifFrameSequence {
         this.durationMs = durationMs;
         this.indicePrimeiroGo1 = indicePrimeiroGo1;
         this.indiceUltimoOut1 = indiceUltimoOut1;
+        this.inicioPrimeiroCicloVelocidade =
+                inicioPrimeiroCicloVelocidade;
+        this.fimPrimeiroCicloVelocidade =
+                fimPrimeiroCicloVelocidade;
+        this.inicioUltimoCicloVelocidade =
+                inicioUltimoCicloVelocidade;
+        this.fimUltimoCicloVelocidade =
+                fimUltimoCicloVelocidade;
     }
 
     public static GifFrameSequence extract(
@@ -93,13 +178,13 @@ public final class GifFrameSequence {
         }
 
         long durationMs = frameInfo.getCycleDurationMs();
-        int frameCount = faixaRepetida == null
-                ? frameInfo.getFrameCountAt30Fps()
-                : frameInfo.getFrameCountAt30Fps(
-                        faixaRepetida,
-                        repeticoesFaixa
-                );
         int originalFrameCount = frameInfo.getFrameCountAt30Fps();
+        ExpansaoFaixas expansao = expandirFaixas(
+                originalFrameCount,
+                faixaRepetida,
+                repeticoesFaixa
+        );
+        int frameCount = expansao.indicesQuadros.length;
         int sourceFrameCount = frameInfo.getFrameCount();
         float scale = Math.min(
                 1f,
@@ -147,58 +232,37 @@ public final class GifFrameSequence {
                 originalFrames[i] = uniqueFrames[uniqueIndex];
             }
 
-            int[] frameIndexes = expandFrameIndexes(
-                    originalFrameCount,
-                    faixaRepetida,
-                    repeticoesFaixa
-            );
             Bitmap[] bitmaps = new Bitmap[frameCount];
-            long expandedDurationMs = durationMs;
-            for (int i = 0; i < frameIndexes.length; i++) {
-                bitmaps[i] = originalFrames[frameIndexes[i]];
+            for (int i = 0; i < expansao.indicesQuadros.length; i++) {
+                bitmaps[i] = originalFrames[
+                        expansao.indicesQuadros[i]
+                ];
             }
-            if (faixaRepetida != null) {
-                int loopFrameCount = faixaRepetida.getUltimoQuadro()
-                        - faixaRepetida.getPrimeiroQuadro() + 1;
-                long loopDurationMs = Math.max(
-                        1L,
-                        Math.round(
-                                durationMs * (double) loopFrameCount
-                                        / originalFrameCount
-                        )
-                );
-                expandedDurationMs +=
-                        loopDurationMs * (repeticoesFaixa - 1L);
-            }
+            long expandedDurationMs = Math.max(
+                    1L,
+                    Math.round(
+                            durationMs * (double) frameCount /
+                                    originalFrameCount
+                    )
+            );
             return new GifFrameSequence(
                     bitmaps,
                     uniqueFrames,
                     new int[]{0, bitmaps.length},
-                    expandCycleStarts(
-                            originalFrameCount,
-                            faixaRepetida,
-                            repeticoesFaixa
-                    ),
-                    expandCycleFrameCounts(
-                            originalFrameCount,
-                            faixaRepetida,
-                            repeticoesFaixa
-                    ),
-                    expandCycleOnFrameOffsets(
-                            originalFrameCount,
-                            faixaRepetida,
-                            repeticoesFaixa
-                    ),
+                    expandCycleStarts(expansao.quantidadeQuadrosPorCiclo),
+                    expansao.quantidadeQuadrosPorCiclo,
+                    expansao.deslocamentosOnPorCiclo,
                     expandedDurationMs,
                     faixaRepetida == null
                             ? -1
-                            : faixaRepetida.getPrimeiroQuadro() - 1,
+                            : expansao.primeiroQuadroMarcado,
                     faixaRepetida == null
                             ? -1
-                            : ultimoIndiceDeQuadro(
-                                    frameIndexes,
-                                    faixaRepetida.getUltimoQuadro() - 1
-                            )
+                            : expansao.ultimoQuadroMarcado,
+                    expansao.inicioPrimeiroCicloVelocidade,
+                    expansao.fimPrimeiroCicloVelocidade,
+                    expansao.inicioUltimoCicloVelocidade,
+                    expansao.fimUltimoCicloVelocidade
             );
         } catch (RuntimeException erro) {
             for (Bitmap frame : uniqueFrames) {
@@ -210,69 +274,11 @@ public final class GifFrameSequence {
         }
     }
 
-    private static int ultimoIndiceDeQuadro(
-            int[] indices,
-            int indiceOrigem) {
-        for (int i = indices.length - 1; i >= 0; i--) {
-            if (indices[i] == indiceOrigem) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
     static int[] expandFrameIndexes(
             int frameCount,
             FaixaRepeticaoGif faixa,
             int repeticoes) {
-        if (frameCount <= 0 || repeticoes <= 0) {
-            throw new IllegalArgumentException(
-                    "A quantidade de quadros e repetições deve ser positiva."
-            );
-        }
-        if (faixa == null) {
-            int[] indices = new int[frameCount];
-            for (int i = 0; i < frameCount; i++) {
-                indices[i] = i;
-            }
-            return indices;
-        }
-        int inicio = faixa.getPrimeiroQuadro() - 1;
-        int fimExclusivo = faixa.getUltimoQuadro();
-        if (fimExclusivo > frameCount) {
-            throw new IllegalArgumentException(
-                    "A faixa Go1-Out1 excede a quantidade de quadros do GIF."
-            );
-        }
-        int comprimentoFaixa = fimExclusivo - inicio;
-        long quantidadeQuadros =
-                frameCount + (long) comprimentoFaixa * (repeticoes - 1L);
-        if (quantidadeQuadros > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException(
-                    "A sequência de quadros excede o limite suportado."
-            );
-        }
-
-        int[] indices = new int[(int) quantidadeQuadros];
-        int destino = 0;
-        for (int i = 0; i < inicio; i++) {
-            indices[destino++] = i;
-        }
-        for (int repeticao = 0; repeticao < repeticoes; repeticao++) {
-            if (repeticao % 2 == 0) {
-                for (int i = inicio; i < fimExclusivo; i++) {
-                    indices[destino++] = i;
-                }
-            } else {
-                for (int i = fimExclusivo - 1; i >= inicio; i--) {
-                    indices[destino++] = i;
-                }
-            }
-        }
-        for (int i = fimExclusivo; i < frameCount; i++) {
-            indices[destino++] = i;
-        }
-        return indices;
+        return expandirFaixas(frameCount, faixa, repeticoes).indicesQuadros;
     }
 
     static int[] expandCycleStarts(
@@ -295,71 +301,198 @@ public final class GifFrameSequence {
             int frameCount,
             FaixaRepeticaoGif faixa,
             int repeticoes) {
-        if (frameCount <= 0 || repeticoes <= 0) {
-            throw new IllegalArgumentException(
-                    "A quantidade de quadros e repetições deve ser positiva."
-            );
-        }
-        if (faixa == null) {
-            return new int[]{frameCount};
-        }
-
-        int inicio = faixa.getPrimeiroQuadro() - 1;
-        int fimExclusivo = faixa.getUltimoQuadro();
-        if (fimExclusivo > frameCount) {
-            throw new IllegalArgumentException(
-                    "A faixa Go1-Out1 excede a quantidade de quadros do GIF."
-            );
-        }
-
-        int quantidadeCiclos = repeticoes;
-        if (inicio > 0) {
-            quantidadeCiclos++;
-        }
-        if (fimExclusivo < frameCount) {
-            quantidadeCiclos++;
-        }
-        int[] counts = new int[quantidadeCiclos];
-        int ciclo = 0;
-        if (inicio > 0) {
-            counts[ciclo++] = inicio;
-        }
-        for (int i = 0; i < repeticoes; i++) {
-            counts[ciclo++] = fimExclusivo - inicio;
-        }
-        if (fimExclusivo < frameCount) {
-            counts[ciclo] = frameCount - fimExclusivo;
-        }
-        return counts;
+        return expandirFaixas(
+                frameCount,
+                faixa,
+                repeticoes
+        ).quantidadeQuadrosPorCiclo;
     }
 
     static int[] expandCycleOnFrameOffsets(
             int frameCount,
             FaixaRepeticaoGif faixa,
             int repeticoes) {
-        int[] cycleCounts = expandCycleFrameCounts(
+        return expandirFaixas(
+                frameCount,
+                faixa,
+                repeticoes
+        ).deslocamentosOnPorCiclo;
+    }
+
+    static int[] expandSpeedRampBounds(
+            int frameCount,
+            FaixaRepeticaoGif faixa,
+            int repeticoes) {
+        ExpansaoFaixas expansion = expandirFaixas(
                 frameCount,
                 faixa,
                 repeticoes
         );
-        int[] offsets = new int[cycleCounts.length];
-        Arrays.fill(offsets, -1);
+        int[] bounds = new int[
+                expansion.inicioPrimeiroCicloVelocidade.length * 4
+        ];
+        for (int group = 0;
+             group < expansion.inicioPrimeiroCicloVelocidade.length;
+             group++) {
+            int offset = group * 4;
+            bounds[offset] =
+                    expansion.inicioPrimeiroCicloVelocidade[group];
+            bounds[offset + 1] =
+                    expansion.fimPrimeiroCicloVelocidade[group];
+            bounds[offset + 2] =
+                    expansion.inicioUltimoCicloVelocidade[group];
+            bounds[offset + 3] =
+                    expansion.fimUltimoCicloVelocidade[group];
+        }
+        return bounds;
+    }
+
+    private static ExpansaoFaixas expandirFaixas(
+            int frameCount,
+            FaixaRepeticaoGif faixa,
+            int repeticoes) {
+        if (frameCount <= 0 || repeticoes <= 0) {
+            throw new IllegalArgumentException(
+                    "A quantidade de quadros e repetições deve ser positiva."
+            );
+        }
         if (faixa == null) {
-            return offsets;
+            int[] indices = new int[frameCount];
+            for (int i = 0; i < frameCount; i++) {
+                indices[i] = i;
+            }
+            return new ExpansaoFaixas(
+                    indices,
+                    new int[]{frameCount},
+                    new int[]{-1},
+                    -1,
+                    -1,
+                    new int[0],
+                    new int[0],
+                    new int[0],
+                    new int[0]
+            );
         }
 
-        int indiceCiclo = faixa.getPrimeiroQuadro() > 1 ? 1 : 0;
-        int offsetOn = faixa.getQuadroOn() - faixa.getPrimeiroQuadro();
-        int comprimentoFaixa =
-                faixa.getUltimoQuadro() - faixa.getPrimeiroQuadro() + 1;
-        int ciclosRepetidos = repeticoes;
-        for (int repeticao = 0; repeticao < ciclosRepetidos; repeticao++) {
-            offsets[indiceCiclo + repeticao] =
-                    repeticao % 2 == 0
-                            ? offsetOn
-                            : comprimentoFaixa - 1 - offsetOn;
+        List<FaixaRepeticaoGif> faixas = faixa.getFaixas();
+        long totalQuadros = 0L;
+        long totalCiclos = 0L;
+        int cursor = 0;
+        for (FaixaRepeticaoGif atual : faixas) {
+            int inicio = atual.getPrimeiroQuadro() - 1;
+            int fimExclusivo = atual.getUltimoQuadro();
+            if (fimExclusivo > frameCount ||
+                    atual.getQuadroOn() > frameCount) {
+                throw new IllegalArgumentException(
+                        "A faixa Go–On–Out excede a quantidade de quadros do GIF."
+                );
+            }
+            if (inicio > cursor) {
+                totalQuadros += inicio - cursor;
+                totalCiclos++;
+            }
+            totalQuadros += (long) (fimExclusivo - inicio) * repeticoes;
+            totalCiclos += repeticoes;
+            cursor = Math.max(cursor, fimExclusivo);
         }
-        return offsets;
+        if (cursor < frameCount) {
+            totalQuadros += frameCount - cursor;
+            totalCiclos++;
+        }
+        if (totalQuadros > Integer.MAX_VALUE ||
+                totalCiclos > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException(
+                    "A sequência de quadros excede o limite suportado."
+            );
+        }
+
+        int[] indices = new int[(int) totalQuadros];
+        int[] counts = new int[(int) totalCiclos];
+        int[] offsets = new int[(int) totalCiclos];
+        int[] inicioPrimeiroCicloVelocidade = new int[faixas.size()];
+        int[] fimPrimeiroCicloVelocidade = new int[faixas.size()];
+        int[] inicioUltimoCicloVelocidade = new int[faixas.size()];
+        int[] fimUltimoCicloVelocidade = new int[faixas.size()];
+        Arrays.fill(offsets, -1);
+        int destino = 0;
+        int ciclo = 0;
+        cursor = 0;
+        int primeiroMarcado = -1;
+        int ultimoMarcado = -1;
+        int indiceFaixa = 0;
+        for (FaixaRepeticaoGif atual : faixas) {
+            int inicio = atual.getPrimeiroQuadro() - 1;
+            int fimExclusivo = atual.getUltimoQuadro();
+            for (int quadro = cursor; quadro < inicio; quadro++) {
+                indices[destino++] = quadro;
+                counts[ciclo]++;
+            }
+            if (inicio > cursor) {
+                ciclo++;
+            }
+            if (primeiroMarcado < 0) {
+                primeiroMarcado = destino;
+            }
+            int onOffset = atual.getQuadroOn() - 1 - inicio;
+            int comprimento = fimExclusivo - inicio;
+            for (int repeticao = 0; repeticao < repeticoes; repeticao++) {
+                if (repeticao == 0) {
+                    inicioPrimeiroCicloVelocidade[indiceFaixa] = destino;
+                }
+                if (repeticao == repeticoes - 1) {
+                    inicioUltimoCicloVelocidade[indiceFaixa] = destino;
+                }
+                counts[ciclo] = comprimento;
+                offsets[ciclo] = repeticao % 2 == 0
+                        ? onOffset
+                        : comprimento - 1 - onOffset;
+                if (repeticao % 2 == 0) {
+                    for (int quadro = inicio;
+                         quadro < fimExclusivo;
+                         quadro++) {
+                        indices[destino++] = quadro;
+                    }
+                } else {
+                    for (int quadro = fimExclusivo - 1;
+                         quadro >= inicio;
+                         quadro--) {
+                        indices[destino++] = quadro;
+                    }
+                }
+                if (repeticao == 0) {
+                    fimPrimeiroCicloVelocidade[indiceFaixa] =
+                            destino - 1;
+                }
+                ciclo++;
+            }
+            fimUltimoCicloVelocidade[indiceFaixa] = destino - 1;
+            indiceFaixa++;
+            ultimoMarcado = destino - 1;
+            cursor = Math.max(cursor, fimExclusivo);
+        }
+        for (int quadro = cursor; quadro < frameCount; quadro++) {
+            indices[destino++] = quadro;
+            counts[ciclo]++;
+        }
+        return new ExpansaoFaixas(
+                indices,
+                counts,
+                offsets,
+                primeiroMarcado,
+                ultimoMarcado,
+                inicioPrimeiroCicloVelocidade,
+                fimPrimeiroCicloVelocidade,
+                inicioUltimoCicloVelocidade,
+                fimUltimoCicloVelocidade
+        );
+    }
+
+    private static int[] expandCycleStarts(int[] cycleCounts) {
+        int[] starts = new int[cycleCounts.length + 1];
+        for (int i = 0; i < cycleCounts.length; i++) {
+            starts[i + 1] = starts[i] + cycleCounts[i];
+        }
+        return starts;
     }
 
     public static GifFrameSequence concatenate(
@@ -418,11 +551,16 @@ public final class GifFrameSequence {
         Bitmap[] timelineFrames = new Bitmap[totalFrames];
         Bitmap[] timelineOwnedFrames = new Bitmap[totalOwnedFrames];
         long totalCycles = 0L;
+        long totalSpeedGroups = 0L;
         for (int i = 0; i < sequences.size(); i++) {
             totalCycles += (long) sequences.get(i).cycleFrameCounts.length
                     * repetitions[i];
+            totalSpeedGroups += (long)
+                    sequences.get(i).inicioPrimeiroCicloVelocidade.length *
+                    repetitions[i];
         }
-        if (totalCycles > Integer.MAX_VALUE) {
+        if (totalCycles > Integer.MAX_VALUE ||
+                totalSpeedGroups > Integer.MAX_VALUE) {
             throw new IllegalArgumentException(
                     "A linha do tempo excede o limite de ciclos."
             );
@@ -432,9 +570,14 @@ public final class GifFrameSequence {
         int[] combinedCycleStarts = new int[cycleCount + 1];
         int[] cycleFrameCounts = new int[cycleCount];
         int[] cycleOnFrameOffsets = new int[cycleCount];
+        int[] combinedFirstCycleStarts = new int[(int) totalSpeedGroups];
+        int[] combinedFirstCycleEnds = new int[(int) totalSpeedGroups];
+        int[] combinedLastCycleStarts = new int[(int) totalSpeedGroups];
+        int[] combinedLastCycleEnds = new int[(int) totalSpeedGroups];
         int frameOffset = 0;
         int ownedOffset = 0;
         int cycleOffset = 0;
+        int speedGroupOffset = 0;
         int indicePrimeiroGo1Timeline = -1;
         int indiceUltimoOut1Timeline = -1;
 
@@ -462,6 +605,23 @@ public final class GifFrameSequence {
                     combinedCycleStarts[cycleOffset] =
                             frameOffset + sequence.cycleStarts[cycle];
                     cycleOffset++;
+                }
+                for (int group = 0;
+                     group < sequence.inicioPrimeiroCicloVelocidade.length;
+                     group++) {
+                    combinedFirstCycleStarts[speedGroupOffset] =
+                            frameOffset +
+                                    sequence.inicioPrimeiroCicloVelocidade[group];
+                    combinedFirstCycleEnds[speedGroupOffset] =
+                            frameOffset +
+                                    sequence.fimPrimeiroCicloVelocidade[group];
+                    combinedLastCycleStarts[speedGroupOffset] =
+                            frameOffset +
+                                    sequence.inicioUltimoCicloVelocidade[group];
+                    combinedLastCycleEnds[speedGroupOffset] =
+                            frameOffset +
+                                    sequence.fimUltimoCicloVelocidade[group];
+                    speedGroupOffset++;
                 }
                 System.arraycopy(
                         sequence.frames,
@@ -493,7 +653,11 @@ public final class GifFrameSequence {
                 cycleOnFrameOffsets,
                 totalDurationMs,
                 indicePrimeiroGo1Timeline,
-                indiceUltimoOut1Timeline
+                indiceUltimoOut1Timeline,
+                combinedFirstCycleStarts,
+                combinedFirstCycleEnds,
+                combinedLastCycleStarts,
+                combinedLastCycleEnds
         );
         for (GifFrameSequence sequence : sequences) {
             sequence.released = true;
@@ -770,35 +934,93 @@ public final class GifFrameSequence {
         return indiceUltimoOut1;
     }
 
+    public boolean isFrameProvenienteDeMarcadores(int frameIndex) {
+        if (frameIndex < 0 || frameIndex >= frames.length) {
+            throw new IndexOutOfBoundsException("Índice de quadro inválido.");
+        }
+        int ciclo = cycleIndexForFrame(
+                cycleStarts,
+                frames.length,
+                frameIndex
+        );
+        return cycleOnFrameOffsets[ciclo] >= 0;
+    }
+
     public float getFatorVelocidade(int indiceQuadro) {
-        if (indicePrimeiroGo1 < 0 ||
-                indiceQuadro < indicePrimeiroGo1) {
-            return 1f;
+        return calcularFatorVelocidade(
+                indiceQuadro,
+                inicioPrimeiroCicloVelocidade,
+                fimPrimeiroCicloVelocidade,
+                inicioUltimoCicloVelocidade,
+                fimUltimoCicloVelocidade
+        );
+    }
+
+    static float calcularFatorVelocidade(
+            int indiceQuadro,
+            int[] inicioPrimeiroCiclo,
+            int[] fimPrimeiroCiclo,
+            int[] inicioUltimoCiclo,
+            int[] fimUltimoCiclo) {
+        if (inicioPrimeiroCiclo == null ||
+                fimPrimeiroCiclo == null ||
+                inicioUltimoCiclo == null ||
+                fimUltimoCiclo == null ||
+                inicioPrimeiroCiclo.length != fimPrimeiroCiclo.length ||
+                inicioPrimeiroCiclo.length != inicioUltimoCiclo.length ||
+                inicioPrimeiroCiclo.length != fimUltimoCiclo.length) {
+            throw new IllegalArgumentException(
+                    "Os limites dos ciclos de velocidade são inválidos."
+            );
         }
 
-        if (indiceUltimoOut1 >= 0 &&
-                indiceQuadro >= indiceUltimoOut1 -
-                        (QUADROS_DESACELERACAO - 1)) {
-            if (indiceQuadro >= indiceUltimoOut1) {
-                return 1f;
+        for (int grupo = 0; grupo < inicioPrimeiroCiclo.length; grupo++) {
+            int inicioPrimeiro = inicioPrimeiroCiclo[grupo];
+            int fimPrimeiro = fimPrimeiroCiclo[grupo];
+            int inicioUltimo = inicioUltimoCiclo[grupo];
+            int fimUltimo = fimUltimoCiclo[grupo];
+            if (indiceQuadro < inicioPrimeiro ||
+                    indiceQuadro > fimUltimo) {
+                continue;
             }
-            int inicioAceleracao =
-                    indiceUltimoOut1 - (QUADROS_DESACELERACAO - 1);
-            float progresso =
-                    (float) (indiceQuadro - inicioAceleracao) /
-                            (QUADROS_DESACELERACAO - 1);
-            return VELOCIDADE_FINAL +
-                    (1f - VELOCIDADE_FINAL) * progresso;
-        }
 
-        int deslocamento = indiceQuadro - indicePrimeiroGo1;
-        if (deslocamento >= QUADROS_DESACELERACAO - 1) {
+            if (indiceQuadro <= fimPrimeiro) {
+                int quantidadeRampa = Math.min(
+                        QUADROS_DESACELERACAO,
+                        fimPrimeiro - inicioPrimeiro + 1
+                );
+                int deslocamento = indiceQuadro - inicioPrimeiro;
+                if (deslocamento < quantidadeRampa) {
+                    if (quantidadeRampa == 1) {
+                        return 1f;
+                    }
+                    return 1f -
+                            (1f - VELOCIDADE_FINAL) * deslocamento /
+                                    (quantidadeRampa - 1f);
+                }
+                return VELOCIDADE_FINAL;
+            }
+
+            if (indiceQuadro >= inicioUltimo) {
+                int quantidadeRampa = Math.min(
+                        QUADROS_DESACELERACAO,
+                        fimUltimo - inicioUltimo + 1
+                );
+                int inicioRampa = fimUltimo - quantidadeRampa + 1;
+                if (indiceQuadro >= inicioRampa) {
+                    if (quantidadeRampa == 1) {
+                        return 1f;
+                    }
+                    return VELOCIDADE_FINAL +
+                            (1f - VELOCIDADE_FINAL) *
+                                    (indiceQuadro - inicioRampa) /
+                                    (quantidadeRampa - 1f);
+                }
+                return VELOCIDADE_FINAL;
+            }
             return VELOCIDADE_FINAL;
         }
-        return 1f -
-                (1f - VELOCIDADE_FINAL) *
-                        deslocamento /
-                        (QUADROS_DESACELERACAO - 1f);
+        return 1f;
     }
 
     public long getDuracaoQuadroMs(int indiceQuadro) {

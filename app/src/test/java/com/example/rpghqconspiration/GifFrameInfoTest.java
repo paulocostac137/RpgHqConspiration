@@ -66,6 +66,21 @@ public class GifFrameInfoTest {
     }
 
     @Test
+    public void calculaSeteRepeticoesParaCadaFaixaMarcada() throws Exception {
+        GifFrameInfo info = GifFrameInfo.read(
+                new ByteArrayInputStream(gifWithDelays(10, 20, 10))
+        );
+        FaixaRepeticaoGif faixas = FaixaRepeticaoGif.agrupar(
+                java.util.Arrays.asList(
+                        new FaixaRepeticaoGif(1, 1, 2),
+                        new FaixaRepeticaoGif(2, 2, 3)
+                )
+        );
+
+        assertEquals(37, info.getFrameCountAt30Fps(faixas, 7));
+    }
+
+    @Test
     public void distribuiReducaoDeQuadrosUniformemente() throws Exception {
         int[] delays = new int[40];
         for (int i = 0; i < delays.length; i++) {

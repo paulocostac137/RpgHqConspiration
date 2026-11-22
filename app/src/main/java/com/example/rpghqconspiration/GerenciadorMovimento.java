@@ -16,8 +16,6 @@ public final class GerenciadorMovimento {
     // CONFIGURAÇÕES
     // =====================================================
 
-    private static final int CICLOS_NECESSARIOS = 3;
-
     private static final float LIMITE_EXTREMO_SUPERIOR = 0.15f;
 
     private static final float LIMITE_EXTREMO_INFERIOR = 0.85f;
@@ -39,8 +37,6 @@ public final class GerenciadorMovimento {
     public interface Listener {
 
         boolean possuiGif();
-
-        void avancarParaProximoGif();
 
         void retomarAnimacao();
     }
@@ -128,9 +124,7 @@ public final class GerenciadorMovimento {
             Log.d(
                     TAG,
                     "Ciclo completo: " +
-                            ciclosConcluidos +
-                            "/" +
-                            CICLOS_NECESSARIOS
+                            ciclosConcluidos
             );
         }
     }
@@ -176,31 +170,11 @@ public final class GerenciadorMovimento {
             return;
         }
 
-        // Movimento suficiente para avançar.
-
-        if (ciclosConcluidos >= CICLOS_NECESSARIOS) {
-
-            Log.d(
-                    TAG,
-                    "Três ciclos concluídos. Avançando para o próximo GIF."
-            );
-
-            reiniciarContagem();
-
-            listener.avancarParaProximoGif();
-
-            return;
-        }
-
-        // Movimento insuficiente: mantém o GIF atual.
-
         Log.d(
                 TAG,
-                "Movimento insuficiente: " +
+                "Movimento finalizado no quadro atual após " +
                         ciclosConcluidos +
-                        "/" +
-                        CICLOS_NECESSARIOS +
-                        ". Mantendo o GIF atual."
+                        " ciclos."
         );
 
         reiniciarContagem();
@@ -217,8 +191,4 @@ public final class GerenciadorMovimento {
         return ciclosConcluidos;
     }
 
-    public int getCiclosNecessarios() {
-
-        return CICLOS_NECESSARIOS;
-    }
 }

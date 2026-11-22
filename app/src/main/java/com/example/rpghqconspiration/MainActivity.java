@@ -236,7 +236,7 @@ public class MainActivity extends AppCompatActivity {
     private int cicloTransicaoQuadroControle = -1;
     private int quadroInicialTransicaoControle = -1;
     private int quadroAlvoTransicaoControle = -1;
-    private float progressoControlesAtual = 0f;
+    private float progressoControlesAtual = 0.5f;
     private boolean aguardandoMovimentoInicialControle = false;
     private float progressoInicialControle = -1f;
     private int indiceQuadroAoSegurarControle = -1;
@@ -277,12 +277,6 @@ public class MainActivity extends AppCompatActivity {
                         public boolean possuiGif() {
 
                             return movie != null;
-                        }
-
-                        @Override
-                        public void avancarParaProximoGif() {
-
-                            proximoGif();
                         }
 
                         @Override
@@ -377,22 +371,13 @@ public class MainActivity extends AppCompatActivity {
                 (servicoConexao != null &&
                         servicoConexao.estaConectado());
         boolean ehDono = modoIndividual || ehDonoDoControle();
-        boolean habilitado = conexaoDisponivel &&
+        boolean quadroMarcado = movie != null &&
+                gerenciadorReproducao != null &&
+                movie.isFrameProvenienteDeMarcadores(
+                        gerenciadorReproducao.getIndiceQuadro()
+                );
+        boolean habilitado = quadroMarcado && conexaoDisponivel &&
                 (ehDono || controlesPassivosVisiveis);
-        boolean aposPrimeiroGo1 =
-                movie == null ||
-                        gerenciadorReproducao == null ||
-                        movie.getIndicePrimeiroGo1() < 0 ||
-                        gerenciadorReproducao.getIndiceQuadro() >=
-                                movie.getIndicePrimeiroGo1();
-        boolean antesOuNoUltimoOut1 =
-                movie == null ||
-                        gerenciadorReproducao == null ||
-                        movie.getIndiceUltimoOut1() < 0 ||
-                        gerenciadorReproducao.getIndiceQuadro() <=
-                                movie.getIndiceUltimoOut1();
-        habilitado = habilitado && aposPrimeiroGo1 &&
-                antesOuNoUltimoOut1;
 
         if (gerenciadorControle != null) {
             gerenciadorControle.definirHabilitado(habilitado);
@@ -400,8 +385,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         aplicarEstiloControles(!ehDono);
-        boolean mostrar = aposPrimeiroGo1 &&
-                antesOuNoUltimoOut1 &&
+        boolean mostrar = quadroMarcado &&
                 conexaoDisponivel &&
                 (ehDono || controlesPassivosVisiveis);
         int visibilidade = mostrar ? View.VISIBLE : View.GONE;
@@ -1118,7 +1102,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void liberarControleRemoto() {
 
-        concluirTransicaoQuadroControle();
+        cancelarTransicaoQuadroControle();
         controleRemotoAtivo = false;
         definirFaixaControleOnOutAtiva(false);
         faixaControleAguardandoDirecaoNoOn = false;
@@ -1663,7 +1647,7 @@ public class MainActivity extends AppCompatActivity {
                             @Override
                             public void onControleManualLiberado() {
 
-                                concluirTransicaoQuadroControle();
+                                cancelarTransicaoQuadroControle();
                                 definirFaixaControleOnOutAtiva(false);
                                 faixaControleAguardandoDirecaoNoOn = false;
                                 sombraInferiorAtravessada = false;
@@ -2035,13 +2019,9 @@ public class MainActivity extends AppCompatActivity {
                 movie,
                 indiceQuadro
         );
-        int primeiroGo1 = movie.getIndicePrimeiroGo1();
-        int ultimoOut1 = movie.getIndiceUltimoOut1();
         if (controleEsquerdo != null && controleDireito != null) {
             boolean controlesLiberados =
-                    primeiroGo1 < 0 || indiceQuadro >= primeiroGo1;
-            controlesLiberados = controlesLiberados &&
-                    (ultimoOut1 < 0 || indiceQuadro <= ultimoOut1);
+                    movie.isFrameProvenienteDeMarcadores(indiceQuadro);
             int visibilidade = controlesLiberados
                     ? View.VISIBLE
                     : View.GONE;
@@ -2078,10 +2058,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         int indiceQuadro = gerenciadorReproducao.getIndiceQuadro();
-        int primeiroGo1 = movie.getIndicePrimeiroGo1();
-        int ultimoOut1 = movie.getIndiceUltimoOut1();
-        if ((primeiroGo1 >= 0 && indiceQuadro < primeiroGo1) ||
-                (ultimoOut1 >= 0 && indiceQuadro > ultimoOut1)) {
+        if (!movie.isFrameProvenienteDeMarcadores(indiceQuadro)) {
             definirVisibilidadeSombra(
                     R.id.sombraInferiorEsquerda,
                     View.GONE
@@ -2123,8 +2100,7 @@ public class MainActivity extends AppCompatActivity {
                                     cicloAdjacenteSuperior
                             ) - 1;
             podeAlternarSuperior = podeAlternarSuperior &&
-                    quadroLimite >= movie.getIndicePrimeiroGo1() &&
-                    quadroLimite <= movie.getIndiceUltimoOut1();
+                    movie.isFrameProvenienteDeMarcadores(quadroLimite);
         }
         int visibilidadeInferior = podeAlternar
                 ? View.VISIBLE
@@ -2509,9 +2485,9 @@ public class MainActivity extends AppCompatActivity {
                                             cicloAdjacente
                                     ) - 1;
                     boolean dentroDaFaixaMarcada =
-                            quadroLimite >= movie.getIndicePrimeiroGo1() &&
-                                    quadroLimite <=
-                                            movie.getIndiceUltimoOut1();
+                            movie.isFrameProvenienteDeMarcadores(
+                                    quadroLimite
+                            );
                     if (dentroDaFaixaMarcada) {
                         definirFaixaControleOnOutAtiva(
                                 !faixaControleOnOutAtiva
