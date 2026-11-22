@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="8dp"
+    android:background="#171717">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingBottom="8dp">
+
+        <Button
+            android:id="@+id/botaoPovPreview"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end|center_vertical"
+            android:minWidth="0dp"
+            android:text="PovAF"
+            android:textSize="12sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:padding="8dp"
+            android:text="Prévia"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/botaoVoltarPreview"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="start|center_vertical"
+            android:text="Voltar" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:id="@+id/linhaControlesPreview"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#000000"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <FrameLayout
+            android:id="@+id/containerControleEsquerdoPreview"
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:elevation="12dp"
+            android:gravity="center"
+            android:visibility="gone">
+
+            <View
+                android:id="@+id/sombraSuperiorEsquerdaPreview"
+                android:layout_width="48dp"
+                android:layout_height="5dp"
+                android:layout_gravity="top"
+                android:elevation="7dp" />
+
+            <View
+                android:id="@+id/sombraInferiorEsquerdaPreview"
+                android:layout_width="48dp"
+                android:layout_height="5dp"
+                android:layout_gravity="bottom"
+                android:elevation="7dp" />
+
+            <TextView
+                android:id="@+id/controleEsquerdoPreview"
+                android:layout_width="48dp"
+                android:layout_height="100dp"
+                android:layout_gravity="center"
+                android:background="#CC222222"
+                android:elevation="8dp"
+                android:gravity="center"
+                android:text="↕"
+                android:textColor="#FFFFFF"
+                android:textSize="30sp"
+                android:textStyle="bold" />
+        </FrameLayout>
+
+        <FrameLayout
+            android:id="@+id/areaGifPreview"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="#000000"
+            android:gravity="center">
+
+            <ImageView
+                android:id="@+id/imagemGifPreview"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="Preview do GIF"
+                android:scaleType="fitCenter" />
+        </FrameLayout>
+
+        <FrameLayout
+            android:id="@+id/containerControleDireitoPreview"
+            android:layout_width="64dp"
+            android:layout_height="match_parent"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:elevation="12dp"
+            android:gravity="center"
+            android:visibility="gone">
+
+            <View
+                android:id="@+id/sombraSuperiorDireitaPreview"
+                android:layout_width="48dp"
+                android:layout_height="5dp"
+                android:layout_gravity="top"
+                android:elevation="7dp" />
+
+            <View
+                android:id="@+id/sombraInferiorDireitaPreview"
+                android:layout_width="48dp"
+                android:layout_height="5dp"
+                android:layout_gravity="bottom"
+                android:elevation="7dp" />
+
+            <TextView
+                android:id="@+id/controleDireitoPreview"
+                android:layout_width="48dp"
+                android:layout_height="100dp"
+                android:layout_gravity="center"
+                android:background="#CC222222"
+                android:elevation="8dp"
+                android:gravity="center"
+                android:text="↕"
+                android:textColor="#FFFFFF"
+                android:textSize="30sp"
+                android:textStyle="bold" />
+        </FrameLayout>
+    </LinearLayout>
+</LinearLayout>
