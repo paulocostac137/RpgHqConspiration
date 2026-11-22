@@ -26,7 +26,6 @@ public final class GerenciadorDecodificacaoGif {
             32L * 1024L * 1024L;
     private static final int DIMENSAO_MAXIMA_QUADRO = 240;
     private static final long LIMITE_QUADROS_LINHA_DO_TEMPO = 1_000_000L;
-    private static final int REPETICOES_FAIXA_MARCADA = 7;
 
     public interface Listener {
 
@@ -302,7 +301,7 @@ public final class GerenciadorDecodificacaoGif {
                                 ? frameInfo.getFrameCountAt30Fps()
                                 : frameInfo.getFrameCountAt30Fps(
                                         faixa,
-                                        REPETICOES_FAIXA_MARCADA
+                                        GifFrameSequence.REPETICOES_POR_FAIXA
                                 );
                         long quantidadeQuadros =
                                 (long) quadrosDoCiclo * repeticao;
@@ -333,7 +332,7 @@ public final class GerenciadorDecodificacaoGif {
                                         metadados.get(i),
                                         limiteDimensao,
                                         faixasCopiadas.get(i),
-                                        REPETICOES_FAIXA_MARCADA
+                                        GifFrameSequence.REPETICOES_POR_FAIXA
                                 );
                         sequencias.add(sequencia);
                     }

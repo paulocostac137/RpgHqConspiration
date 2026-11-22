@@ -1,5 +1,6 @@
 package com.example.rpghqconspiration;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -78,6 +79,7 @@ public class ResultadoGifActivity extends AppCompatActivity {
         ModoImersivo.ativar(getWindow());
 
         Button botaoVoltar = findViewById(R.id.botaoVoltarResultado);
+        Button botaoVer = findViewById(R.id.botaoVer);
         botaoFinalizar = findViewById(R.id.botaoFinalizar);
         campoTextoImagem = findViewById(R.id.campoTextoImagem);
         textoContadorQuadros = findViewById(R.id.textoContadorQuadros);
@@ -97,6 +99,7 @@ public class ResultadoGifActivity extends AppCompatActivity {
                 findViewById(R.id.controlesNavegacaoResultado);
         botaoVoltar.setOnClickListener(view -> finish());
         botaoFinalizar.setOnClickListener(view -> finalizarMarcadores());
+        botaoVer.setOnClickListener(view -> abrirPreview());
 
         linkGif = getIntent().getStringExtra("link_gif");
         sequencia = ResultadoProcessamentoGif.consumir();
@@ -329,6 +332,32 @@ public class ResultadoGifActivity extends AppCompatActivity {
         controlesNavegacao.setVisibility(LinearLayout.VISIBLE);
         marcadoresBarraQuadros.setVisibility(MarcadoresBarraView.VISIBLE);
         atualizarBotoesMarcadores();
+    }
+
+    private void abrirPreview() {
+        if (sequencia == null) {
+            return;
+        }
+
+        GifFrameSequence preview = null;
+        try {
+            pararReproducao();
+            preview = sequencia.criarPreview(
+                    marcadoresBarraQuadros.obterFaixasRepetidas()
+            );
+            ResultadoProcessamentoGif.publicarPreview(preview);
+            startActivity(new Intent(this, PreviewGifActivity.class));
+        } catch (IllegalArgumentException | IllegalStateException erro) {
+            ResultadoProcessamentoGif.limparPreview();
+            if (preview != null) {
+                preview.liberar();
+            }
+            Toast.makeText(
+                    this,
+                    erro.getMessage(),
+                    Toast.LENGTH_SHORT
+            ).show();
+        }
     }
 
     @Override

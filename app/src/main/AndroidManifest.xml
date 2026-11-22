@@ -44,6 +44,11 @@
             android:exported="false"
             android:screenOrientation="reverseLandscape" />
 
+        <activity
+            android:name=".PreviewGifActivity"
+            android:exported="false"
+            android:screenOrientation="reverseLandscape" />
+
     </application>
 
 </manifest>

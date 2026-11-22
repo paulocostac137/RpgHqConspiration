@@ -94,6 +94,26 @@ public final class MarcadoresBarraView extends View {
         return sequenciaMarcadores.temPeloMenosTresMarcacoes();
     }
 
+    public FaixaRepeticaoGif obterFaixasRepetidas() {
+        if (ordemMarcacoes.isEmpty() || ordemMarcacoes.size() % 3 != 0) {
+            throw new IllegalStateException(
+                    "Complete os marcadores Go, On e Out para visualizar."
+            );
+        }
+
+        List<FaixaRepeticaoGif> faixas = new ArrayList<>();
+        for (int indice = 0; indice < ordemMarcacoes.size(); indice += 3) {
+            faixas.add(
+                    new FaixaRepeticaoGif(
+                            ordemMarcacoes.get(indice) + 1,
+                            ordemMarcacoes.get(indice + 1) + 1,
+                            ordemMarcacoes.get(indice + 2) + 1
+                    )
+            );
+        }
+        return FaixaRepeticaoGif.agrupar(faixas);
+    }
+
     public List<String[]> obterLinhasPlanilha(
             String linkGif,
             String textoImagem) {

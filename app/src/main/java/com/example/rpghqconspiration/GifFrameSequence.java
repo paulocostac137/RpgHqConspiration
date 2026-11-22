@@ -14,6 +14,7 @@ public final class GifFrameSequence {
 
     private static final int QUADROS_DESACELERACAO = 30;
     private static final float VELOCIDADE_FINAL = 0.20f;
+    static final int REPETICOES_POR_FAIXA = 7;
 
     private static final class ExpansaoFaixas {
         private final int[] indicesQuadros;
@@ -272,6 +273,53 @@ public final class GifFrameSequence {
             }
             throw erro;
         }
+    }
+
+    public GifFrameSequence criarPreview(FaixaRepeticaoGif faixaRepetida) {
+        if (faixaRepetida == null) {
+            throw new IllegalArgumentException(
+                    "Os marcadores são obrigatórios para o preview."
+            );
+        }
+        if (released || frames.length == 0) {
+            throw new IllegalStateException(
+                    "Não foi possível preparar a sequência de preview."
+            );
+        }
+
+        ExpansaoFaixas expansao = expandirFaixas(
+                frames.length,
+                faixaRepetida,
+                REPETICOES_POR_FAIXA
+        );
+        Bitmap[] quadrosPreview = new Bitmap[expansao.indicesQuadros.length];
+        for (int indice = 0; indice < quadrosPreview.length; indice++) {
+            quadrosPreview[indice] =
+                    frames[expansao.indicesQuadros[indice]];
+        }
+
+        long duracaoPreviewMs = Math.max(
+                1L,
+                Math.round(
+                        durationMs * (double) quadrosPreview.length /
+                                frames.length
+                )
+        );
+        return new GifFrameSequence(
+                quadrosPreview,
+                new Bitmap[0],
+                new int[]{0, quadrosPreview.length},
+                expandCycleStarts(expansao.quantidadeQuadrosPorCiclo),
+                expansao.quantidadeQuadrosPorCiclo,
+                expansao.deslocamentosOnPorCiclo,
+                duracaoPreviewMs,
+                expansao.primeiroQuadroMarcado,
+                expansao.ultimoQuadroMarcado,
+                expansao.inicioPrimeiroCicloVelocidade,
+                expansao.fimPrimeiroCicloVelocidade,
+                expansao.inicioUltimoCicloVelocidade,
+                expansao.fimUltimoCicloVelocidade
+        );
     }
 
     static int[] expandFrameIndexes(
