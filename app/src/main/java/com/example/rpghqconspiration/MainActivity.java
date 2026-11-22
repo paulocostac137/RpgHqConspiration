@@ -226,6 +226,8 @@ public class MainActivity extends AppCompatActivity {
     private boolean controleRemotoAtivo = false;
     private boolean faixaControleOnOutAtiva = false;
     private boolean sombraInferiorAtravessada = false;
+    private boolean sombraSuperiorAtravessada = false;
+    private boolean cicloControleAtravessadoPeloTopo = false;
     private boolean alternanciaSombraSuspensa = false;
     private boolean transicaoQuadroControlePendente = false;
     private boolean transicaoQuadroControleAtiva = false;
@@ -377,6 +379,20 @@ public class MainActivity extends AppCompatActivity {
         boolean ehDono = modoIndividual || ehDonoDoControle();
         boolean habilitado = conexaoDisponivel &&
                 (ehDono || controlesPassivosVisiveis);
+        boolean aposPrimeiroGo1 =
+                movie == null ||
+                        gerenciadorReproducao == null ||
+                        movie.getIndicePrimeiroGo1() < 0 ||
+                        gerenciadorReproducao.getIndiceQuadro() >=
+                                movie.getIndicePrimeiroGo1();
+        boolean antesOuNoUltimoOut1 =
+                movie == null ||
+                        gerenciadorReproducao == null ||
+                        movie.getIndiceUltimoOut1() < 0 ||
+                        gerenciadorReproducao.getIndiceQuadro() <=
+                                movie.getIndiceUltimoOut1();
+        habilitado = habilitado && aposPrimeiroGo1 &&
+                antesOuNoUltimoOut1;
 
         if (gerenciadorControle != null) {
             gerenciadorControle.definirHabilitado(habilitado);
@@ -384,7 +400,9 @@ public class MainActivity extends AppCompatActivity {
         }
 
         aplicarEstiloControles(!ehDono);
-        boolean mostrar = conexaoDisponivel &&
+        boolean mostrar = aposPrimeiroGo1 &&
+                antesOuNoUltimoOut1 &&
+                conexaoDisponivel &&
                 (ehDono || controlesPassivosVisiveis);
         int visibilidade = mostrar ? View.VISIBLE : View.GONE;
         controleEsquerdo.setVisibility(visibilidade);
@@ -455,14 +473,16 @@ public class MainActivity extends AppCompatActivity {
         }
         controle.setBackground(fundo);
 
+        boolean esquerda = controle.getId() == R.id.controleEsquerdo;
+        int[] coresSombraInferior = obterCoresSombraInferior();
         View sombraInferior = findViewById(
-                controle.getId() == R.id.controleEsquerdo
+                esquerda
                         ? R.id.sombraInferiorEsquerda
                         : R.id.sombraInferiorDireita
         );
         GradientDrawable degradeInferior = new GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                obterCoresSombraInferior()
+                coresSombraInferior
         );
         degradeInferior.setCornerRadii(new float[]{
                 raio, raio,
@@ -471,10 +491,38 @@ public class MainActivity extends AppCompatActivity {
                 0f, 0f
         });
         sombraInferior.setBackground(degradeInferior);
+
+        View sombraSuperior = findViewById(
+                esquerda
+                        ? R.id.sombraSuperiorEsquerda
+                        : R.id.sombraSuperiorDireita
+        );
+        GradientDrawable degradeSuperior = new GradientDrawable(
+                GradientDrawable.Orientation.BOTTOM_TOP,
+                obterCoresSombraSuperior()
+        );
+        degradeSuperior.setCornerRadii(new float[]{
+                0f, 0f,
+                0f, 0f,
+                raio, raio,
+                raio, raio
+        });
+        sombraSuperior.setBackground(degradeSuperior);
     }
 
     private int[] obterCoresSombraInferior() {
-        int cor = faixaControleOnOutAtiva ? 0xFF2196F3 : 0xFFF44336;
+        return obterCoresSombra(
+                faixaControleOnOutAtiva ? 0xFF2196F3 : 0xFFF44336
+        );
+    }
+
+    private int[] obterCoresSombraSuperior() {
+        return obterCoresSombra(
+                faixaControleOnOutAtiva ? 0xFFF44336 : 0xFF2196F3
+        );
+    }
+
+    private int[] obterCoresSombra(int cor) {
         return new int[]{
                 (cor & 0x00FFFFFF) | 0xCC000000,
                 (cor & 0x00FFFFFF) | 0x66000000,
@@ -490,6 +538,15 @@ public class MainActivity extends AppCompatActivity {
         int[] cores = obterCoresSombraInferior();
         atualizarCoresSombraInferior(R.id.sombraInferiorEsquerda, cores);
         atualizarCoresSombraInferior(R.id.sombraInferiorDireita, cores);
+        int[] coresSuperiores = obterCoresSombraSuperior();
+        atualizarCoresSombraInferior(
+                R.id.sombraSuperiorEsquerda,
+                coresSuperiores
+        );
+        atualizarCoresSombraInferior(
+                R.id.sombraSuperiorDireita,
+                coresSuperiores
+        );
     }
 
     private void atualizarCoresSombraInferior(int idSombra, int[] cores) {
@@ -1014,7 +1071,8 @@ public class MainActivity extends AppCompatActivity {
             alternanciaSombraSuspensa = true;
         }
         controleRemotoAtivo = true;
-        atualizarFaixaControlePorProgresso(progressoRecebido);
+        float progressoQuadro =
+                atualizarFaixaControlePorProgresso(progressoRecebido);
         progressoControlesAtual = progressoRecebido;
 
         if (gifTiming != null) {
@@ -1033,7 +1091,7 @@ public class MainActivity extends AppCompatActivity {
         int deslocamentoAlvo =
                 movie.getCycleFrameOffsetForControlProgress(
                         cicloControle,
-                        progressoRecebido,
+                        progressoQuadro,
                         faixaControleOnOutAtiva
                 );
         atualizarQuadroPeloControle(cicloControle, deslocamentoAlvo);
@@ -1065,6 +1123,8 @@ public class MainActivity extends AppCompatActivity {
         definirFaixaControleOnOutAtiva(false);
         faixaControleAguardandoDirecaoNoOn = false;
         sombraInferiorAtravessada = false;
+        sombraSuperiorAtravessada = false;
+        cicloControleAtravessadoPeloTopo = false;
         alternanciaSombraSuspensa = false;
         transicaoQuadroControlePendente = false;
         if (gerenciadorReproducao != null) {
@@ -1164,9 +1224,21 @@ public class MainActivity extends AppCompatActivity {
 
         atualizarPosicaoSombraControle(
                 controleEsquerdo,
+                findViewById(R.id.sombraSuperiorEsquerda),
+                true,
+                false
+        );
+        atualizarPosicaoSombraControle(
+                controleEsquerdo,
                 findViewById(R.id.sombraInferiorEsquerda),
                 true,
                 true
+        );
+        atualizarPosicaoSombraControle(
+                controleDireito,
+                findViewById(R.id.sombraSuperiorDireita),
+                false,
+                false
         );
         atualizarPosicaoSombraControle(
                 controleDireito,
@@ -1515,6 +1587,9 @@ public class MainActivity extends AppCompatActivity {
                                                         .entrouNaSombraInferior(
                                                                 progresso
                                                         );
+                                        sombraSuperiorAtravessada =
+                                                GifFramePositionMapper
+                                                        .entrouNaSombraSuperior(progresso);
                                         gerenciadorReproducao.definirIndiceQuadro(
                                                 indiceQuadroAoSegurarControle
                                         );
@@ -1543,7 +1618,10 @@ public class MainActivity extends AppCompatActivity {
                                     aguardandoMovimentoInicialControle = false;
                                 }
 
-                                atualizarFaixaControlePorProgresso(progresso);
+                                float progressoQuadro =
+                                        atualizarFaixaControlePorProgresso(
+                                                progresso
+                                        );
                                 if (gifTiming != null) {
                                     gifTiming.definirProgressoExibicao(
                                             progresso
@@ -1563,7 +1641,7 @@ public class MainActivity extends AppCompatActivity {
                                 int deslocamentoAlvo =
                                         movie.getCycleFrameOffsetForControlProgress(
                                                 segmentoControle,
-                                                progresso,
+                                                progressoQuadro,
                                                 faixaControleOnOutAtiva
                                         );
                                 progressoControlesAtual = progresso;
@@ -1589,6 +1667,8 @@ public class MainActivity extends AppCompatActivity {
                                 definirFaixaControleOnOutAtiva(false);
                                 faixaControleAguardandoDirecaoNoOn = false;
                                 sombraInferiorAtravessada = false;
+                                sombraSuperiorAtravessada = false;
+                                cicloControleAtravessadoPeloTopo = false;
                                 alternanciaSombraSuspensa = false;
                                 transicaoQuadroControlePendente = false;
                                 aguardandoMovimentoInicialControle = false;
@@ -1896,6 +1976,10 @@ public class MainActivity extends AppCompatActivity {
                 GifFramePositionMapper.entrouNaSombraInferior(
                         progressoControlesAtual
                 );
+        sombraSuperiorAtravessada =
+                GifFramePositionMapper.entrouNaSombraSuperior(
+                        progressoControlesAtual
+                );
     }
 
     private void cancelarTransicaoQuadroControle() {
@@ -1946,10 +2030,46 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        int indiceQuadro = gerenciadorReproducao.getIndiceQuadro();
         renderizadorGif.desenhar(
                 movie,
-                gerenciadorReproducao.getIndiceQuadro()
+                indiceQuadro
         );
+        int primeiroGo1 = movie.getIndicePrimeiroGo1();
+        int ultimoOut1 = movie.getIndiceUltimoOut1();
+        if (controleEsquerdo != null && controleDireito != null) {
+            boolean controlesLiberados =
+                    primeiroGo1 < 0 || indiceQuadro >= primeiroGo1;
+            controlesLiberados = controlesLiberados &&
+                    (ultimoOut1 < 0 || indiceQuadro <= ultimoOut1);
+            int visibilidade = controlesLiberados
+                    ? View.VISIBLE
+                    : View.GONE;
+            controleEsquerdo.setVisibility(visibilidade);
+            controleDireito.setVisibility(visibilidade);
+            if (gerenciadorControle != null) {
+                gerenciadorControle.definirHabilitado(controlesLiberados);
+            }
+            if (!controlesLiberados) {
+                definirVisibilidadeSombra(
+                        R.id.sombraInferiorEsquerda,
+                        View.GONE
+                );
+                definirVisibilidadeSombra(
+                        R.id.sombraInferiorDireita,
+                        View.GONE
+                );
+                definirVisibilidadeSombra(
+                        R.id.sombraSuperiorEsquerda,
+                        View.GONE
+                );
+                definirVisibilidadeSombra(
+                        R.id.sombraSuperiorDireita,
+                        View.GONE
+                );
+                return;
+            }
+        }
         atualizarVisibilidadeSombraInferior();
     }
 
@@ -1957,15 +2077,77 @@ public class MainActivity extends AppCompatActivity {
         if (movie == null || gerenciadorReproducao == null) {
             return;
         }
+        int indiceQuadro = gerenciadorReproducao.getIndiceQuadro();
+        int primeiroGo1 = movie.getIndicePrimeiroGo1();
+        int ultimoOut1 = movie.getIndiceUltimoOut1();
+        if ((primeiroGo1 >= 0 && indiceQuadro < primeiroGo1) ||
+                (ultimoOut1 >= 0 && indiceQuadro > ultimoOut1)) {
+            definirVisibilidadeSombra(
+                    R.id.sombraInferiorEsquerda,
+                    View.GONE
+            );
+            definirVisibilidadeSombra(
+                    R.id.sombraInferiorDireita,
+                    View.GONE
+            );
+            definirVisibilidadeSombra(
+                    R.id.sombraSuperiorEsquerda,
+                    View.GONE
+            );
+            definirVisibilidadeSombra(
+                    R.id.sombraSuperiorDireita,
+                    View.GONE
+            );
+            return;
+        }
         int cicloAtual = movie.getControlCycleIndexForFrame(
-                gerenciadorReproducao.getIndiceQuadro()
+                indiceQuadro
         );
         boolean podeAlternar = faixaControleOnOutAtiva
                 ? movie.hasRangeBeforeOn(cicloAtual)
                 : movie.hasRangeAfterOn(cicloAtual);
-        int visibilidade = podeAlternar ? View.VISIBLE : View.GONE;
-        definirVisibilidadeSombra(R.id.sombraInferiorEsquerda, visibilidade);
-        definirVisibilidadeSombra(R.id.sombraInferiorDireita, visibilidade);
+        boolean podeAlternarSuperior = faixaControleOnOutAtiva
+                ? movie.hasRangeAfterOn(cicloAtual)
+                : movie.hasRangeBeforeOn(cicloAtual);
+        int cicloAdjacenteSuperior = faixaControleOnOutAtiva
+                ? cicloAtual + 1
+                : cicloAtual - 1;
+        if (cicloAdjacenteSuperior < 0 ||
+                cicloAdjacenteSuperior >= movie.getCycleCount()) {
+            podeAlternarSuperior = false;
+        } else {
+            int quadroLimite = faixaControleOnOutAtiva
+                    ? movie.getCycleStartFrame(cicloAdjacenteSuperior)
+                    : movie.getCycleStartFrame(cicloAdjacenteSuperior) +
+                            movie.getCycleTotalFrameCount(
+                                    cicloAdjacenteSuperior
+                            ) - 1;
+            podeAlternarSuperior = podeAlternarSuperior &&
+                    quadroLimite >= movie.getIndicePrimeiroGo1() &&
+                    quadroLimite <= movie.getIndiceUltimoOut1();
+        }
+        int visibilidadeInferior = podeAlternar
+                ? View.VISIBLE
+                : View.GONE;
+        int visibilidadeSuperior = podeAlternarSuperior
+                ? View.VISIBLE
+                : View.GONE;
+        definirVisibilidadeSombra(
+                R.id.sombraInferiorEsquerda,
+                visibilidadeInferior
+        );
+        definirVisibilidadeSombra(
+                R.id.sombraInferiorDireita,
+                visibilidadeInferior
+        );
+        definirVisibilidadeSombra(
+                R.id.sombraSuperiorEsquerda,
+                visibilidadeSuperior
+        );
+        definirVisibilidadeSombra(
+                R.id.sombraSuperiorDireita,
+                visibilidadeSuperior
+        );
     }
 
     private void definirVisibilidadeSombra(int idSombra, int visibilidade) {
@@ -2191,6 +2373,8 @@ public class MainActivity extends AppCompatActivity {
         definirFaixaControleOnOutAtiva(false);
         faixaControleAguardandoDirecaoNoOn = false;
         sombraInferiorAtravessada = false;
+        sombraSuperiorAtravessada = false;
+        cicloControleAtravessadoPeloTopo = false;
         progressoControlesAtual = 0.5f;
         gerenciadorControle.moverControles(progressoControlesAtual);
         gerenciadorReproducao.definirIndiceQuadro(
@@ -2222,6 +2406,8 @@ public class MainActivity extends AppCompatActivity {
         definirFaixaControleOnOutAtiva(false);
         faixaControleAguardandoDirecaoNoOn = false;
         sombraInferiorAtravessada = false;
+        sombraSuperiorAtravessada = false;
+        cicloControleAtravessadoPeloTopo = false;
         progressoControlesAtual = 0.5f;
         gerenciadorReproducao.definirIndiceQuadro(
                 movie.getFrameForSegment(indice)
@@ -2244,6 +2430,7 @@ public class MainActivity extends AppCompatActivity {
             boolean movimentoParaCima,
             float progresso,
             boolean aguardarDirecaoNoOn) {
+        cicloControleAtravessadoPeloTopo = false;
         int quadroAtual = gerenciadorReproducao.getIndiceQuadro();
         int cicloAtual = movie.getControlCycleIndexForFrame(quadroAtual);
         int deslocamentoOn = movie.getCycleOnFrameOffset(cicloAtual);
@@ -2266,12 +2453,18 @@ public class MainActivity extends AppCompatActivity {
         }
         sombraInferiorAtravessada =
                 GifFramePositionMapper.entrouNaSombraInferior(progresso);
+        sombraSuperiorAtravessada =
+                GifFramePositionMapper.entrouNaSombraSuperior(progresso);
         atualizarVisibilidadeSombraInferior();
     }
 
-    private void atualizarFaixaControlePorProgresso(float progresso) {
+    private float atualizarFaixaControlePorProgresso(float progresso) {
         if (alternanciaSombraSuspensa) {
-            return;
+            return cicloControleAtravessadoPeloTopo
+                    ? GifFramePositionMapper.progressoAposSombraSuperior(
+                            progresso
+                    )
+                    : progresso;
         }
         boolean entrouNaSombraInferior =
                 GifFramePositionMapper.entrouNaSombraInferior(progresso);
@@ -2295,6 +2488,54 @@ public class MainActivity extends AppCompatActivity {
             sombraInferiorAtravessada = false;
         }
 
+        boolean entrouNaSombraSuperior =
+                GifFramePositionMapper.entrouNaSombraSuperior(progresso);
+        if (entrouNaSombraSuperior) {
+            if (!sombraSuperiorAtravessada && movie != null &&
+                    gerenciadorReproducao != null) {
+                sombraSuperiorAtravessada = true;
+                int cicloAtual = movie.getControlCycleIndexForFrame(
+                        gerenciadorReproducao.getIndiceQuadro()
+                );
+                int cicloAdjacente = faixaControleOnOutAtiva
+                        ? cicloAtual + 1
+                        : cicloAtual - 1;
+                if (cicloAdjacente >= 0 &&
+                        cicloAdjacente < movie.getCycleCount()) {
+                    int quadroLimite = faixaControleOnOutAtiva
+                            ? movie.getCycleStartFrame(cicloAdjacente)
+                            : movie.getCycleStartFrame(cicloAdjacente) +
+                                    movie.getCycleTotalFrameCount(
+                                            cicloAdjacente
+                                    ) - 1;
+                    boolean dentroDaFaixaMarcada =
+                            quadroLimite >= movie.getIndicePrimeiroGo1() &&
+                                    quadroLimite <=
+                                            movie.getIndiceUltimoOut1();
+                    if (dentroDaFaixaMarcada) {
+                        definirFaixaControleOnOutAtiva(
+                                !faixaControleOnOutAtiva
+                        );
+                        cicloControleAtravessadoPeloTopo = true;
+                        gerenciadorReproducao.definirIndiceQuadro(
+                                quadroLimite
+                        );
+                        if (transicaoQuadroControleAtiva) {
+                            cicloTransicaoQuadroControle = cicloAdjacente;
+                        }
+                    }
+                }
+                atualizarVisibilidadeSombraInferior();
+            }
+        } else {
+            sombraSuperiorAtravessada = false;
+        }
+
+        return cicloControleAtravessadoPeloTopo
+                ? GifFramePositionMapper.progressoAposSombraSuperior(
+                        progresso
+                )
+                : progresso;
     }
 
     private String obterTextoSegmento(int indice) {

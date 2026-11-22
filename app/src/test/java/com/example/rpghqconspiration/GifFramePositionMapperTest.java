@@ -113,6 +113,32 @@ public class GifFramePositionMapperTest {
     }
 
     @Test
+    public void sombraSuperiorDetectaAEntradaPeloLimiteSuperior() {
+        assertEquals(
+                true,
+                GifFramePositionMapper.entrouNaSombraSuperior(0.1f)
+        );
+        assertEquals(
+                true,
+                GifFramePositionMapper.entrouNaSombraSuperior(0.09f)
+        );
+        assertEquals(
+                false,
+                GifFramePositionMapper.entrouNaSombraSuperior(0.11f)
+        );
+        assertEquals(
+                0f,
+                GifFramePositionMapper.progressoAposSombraSuperior(0.1f),
+                0f
+        );
+        assertEquals(
+                1f,
+                GifFramePositionMapper.progressoAposSombraSuperior(1f),
+                0.0001f
+        );
+    }
+
+    @Test
     public void selecionaSubtrechoPelaPosicaoAtualEConsideraDirecaoNoOn() {
         assertEquals(
                 false,

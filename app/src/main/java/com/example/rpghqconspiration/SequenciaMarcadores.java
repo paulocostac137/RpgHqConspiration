@@ -7,10 +7,22 @@ final class SequenciaMarcadores {
     private int ultimoIndiceQuadro = -1;
 
     boolean podeAdicionar(char marcacao, int indiceQuadro) {
-        return totalMarcacoes < TOTAL_MARCACOES
-                && marcacao == obterProximaMarcacao()
-                && (totalMarcacoes == 0
-                || indiceQuadro > ultimoIndiceQuadro);
+        if (totalMarcacoes >= TOTAL_MARCACOES ||
+                marcacao != obterProximaMarcacao()) {
+            return false;
+        }
+        if (totalMarcacoes == 0) {
+            return true;
+        }
+
+        boolean inicioNovoCiclo =
+                marcacao == 'G'
+                        && (totalMarcacoes == 3
+                        || totalMarcacoes == 6);
+        if (inicioNovoCiclo) {
+            return indiceQuadro >= ultimoIndiceQuadro;
+        }
+        return indiceQuadro > ultimoIndiceQuadro;
     }
 
     boolean adicionar(char marcacao, int indiceQuadro) {

@@ -93,4 +93,21 @@ public class SequenciaMarcadoresTest {
         sequencia.adicionar('T', 2);
         assertTrue(sequencia.temPeloMenosTresMarcacoes());
     }
+
+    @Test
+    public void permiteGoNoMesmoQuadroDeOutAoIniciarCicloNovo() {
+        SequenciaMarcadores sequencia = new SequenciaMarcadores();
+
+        assertTrue(sequencia.adicionar('G', 2));
+        assertTrue(sequencia.adicionar('O', 4));
+        assertTrue(sequencia.adicionar('T', 6));
+
+        assertTrue(sequencia.podeAdicionar('G', 6));
+        assertTrue(sequencia.adicionar('G', 6));
+        assertTrue(sequencia.adicionar('O', 8));
+        assertTrue(sequencia.adicionar('T', 10));
+
+        assertTrue(sequencia.podeAdicionar('G', 10));
+        assertTrue(sequencia.adicionar('G', 10));
+    }
 }

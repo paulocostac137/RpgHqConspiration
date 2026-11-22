@@ -7,6 +7,7 @@ import android.os.SystemClock;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -34,6 +35,8 @@ public class ResultadoGifActivity extends AppCompatActivity {
     private MarcadoresBarraView marcadoresBarraQuadros;
     private Button botaoFinalizar;
     private EditText campoTextoImagem;
+    private LinearLayout controlesMarcadores;
+    private LinearLayout controlesNavegacao;
     private final ExecutorService executor =
             Executors.newSingleThreadExecutor();
     private String linkGif;
@@ -88,6 +91,10 @@ public class ResultadoGifActivity extends AppCompatActivity {
         botaoGo = findViewById(R.id.botaoGo);
         botaoOn = findViewById(R.id.botaoOn);
         botaoOut = findViewById(R.id.botaoOut);
+        controlesMarcadores =
+                findViewById(R.id.controlesMarcadoresResultado);
+        controlesNavegacao =
+                findViewById(R.id.controlesNavegacaoResultado);
         botaoVoltar.setOnClickListener(view -> finish());
         botaoFinalizar.setOnClickListener(view -> finalizarMarcadores());
 
@@ -104,6 +111,9 @@ public class ResultadoGifActivity extends AppCompatActivity {
             marcadoresBarraQuadros.setVisibility(
                     MarcadoresBarraView.GONE
             );
+            if (controlesNavegacao != null) {
+                controlesNavegacao.setVisibility(LinearLayout.GONE);
+            }
             atualizarBotoesMarcadores();
             return;
         }
@@ -315,6 +325,9 @@ public class ResultadoGifActivity extends AppCompatActivity {
         if (barraQuadros.getProgress() != indiceQuadro) {
             barraQuadros.setProgress(indiceQuadro);
         }
+        controlesMarcadores.setVisibility(LinearLayout.VISIBLE);
+        controlesNavegacao.setVisibility(LinearLayout.VISIBLE);
+        marcadoresBarraQuadros.setVisibility(MarcadoresBarraView.VISIBLE);
         atualizarBotoesMarcadores();
     }
 

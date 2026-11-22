@@ -71,11 +71,7 @@ public final class GerenciadorReproducaoGif {
     }
 
     private long obterDuracaoQuadro(int indice) {
-        int totalQuadros = sequencia.getFrameCount();
-        long duracaoTotal = sequencia.getDurationMs();
-        long inicio = (long) indice * duracaoTotal / totalQuadros;
-        long fim = (long) (indice + 1) * duracaoTotal / totalQuadros;
-        return Math.max(1L, fim - inicio);
+        return sequencia.getDuracaoQuadroMs(indice);
     }
 
     public void iniciar(GifFrameSequence sequencia) {

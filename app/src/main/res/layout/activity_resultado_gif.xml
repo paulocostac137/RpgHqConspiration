@@ -90,6 +90,7 @@
             android:textStyle="bold" />
 
         <LinearLayout
+            android:id="@+id/controlesMarcadoresResultado"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="end|center_vertical"
@@ -125,6 +126,7 @@
         </LinearLayout>
 
         <LinearLayout
+            android:id="@+id/controlesNavegacaoResultado"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom"
