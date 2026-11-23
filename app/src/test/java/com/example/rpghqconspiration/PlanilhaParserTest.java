@@ -11,6 +11,51 @@ import static org.junit.Assert.assertThrows;
 public class PlanilhaParserTest {
 
     @Test
+    public void associaNumeroDeControleAOrdemDasLinhasComGif() {
+        ArrayList<String> nomes = new ArrayList<>();
+        ArrayList<String> links = new ArrayList<>();
+        ArrayList<String> textos = new ArrayList<>();
+        ArrayList<Integer> repeticoes = new ArrayList<>();
+        ArrayList<FaixaRepeticaoGif> faixas = new ArrayList<>();
+        ArrayList<Integer> controles = new ArrayList<>();
+
+        PlanilhaParser.preencherListas(
+                "Pov000,Link,Express,Controle,Go1,On1,Out1\n" +
+                        "Pov001,https://example.com/1.gif,um,2,1,2,3\n" +
+                        "\n" +
+                        "Pov002,https://example.com/2.gif,dois,1,4,5,6\n",
+                nomes,
+                links,
+                textos,
+                repeticoes,
+                faixas,
+                controles
+        );
+
+        assertEquals(2, controles.size());
+        assertEquals(Integer.valueOf(2), controles.get(0));
+        assertEquals(Integer.valueOf(1), controles.get(1));
+    }
+
+    @Test
+    public void controleAusenteOuEmBrancoNaoHabilitaControles() {
+        ArrayList<Integer> controles = new ArrayList<>();
+
+        PlanilhaParser.preencherListas(
+                "Pov000,Link,Express,Controle,Go1,On1,Out1\n" +
+                        "Pov001,https://example.com/1.gif,um,,1,2,3\n",
+                new ArrayList<>(),
+                new ArrayList<>(),
+                new ArrayList<>(),
+                new ArrayList<>(),
+                new ArrayList<>(),
+                controles
+        );
+
+        assertEquals(Integer.valueOf(0), controles.get(0));
+    }
+
+    @Test
     public void usaExpressComoColunaDeTexto() {
         ArrayList<String> nomes = new ArrayList<>();
         ArrayList<String> links = new ArrayList<>();

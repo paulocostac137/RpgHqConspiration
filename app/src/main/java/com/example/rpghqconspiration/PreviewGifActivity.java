@@ -44,12 +44,14 @@ public final class PreviewGifActivity extends AppCompatActivity {
     private boolean sombraSuperiorAtravessada;
     private boolean cicloControleAtravessadoPeloTopo;
     private boolean destruindo;
+    private int controleGif;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_preview_gif);
         ModoImersivo.ativar(getWindow());
+        controleGif = getIntent().getIntExtra("controle_gif", 0);
 
         Button botaoVoltar = findViewById(R.id.botaoVoltarPreview);
         Button botaoPov = findViewById(R.id.botaoPovPreview);
@@ -378,7 +380,8 @@ public final class PreviewGifActivity extends AppCompatActivity {
         imagemGif.setImageBitmap(bitmap);
 
         boolean controlesVisiveis =
-                sequencia.isFrameProvenienteDeMarcadores(quadro);
+                controleGif == 1 &&
+                        sequencia.isFrameProvenienteDeMarcadores(quadro);
         int visibilidade = controlesVisiveis ? View.VISIBLE : View.GONE;
         containerControleEsquerdo.setVisibility(visibilidade);
         containerControleDireito.setVisibility(visibilidade);

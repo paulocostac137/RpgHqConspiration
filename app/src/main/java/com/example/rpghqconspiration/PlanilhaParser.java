@@ -56,12 +56,32 @@ public final class PlanilhaParser {
             ArrayList<String> textosPlanilha,
             ArrayList<Integer> repeticoes,
             ArrayList<FaixaRepeticaoGif> faixasRepetidas) {
+        preencherListas(
+                conteudo,
+                nomes,
+                links,
+                textosPlanilha,
+                repeticoes,
+                faixasRepetidas,
+                new ArrayList<>()
+        );
+    }
+
+    public static void preencherListas(
+            String conteudo,
+            ArrayList<String> nomes,
+            ArrayList<String> links,
+            ArrayList<String> textosPlanilha,
+            ArrayList<Integer> repeticoes,
+            ArrayList<FaixaRepeticaoGif> faixasRepetidas,
+            ArrayList<Integer> controles) {
 
         nomes.clear();
         links.clear();
         textosPlanilha.clear();
         repeticoes.clear();
         faixasRepetidas.clear();
+        controles.clear();
 
         String[] linhas = conteudo.split("\\n");
         if (linhas.length == 0) {
@@ -74,6 +94,7 @@ public final class PlanilhaParser {
         int colunaNome = localizarColuna(cabecalhos, "Pov000");
         int colunaLink = localizarColuna(cabecalhos, "Link");
         int colunaTexto = localizarColuna(cabecalhos, "Express");
+        int colunaControle = localizarColunaOpcional(cabecalhos, "Controle");
         localizarColuna(cabecalhos, "Go1");
         localizarColuna(cabecalhos, "On1");
         localizarColuna(cabecalhos, "Out1");
@@ -107,6 +128,10 @@ public final class PlanilhaParser {
                 links.add(link);
                 textosPlanilha.add(texto);
                 repeticoes.add(1);
+                controles.add(lerNumeroControle(
+                        valorColuna(colunas, colunaControle),
+                        numeroLinha + 1
+                ));
                 faixasRepetidas.add(
                         extrairFaixasRepetidas(
                                 colunas,
@@ -254,6 +279,21 @@ public final class PlanilhaParser {
                         " precisa conter um único número de quadro positivo " +
                         "na linha " + numeroLinha + "."
         );
+    }
+
+    private static int lerNumeroControle(String valor, int numeroLinha) {
+        if (valor.trim().isEmpty()) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(valor.trim());
+        } catch (NumberFormatException erro) {
+            throw new IllegalArgumentException(
+                            "A coluna Controle precisa conter um número inteiro " +
+                                    "na linha " + numeroLinha + ".",
+                            erro
+            );
+        }
     }
 
     private static int localizarColuna(

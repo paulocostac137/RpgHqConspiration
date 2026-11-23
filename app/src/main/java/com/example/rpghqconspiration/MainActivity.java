@@ -69,6 +69,7 @@ public class MainActivity extends AppCompatActivity {
     private final ArrayList<Integer> repeticoesCiclos = new ArrayList<>();
     private final ArrayList<FaixaRepeticaoGif> faixasRepetidas =
             new ArrayList<>();
+    private final ArrayList<Integer> controlesPlanilha = new ArrayList<>();
 
     // =====================================================
     // EXECUÇÃO
@@ -373,6 +374,9 @@ public class MainActivity extends AppCompatActivity {
         boolean ehDono = modoIndividual || ehDonoDoControle();
         boolean quadroMarcado = movie != null &&
                 gerenciadorReproducao != null &&
+                gifPossuiControleNoQuadro(
+                        gerenciadorReproducao.getIndiceQuadro()
+                ) &&
                 movie.isFrameProvenienteDeMarcadores(
                         gerenciadorReproducao.getIndiceQuadro()
                 );
@@ -391,6 +395,20 @@ public class MainActivity extends AppCompatActivity {
         int visibilidade = mostrar ? View.VISIBLE : View.GONE;
         controleEsquerdo.setVisibility(visibilidade);
         controleDireito.setVisibility(visibilidade);
+    }
+
+    private boolean gifPossuiControleAtual(int indiceGif) {
+        if (indiceGif < 0 || indiceGif >= controlesPlanilha.size()) {
+            return false;
+        }
+        return controlesPlanilha.get(indiceGif) == 1;
+    }
+
+    private boolean gifPossuiControleNoQuadro(int indiceQuadro) {
+        return movie != null &&
+                indiceQuadro >= 0 &&
+                indiceQuadro < movie.getFrameCount() &&
+                gifPossuiControleAtual(movie.getSegmentIndex(indiceQuadro));
     }
 
     private boolean papelEhUsuarioB(String papel) {
@@ -1618,6 +1636,7 @@ public class MainActivity extends AppCompatActivity {
                                         controleRemotoAtivo
                                 );
 
+                                progressoControlesAtual = progresso;
                                 int segmentoControle =
                                         transicaoQuadroControleAtiva
                                                 ? cicloTransicaoQuadroControle
@@ -1628,7 +1647,6 @@ public class MainActivity extends AppCompatActivity {
                                                 progressoQuadro,
                                                 faixaControleOnOutAtiva
                                         );
-                                progressoControlesAtual = progresso;
                                 atualizarQuadroPeloControle(
                                         segmentoControle,
                                         deslocamentoAlvo
@@ -1771,6 +1789,7 @@ public class MainActivity extends AppCompatActivity {
                                 textosPlanilha.clear();
                                 repeticoesCiclos.clear();
                                 faixasRepetidas.clear();
+                                controlesPlanilha.clear();
 
                                 nomes.addAll(resultado.getNomes());
                                 links.addAll(resultado.getLinks());
@@ -1780,6 +1799,9 @@ public class MainActivity extends AppCompatActivity {
                                 );
                                 faixasRepetidas.addAll(
                                         resultado.getFaixasRepetidas()
+                                );
+                                controlesPlanilha.addAll(
+                                        resultado.getControles()
                                 );
                                 planilhaCarregada = true;
 
@@ -2021,7 +2043,8 @@ public class MainActivity extends AppCompatActivity {
         );
         if (controleEsquerdo != null && controleDireito != null) {
             boolean controlesLiberados =
-                    movie.isFrameProvenienteDeMarcadores(indiceQuadro);
+                    gifPossuiControleNoQuadro(indiceQuadro) &&
+                            movie.isFrameProvenienteDeMarcadores(indiceQuadro);
             int visibilidade = controlesLiberados
                     ? View.VISIBLE
                     : View.GONE;

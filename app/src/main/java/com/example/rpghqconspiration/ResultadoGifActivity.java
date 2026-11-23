@@ -6,16 +6,20 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.widget.Button;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
 import java.util.List;
+import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -38,6 +42,7 @@ public class ResultadoGifActivity extends AppCompatActivity {
     private EditText campoTextoImagem;
     private LinearLayout controlesMarcadores;
     private LinearLayout controlesNavegacao;
+    private Integer controleAplicado;
     private final ExecutorService executor =
             Executors.newSingleThreadExecutor();
     private String linkGif;
@@ -100,6 +105,7 @@ public class ResultadoGifActivity extends AppCompatActivity {
         botaoVoltar.setOnClickListener(view -> finish());
         botaoFinalizar.setOnClickListener(view -> finalizarMarcadores());
         botaoVer.setOnClickListener(view -> abrirPreview());
+        configurarSeletorControle();
 
         linkGif = getIntent().getStringExtra("link_gif");
         sequencia = ResultadoProcessamentoGif.consumir();
@@ -177,6 +183,49 @@ public class ResultadoGifActivity extends AppCompatActivity {
                 view -> adicionarMarcadorAtual("T")
         );
         mostrarQuadro(0);
+    }
+
+    private void configurarSeletorControle() {
+        Spinner seletorControle =
+                findViewById(R.id.seletorControleResultado);
+        ArrayList<String> opcoes = new ArrayList<>();
+        opcoes.add("Controles...");
+        for (int numero = 1; numero <= 5; numero++) {
+            opcoes.add(String.format(
+                    java.util.Locale.ROOT,
+                    "Controle %02d",
+                    numero
+            ));
+        }
+        ArrayAdapter<String> adaptador = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_spinner_item,
+                opcoes
+        );
+        adaptador.setDropDownViewResource(
+                android.R.layout.simple_spinner_dropdown_item
+        );
+        seletorControle.setAdapter(adaptador);
+        seletorControle.setOnItemSelectedListener(
+                new AdapterView.OnItemSelectedListener() {
+                    @Override
+                    public void onItemSelected(
+                            AdapterView<?> parent,
+                            android.view.View view,
+                            int position,
+                            long id) {
+                        controleAplicado =
+                                position >= 1 && position <= 5
+                                        ? position
+                                        : null;
+                    }
+
+                    @Override
+                    public void onNothingSelected(AdapterView<?> parent) {
+                        controleAplicado = null;
+                    }
+                }
+        );
     }
 
     private void adicionarMarcadorAtual(String letra) {
@@ -338,6 +387,14 @@ public class ResultadoGifActivity extends AppCompatActivity {
         if (sequencia == null) {
             return;
         }
+        if (controleAplicado == null) {
+            Toast.makeText(
+                    this,
+                    "Selecione um controle antes de abrir a prévia.",
+                    Toast.LENGTH_SHORT
+            ).show();
+            return;
+        }
 
         GifFrameSequence preview = null;
         try {
@@ -346,7 +403,42 @@ public class ResultadoGifActivity extends AppCompatActivity {
                     marcadoresBarraQuadros.obterFaixasRepetidas()
             );
             ResultadoProcessamentoGif.publicarPreview(preview);
-            startActivity(new Intent(this, PreviewGifActivity.class));
+            final GifFrameSequence previewCriado = preview;
+            final Integer controleOverride = controleAplicado;
+            executor.execute(() -> {
+                try {
+                    int numeroControle = controleOverride != null
+                            ? controleOverride
+                            : obterNumeroControleDaPlanilha(linkGif);
+                    handler.post(() -> {
+                        if (isFinishing() || isDestroyed()) {
+                            ResultadoProcessamentoGif.limparPreview();
+                            previewCriado.liberar();
+                            return;
+                        }
+                        Intent intent = new Intent(
+                                ResultadoGifActivity.this,
+                                PreviewGifActivity.class
+                        );
+                        intent.putExtra("controle_gif", numeroControle);
+                        startActivity(intent);
+                    });
+                } catch (Exception erro) {
+                    handler.post(() -> {
+                        ResultadoProcessamentoGif.limparPreview();
+                        previewCriado.liberar();
+                        if (!isFinishing() && !isDestroyed()) {
+                            Toast.makeText(
+                                    this,
+                                    "Não foi possível consultar o controle " +
+                                            "do GIF na planilha: " +
+                                            erro.getMessage(),
+                                    Toast.LENGTH_LONG
+                            ).show();
+                        }
+                    });
+                }
+            });
         } catch (IllegalArgumentException | IllegalStateException erro) {
             ResultadoProcessamentoGif.limparPreview();
             if (preview != null) {
@@ -358,6 +450,43 @@ public class ResultadoGifActivity extends AppCompatActivity {
                     Toast.LENGTH_SHORT
             ).show();
         }
+    }
+
+    private int obterNumeroControleDaPlanilha(String link) throws Exception {
+        if (link == null || link.trim().isEmpty()) {
+            return 0;
+        }
+
+        String conteudo = new PlanilhaRepository().baixarConteudo();
+        ArrayList<String> nomes = new ArrayList<>();
+        ArrayList<String> links = new ArrayList<>();
+        ArrayList<String> textos = new ArrayList<>();
+        ArrayList<Integer> repeticoes = new ArrayList<>();
+        ArrayList<FaixaRepeticaoGif> faixas = new ArrayList<>();
+        ArrayList<Integer> controles = new ArrayList<>();
+
+        PlanilhaParser.preencherListas(
+                conteudo,
+                nomes,
+                links,
+                textos,
+                repeticoes,
+                faixas,
+                controles
+        );
+
+        String idInformado = GoogleDriveUtils.extrairId(link);
+        if (idInformado == null) {
+            return 0;
+        }
+        for (int i = 0; i < links.size(); i++) {
+            if (idInformado.equals(
+                    GoogleDriveUtils.extrairId(links.get(i)))) {
+                return controles.get(i);
+            }
+        }
+
+        return 0;
     }
 
     @Override

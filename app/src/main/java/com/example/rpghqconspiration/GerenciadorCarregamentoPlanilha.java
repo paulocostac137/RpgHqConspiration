@@ -29,19 +29,22 @@ public final class GerenciadorCarregamentoPlanilha {
         private final ArrayList<String> textos;
         private final ArrayList<Integer> repeticoes;
         private final ArrayList<FaixaRepeticaoGif> faixasRepetidas;
+        private final ArrayList<Integer> controles;
 
         private Resultado(
                 ArrayList<String> nomes,
                 ArrayList<String> links,
                 ArrayList<String> textos,
                 ArrayList<Integer> repeticoes,
-                ArrayList<FaixaRepeticaoGif> faixasRepetidas) {
+                ArrayList<FaixaRepeticaoGif> faixasRepetidas,
+                ArrayList<Integer> controles) {
 
             this.nomes = new ArrayList<>(nomes);
             this.links = new ArrayList<>(links);
             this.textos = new ArrayList<>(textos);
             this.repeticoes = new ArrayList<>(repeticoes);
             this.faixasRepetidas = new ArrayList<>(faixasRepetidas);
+            this.controles = new ArrayList<>(controles);
         }
 
         public ArrayList<String> getNomes() {
@@ -62,6 +65,10 @@ public final class GerenciadorCarregamentoPlanilha {
 
         public ArrayList<FaixaRepeticaoGif> getFaixasRepetidas() {
             return new ArrayList<>(faixasRepetidas);
+        }
+
+        public ArrayList<Integer> getControles() {
+            return new ArrayList<>(controles);
         }
 
         public int getQuantidade() {
@@ -160,6 +167,8 @@ public final class GerenciadorCarregamentoPlanilha {
                         new ArrayList<>();
                 ArrayList<FaixaRepeticaoGif> faixasRepetidas =
                         new ArrayList<>();
+                ArrayList<Integer> controles =
+                        new ArrayList<>();
 
                 PlanilhaParser.preencherListas(
                         conteudo,
@@ -167,7 +176,8 @@ public final class GerenciadorCarregamentoPlanilha {
                         links,
                         textos,
                         repeticoes,
-                        faixasRepetidas
+                        faixasRepetidas,
+                        controles
                 );
 
                 Resultado resultado = new Resultado(
@@ -175,7 +185,8 @@ public final class GerenciadorCarregamentoPlanilha {
                         links,
                         textos,
                         repeticoes,
-                        faixasRepetidas
+                        faixasRepetidas,
+                        controles
                 );
 
                 Log.d(
